@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
+#include <limits.h>
+#include <math.h>
 #include "evaluator_internal.h"
 #include "internal.h"
 
@@ -109,15 +111,29 @@ static void qo_print_internal(Qo q, int depth) {
         case QO_SHORT:
             qo_printf("%ldh", (long)QO_SHORT_VAL(q));
             break;
-        case QO_INT:
-            qo_printf("%ldi", (long)QO_INT_VAL(q));
+        case QO_INT: {
+            int32_t iv = QO_INT_VAL(q);
+            if (iv == INT32_MIN) qo_printf("0Ni");
+            else if (iv == INT32_MAX) qo_printf("0Wi");
+            else if (iv == INT32_MIN + 1) qo_printf("-0Wi");
+            else qo_printf("%ldi", (long)iv);
             break;
-        case QO_LONG:
-            qo_printf("%ld", QO_LONG_VAL(q));
+        }
+        case QO_LONG: {
+            int64_t lv = QO_LONG_VAL(q);
+            if (lv == INT64_MIN) qo_printf("0N");
+            else if (lv == INT64_MAX) qo_printf("0W");
+            else if (lv == INT64_MIN + 1) qo_printf("-0W");
+            else qo_printf("%ld", lv);
             break;
-        case QO_FLOAT:
-            qo_printf("%gf", QO_FLOAT_VAL(q));
+        }
+        case QO_FLOAT: {
+            double fv = QO_FLOAT_VAL(q);
+            if (isnan(fv)) qo_printf("0Nf");
+            else if (isinf(fv)) qo_printf(fv > 0 ? "0Wf" : "-0Wf");
+            else qo_printf("%gf", fv);
             break;
+        }
         case QO_CHAR:
             qo_printf("'%c'", QO_CHAR_VAL(q));
             break;
@@ -176,7 +192,11 @@ static void qo_print_internal(Qo q, int depth) {
             }
             for (int64_t i = 0; i < n; i++) {
                 if (i > 0) qo_printf(" ");
-                qo_printf("%ld", (long)QO_INT_DATA(q)[i]);
+                int32_t v = QO_INT_DATA(q)[i];
+                if (v == INT32_MIN) qo_printf("0N");
+                else if (v == INT32_MAX) qo_printf("0W");
+                else if (v == INT32_MIN + 1) qo_printf("-0W");
+                else qo_printf("%ld", (long)v);
             }
             qo_printf("i");
             break;
@@ -189,7 +209,11 @@ static void qo_print_internal(Qo q, int depth) {
             }
             for (int64_t i = 0; i < n; i++) {
                 if (i > 0) qo_printf(" ");
-                qo_printf("%ld", QO_LONG_DATA(q)[i]);
+                int64_t v = QO_LONG_DATA(q)[i];
+                if (v == INT64_MIN) qo_printf("0N");
+                else if (v == INT64_MAX) qo_printf("0W");
+                else if (v == INT64_MIN + 1) qo_printf("-0W");
+                else qo_printf("%ld", v);
             }
             break;
         }
@@ -201,7 +225,10 @@ static void qo_print_internal(Qo q, int depth) {
             }
             for (int64_t i = 0; i < n; i++) {
                 if (i > 0) qo_printf(" ");
-                qo_printf("%g", QO_FLOAT_DATA(q)[i]);
+                double v = QO_FLOAT_DATA(q)[i];
+                if (isnan(v)) qo_printf("0N");
+                else if (isinf(v)) qo_printf(v > 0 ? "0W" : "-0W");
+                else qo_printf("%g", v);
             }
             qo_printf("f");
             break;

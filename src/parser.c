@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <limits.h>
+#include <math.h>
 #include "internal.h"
 #include "parser.h"
 #include "evaluator_internal.h"
@@ -62,19 +63,26 @@ static int is_special_int_literal(const Token *token) {
 
 static Qo make_special_int_value(const Token *token, char final_suffix) {
     int use_int = (final_suffix == 'i');
-    if (!use_int && final_suffix != '\0' && final_suffix != 'j') {
-        fprintf(stderr, "Error: special literal requires i or j suffix\n");
+    int use_float = (final_suffix == 'f');
+    if (!use_int && !use_float && final_suffix != '\0' && final_suffix != 'j') {
+        fprintf(stderr, "Error: special literal requires i, j, or f suffix\n");
         return NULL;
     }
 
-    if (strcmp(token->lexeme, "0N") == 0) {
-        return use_int ? make_int_value(INT32_MIN) : make_long_value(INT64_MIN);
-    }
-    if (strcmp(token->lexeme, "0W") == 0) {
-        return use_int ? make_int_value(INT32_MAX) : make_long_value(INT64_MAX);
-    }
-    if (strcmp(token->lexeme, "-0W") == 0) {
-        return use_int ? make_int_value(INT32_MIN + 1) : make_long_value(INT64_MIN + 1);
+    if (use_float) {
+        if (strcmp(token->lexeme, "0N") == 0) return make_float_value(NAN);
+        if (strcmp(token->lexeme, "0W") == 0) return make_float_value(INFINITY);
+        if (strcmp(token->lexeme, "-0W") == 0) return make_float_value(-INFINITY);
+    } else {
+        if (strcmp(token->lexeme, "0N") == 0) {
+            return use_int ? make_int_value(INT32_MIN) : make_long_value(INT64_MIN);
+        }
+        if (strcmp(token->lexeme, "0W") == 0) {
+            return use_int ? make_int_value(INT32_MAX) : make_long_value(INT64_MAX);
+        }
+        if (strcmp(token->lexeme, "-0W") == 0) {
+            return use_int ? make_int_value(INT32_MIN + 1) : make_long_value(INT64_MIN + 1);
+        }
     }
 
     fprintf(stderr, "Error: invalid special literal\n");

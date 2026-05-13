@@ -7,10 +7,6 @@
 #include "lexer.h"
 #include "internal.h"
 
-static int is_int_suffix_char(char c) {
-    return c == 'h' || c == 'i' || c == 'j';
-}
-
 static int is_type_suffix_char(char c) {
     return c == 'h' || c == 'i' || c == 'j' || c == 'f';
 }
@@ -69,8 +65,8 @@ Token* lexer_next_token(Lexer *lexer) {
 
     char ch = lexer->input[lexer->pos];
 
-     /* Special int/long sentinels: 0N, 0Ni, 0Nj, 0W, 0Wi, 0Wj, -0W, -0Wi, -0Wj.
-         Unsuffixed sentinels default to long (suffix j). */
+     /* Special int/long/float sentinels: 0N, 0Ni, 0Nj, 0Nf, 0W, 0Wi, 0Wj, 0Wf,
+         -0W, -0Wi, -0Wj, -0Wf. Unsuffixed sentinels default to long (suffix j). */
     {
         int p = lexer->pos;
         int has_sign = 0;
@@ -86,14 +82,14 @@ Token* lexer_next_token(Lexer *lexer) {
             char suffix = '\0';
             int end = p + 2;
 
-            if (is_int_suffix_char(lexer->input[end])) {
+            if (is_type_suffix_char(lexer->input[end])) {
                 suffix = lexer->input[end];
                 end++;
             } else {
                 suffix = 'j';
             }
 
-            if (suffix == 'i' || suffix == 'j') {
+            if (suffix == 'i' || suffix == 'j' || suffix == 'f') {
                 char next = lexer->input[end];
                 if (!(isalnum((unsigned char)next) || next == '_' || next == '.')) {
                     char value[4];
@@ -103,7 +99,7 @@ Token* lexer_next_token(Lexer *lexer) {
                     value[len++] = marker;
                     value[len] = '\0';
                     lexer->pos = end;
-                    return token_new(TOKEN_NUMBER, value, false, suffix, start_pos);
+                    return token_new(TOKEN_NUMBER, value, suffix == 'f', suffix, start_pos);
                 }
             }
         }

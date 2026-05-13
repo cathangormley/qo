@@ -83,11 +83,6 @@ static int apply_numeric_op(double left, double right, TokenType op,
             *out = left * right;
             return 1;
         case TOKEN_PERCENT:
-            if (right == 0) {
-                fprintf(stderr, "Error: division by zero\n");
-                evaluator_request_error();
-                return 0;
-            }
             *out = left / right;
             *is_div_or_mod = 1;
             return 1;
@@ -729,7 +724,7 @@ static uint8_t scalar_to_vector_type(uint8_t scalar_type) {
 static Qo eval_numeric_vector_binop(Qo left, Qo right, TokenType op) {
     uint8_t lt = QO_TYPE(left);
     uint8_t rt = QO_TYPE(right);
-    int use_float = lt == QO_FLOAT || lt == QO_FLOAT_VEC || rt == QO_FLOAT || rt == QO_FLOAT_VEC;
+    int use_float = lt == QO_FLOAT || lt == QO_FLOAT_VEC || rt == QO_FLOAT || rt == QO_FLOAT_VEC || op == TOKEN_PERCENT;
 
     if (use_float) {
         int left_is_vec = is_numeric_vector_type(lt);
