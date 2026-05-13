@@ -181,13 +181,13 @@ static Qo eval_builtin_not(Qo arg, Environment *env) {
         int64_t n = qo_count(arg);
         Qo result = alloc_data_vec(QO_BOOL_VEC, n);
         for (int64_t i = 0; i < n; i++) {
-            double val = 0.0;
-            if (t == QO_SHORT_VEC) val = (double)qo_short_data(arg)[i];
-            else if (t == QO_INT_VEC) val = (double)qo_int_data(arg)[i];
-            else if (t == QO_LONG_VEC) val = (double)qo_long_data(arg)[i];
-            else if (t == QO_FLOAT_VEC) val = qo_float_data(arg)[i];
-            else if (t == QO_BOOL_VEC) val = (double)qo_bool_data(arg)[i];
-            qo_bool_data(result)[i] = (val == 0.0) ? 1 : 0;
+            int zero;
+            if (t == QO_SHORT_VEC) zero = (qo_short_data(arg)[i] == 0);
+            else if (t == QO_INT_VEC) zero = (qo_int_data(arg)[i] == 0);
+            else if (t == QO_LONG_VEC) zero = (qo_long_data(arg)[i] == 0);
+            else if (t == QO_FLOAT_VEC) zero = (qo_float_data(arg)[i] == 0.0);
+            else zero = (qo_bool_data(arg)[i] == 0);
+            qo_bool_data(result)[i] = zero ? 1 : 0;
         }
         return result;
     }
@@ -969,7 +969,7 @@ static Qo eval_apply_value(Qo head, Qo *args, int arg_count, Environment *env) {
     /* Multi-index: numeric vector, bool vector, or list of indices */
     if (args[0] != NULL) {
         uint8_t it = qo_type(args[0]);
-        if (is_numeric_vector_type(it) || it == QO_BOOL_VEC || it == QO_LIST) {
+        if (is_numeric_vector_type(it) || it == QO_LIST) {
             if (head == NULL) EVAL_ERROR("cannot index null");
             uint8_t ht = qo_type(head);
             if (!is_vector_type(ht) && ht != QO_DICT) EVAL_ERROR("value is not indexable");
@@ -986,6 +986,7 @@ static Qo eval_apply_value(Qo head, Qo *args, int arg_count, Environment *env) {
                 result = alloc_data_vec(ht, n);
             }
 
+            if (it == QO_FLOAT_VEC && ht != QO_DICT) { qo_release(result); EVAL_ERROR("index must be numeric"); }
             for (int64_t i = 0; i < n; i++) {
                 if (ht == QO_DICT) {
                     Qo key;
@@ -993,6 +994,7 @@ static Qo eval_apply_value(Qo head, Qo *args, int arg_count, Environment *env) {
                     else if (it == QO_INT_VEC) key = make_int_value(qo_int_data(args[0])[i]);
                     else if (it == QO_LONG_VEC) key = make_long_value(qo_long_data(args[0])[i]);
                     else if (it == QO_FLOAT_VEC) key = make_float_value(qo_float_data(args[0])[i]);
+                    else if (it == QO_BOOL_VEC) key = make_bool_value(qo_bool_data(args[0])[i]);
                     else key = value_copy(qo_ptr_data(args[0])[i]);
 
                     int found = 0;
@@ -1009,7 +1011,6 @@ static Qo eval_apply_value(Qo head, Qo *args, int arg_count, Environment *env) {
                         EVAL_ERROR("dictionary key not found");
                     }
                 } else {
-                    if (it == QO_FLOAT_VEC) { qo_release(result); EVAL_ERROR("index must be numeric"); }
                     int64_t idx;
                     if (it == QO_SHORT_VEC) idx = qo_short_data(args[0])[i];
                     else if (it == QO_INT_VEC) idx = qo_int_data(args[0])[i];
