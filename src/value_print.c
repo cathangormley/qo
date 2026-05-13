@@ -1,0 +1,317 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdarg.h>
+#include "evaluator_internal.h"
+#include "internal.h"
+
+static void qo_print_internal(Qo q, int depth);
+static char *qo_print_buffer;
+static size_t qo_print_buffer_len;
+static size_t qo_print_buffer_cap;
+static int qo_print_buffering;
+
+/* Writes text either directly to stdout or into the temporary print buffer. */
+static void qo_print_emit(const char *text, size_t len) {
+    if (len == 0) return;
+    if (!qo_print_buffering) {
+        fwrite(text, 1, len, stdout);
+        return;
+    }
+    if (qo_print_buffer_len + len + 1 > qo_print_buffer_cap) {
+        size_t new_cap = qo_print_buffer_cap == 0 ? 128 : qo_print_buffer_cap;
+        while (qo_print_buffer_len + len + 1 > new_cap) new_cap *= 2;
+        qo_print_buffer = xrealloc(qo_print_buffer, new_cap);
+        qo_print_buffer_cap = new_cap;
+    }
+    memcpy(qo_print_buffer + qo_print_buffer_len, text, len);
+    qo_print_buffer_len += len;
+    qo_print_buffer[qo_print_buffer_len] = '\0';
+}
+
+/* printf-style helper that routes formatted text through qo_print_emit(). */
+static void qo_printf(const char *fmt, ...) {
+    va_list ap;
+    va_list ap_copy;
+    int needed;
+    char *buf;
+
+    va_start(ap, fmt);
+    va_copy(ap_copy, ap);
+    needed = vsnprintf(NULL, 0, fmt, ap_copy);
+    va_end(ap_copy);
+    if (needed <= 0) {
+        va_end(ap);
+        return;
+    }
+
+    buf = xmalloc((size_t)needed + 1);
+    vsnprintf(buf, (size_t)needed + 1, fmt, ap);
+    va_end(ap);
+
+    qo_print_emit(buf, (size_t)needed);
+    free(buf);
+}
+
+/* Renders list values, with top-level row-style formatting for mixed vector rows. */
+static void qo_print_list_style(Qo q, int depth) {
+    int64_t n = QO_COUNT(q);
+
+    if (depth == 0) {
+        for (int64_t i = 0; i < n; i++) {
+            if (i > 0) qo_printf("\n");
+            qo_print_internal(QO_LIST_DATA(q)[i], depth + 1);
+        }
+        return;
+    }
+
+    qo_printf("(");
+    for (int64_t i = 0; i < n; i++) {
+        if (i > 0) qo_printf(";");
+        qo_print_internal(QO_LIST_DATA(q)[i], depth + 1);
+    }
+    qo_printf(")");
+}
+
+/* Renders function values from source when available, otherwise from body expressions. */
+static void qo_print_function_style(Qo q, int depth) {
+    int64_t sl = QO_FN_SL(q);
+    if (sl > 0) {
+        qo_printf("%s", QO_FN_SOURCE(q));
+        return;
+    }
+    qo_printf("{");
+    for (int64_t i = 0; i < QO_FN_BC(q); i++) {
+        if (i > 0) qo_printf("; ");
+        qo_print_internal(QO_FN_BODY(q)[i], depth + 1);
+    }
+    qo_printf("}");
+}
+
+/* Renders projection values as function[arg0;arg1;...]. */
+static void qo_print_projection_style(Qo q, int depth) {
+    qo_print_internal(QO_PROJ_FUNC(q), depth + 1);
+    qo_printf("[");
+    for (int64_t i = 0; i < QO_PROJ_AC(q); i++) {
+        if (i > 0) qo_printf(";");
+        if (QO_PROJ_ARGS(q)[i] != NULL && QO_TYPE(QO_PROJ_ARGS(q)[i]) != QO_PROJECTOR) {
+            qo_print_internal(QO_PROJ_ARGS(q)[i], depth + 1);
+        }
+    }
+    qo_printf("]");
+}
+
+/* Recursive dispatcher that renders every Qo runtime type. */
+static void qo_print_internal(Qo q, int depth) {
+    if (q == NULL) return;
+
+    switch (QO_TYPE(q)) {
+        case QO_SHORT:
+            qo_printf("%ldh", (long)QO_SHORT_VAL(q));
+            break;
+        case QO_INT:
+            qo_printf("%ldi", (long)QO_INT_VAL(q));
+            break;
+        case QO_LONG:
+            qo_printf("%ld", QO_LONG_VAL(q));
+            break;
+        case QO_FLOAT:
+            qo_printf("%gf", QO_FLOAT_VAL(q));
+            break;
+        case QO_CHAR:
+            qo_printf("'%c'", QO_CHAR_VAL(q));
+            break;
+        case QO_BOOL:
+            qo_printf("%ldb", (long)QO_BOOL_VAL(q));
+            break;
+        case QO_BYTE:
+            qo_printf("0x%02x", (unsigned int)QO_BYTE_VAL(q));
+            break;
+        case QO_PROJECTOR:
+            qo_printf("P");
+            break;
+        case QO_SYMBOL:
+            qo_printf("`%s", qo_symbol_name(q));
+            break;
+        case QO_KEYWORD:
+            qo_printf("%s", QO_STR(q));
+            break;
+        case QO_CHAR_VEC: {
+            int64_t n = QO_COUNT(q);
+            qo_printf("\"");
+            for (int64_t i = 0; i < n; i++) qo_printf("%c", QO_CHAR_DATA(q)[i]);
+            qo_printf("\"");
+            break;
+        }
+        case QO_BOOL_VEC: {
+            int64_t n = QO_COUNT(q);
+            for (int64_t i = 0; i < n; i++) qo_printf("%ld", (long)QO_BOOL_DATA(q)[i]);
+            qo_printf("b");
+            break;
+        }
+        case QO_BYTE_VEC: {
+            int64_t n = QO_COUNT(q);
+            qo_printf("0x");
+            for (int64_t i = 0; i < n; i++) qo_printf("%02x", (unsigned int)QO_BYTE_DATA(q)[i]);
+            break;
+        }
+        case QO_SHORT_VEC: {
+            int64_t n = QO_COUNT(q);
+            if (n == 0) {
+                qo_printf("[]");
+                break;
+            }
+            for (int64_t i = 0; i < n; i++) {
+                if (i > 0) qo_printf(" ");
+                qo_printf("%ld", (long)QO_SHORT_DATA(q)[i]);
+            }
+            qo_printf("h");
+            break;
+        }
+        case QO_INT_VEC: {
+            int64_t n = QO_COUNT(q);
+            if (n == 0) {
+                qo_printf("[]");
+                break;
+            }
+            for (int64_t i = 0; i < n; i++) {
+                if (i > 0) qo_printf(" ");
+                qo_printf("%ld", (long)QO_INT_DATA(q)[i]);
+            }
+            qo_printf("i");
+            break;
+        }
+        case QO_LONG_VEC: {
+            int64_t n = QO_COUNT(q);
+            if (n == 0) {
+                qo_printf("[]");
+                break;
+            }
+            for (int64_t i = 0; i < n; i++) {
+                if (i > 0) qo_printf(" ");
+                qo_printf("%ld", QO_LONG_DATA(q)[i]);
+            }
+            break;
+        }
+        case QO_FLOAT_VEC: {
+            int64_t n = QO_COUNT(q);
+            if (n == 0) {
+                qo_printf("[]");
+                break;
+            }
+            for (int64_t i = 0; i < n; i++) {
+                if (i > 0) qo_printf(" ");
+                qo_printf("%g", QO_FLOAT_DATA(q)[i]);
+            }
+            qo_printf("f");
+            break;
+        }
+        case QO_SYM_VEC: {
+            int64_t n = QO_COUNT(q);
+            qo_printf("[");
+            for (int64_t i = 0; i < n; i++) {
+                if (i > 0) qo_printf(";");
+                qo_print_internal(QO_LIST_DATA(q)[i], depth + 1);
+            }
+            qo_printf("]");
+            break;
+        }
+        case QO_LIST:
+            qo_print_list_style(q, depth);
+            break;
+        case QO_FUNCTION:
+            qo_print_function_style(q, depth);
+            break;
+        case QO_PROJECTION:
+            qo_print_projection_style(q, depth);
+            break;
+        case QO_DICT: {
+            int64_t n = QO_DICT_COUNT(q);
+            for (int64_t i = 0; i < n; i++) {
+                if (i > 0) qo_printf("\n");
+                qo_print_internal(QO_DICT_KEYS(q)[i], depth + 1);
+                qo_printf(" | ");
+                qo_print_internal(QO_DICT_VALS(q)[i], depth + 1);
+            }
+            break;
+        }
+        default:
+            break;
+    }
+}
+
+/* Public entry point for full value rendering without output limits. */
+void qo_print(Qo q) {
+    qo_print_internal(q, 0);
+}
+
+/* Emits one line with max width handling and '..' truncation marker when needed. */
+static void qo_print_emit_trimmed_line(const char *line, size_t len, int max_chars, int force_ellipsis) {
+    if (max_chars <= 0) return;
+    if ((int)len <= max_chars && !force_ellipsis) {
+        if (len > 0) fwrite(line, 1, len, stdout);
+        return;
+    }
+    if (max_chars <= 2) {
+        for (int i = 0; i < max_chars; i++) fputc('.', stdout);
+        return;
+    }
+
+    if ((int)len >= max_chars) {
+        fwrite(line, 1, (size_t)(max_chars - 2), stdout);
+        fwrite("..", 1, 2, stdout);
+        return;
+    }
+
+    if (len > 0) fwrite(line, 1, len, stdout);
+    fwrite("..", 1, 2, stdout);
+}
+
+/* Public entry point that renders with maximum line and per-line character limits. */
+void qo_print_with_limits(Qo q, int max_lines, int max_chars_per_line) {
+    char *prev_buffer = qo_print_buffer;
+    size_t prev_len = qo_print_buffer_len;
+    size_t prev_cap = qo_print_buffer_cap;
+    int prev_buffering = qo_print_buffering;
+    int line_count = 0;
+    size_t start = 0;
+
+    if (max_lines < 0 || max_chars_per_line < 0) {
+        qo_print(q);
+        return;
+    }
+
+    qo_print_buffering = 1;
+    qo_print_buffer = NULL;
+    qo_print_buffer_len = 0;
+    qo_print_buffer_cap = 0;
+    qo_print_internal(q, 0);
+
+    while (start < qo_print_buffer_len && line_count < max_lines) {
+        size_t end = start;
+        int has_more_lines;
+
+        while (end < qo_print_buffer_len && qo_print_buffer[end] != '\n') end++;
+        has_more_lines = (end < qo_print_buffer_len);
+        line_count += 1;
+
+        if (line_count == max_lines && (has_more_lines || end < qo_print_buffer_len)) {
+            qo_print_emit_trimmed_line("..", 2, max_chars_per_line, 0);
+            break;
+        }
+
+        qo_print_emit_trimmed_line(qo_print_buffer + start,
+                                   end - start,
+                                   max_chars_per_line,
+                                   0);
+        if (has_more_lines && line_count < max_lines) fputc('\n', stdout);
+        start = end + (has_more_lines ? 1 : 0);
+    }
+
+    free(qo_print_buffer);
+    qo_print_buffer = prev_buffer;
+    qo_print_buffer_len = prev_len;
+    qo_print_buffer_cap = prev_cap;
+    qo_print_buffering = prev_buffering;
+}
+

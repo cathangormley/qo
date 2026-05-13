@@ -1,0 +1,419 @@
+#!/bin/bash
+# Simple test suite for qo language
+
+PASS=0
+FAIL=0
+QO_BIN=${QO_BIN:-./qo}
+OUT80=$(printf '"'; printf 'a%.0s' {1..78}; printf '"')
+OUT81_TRUNC=$(printf '"'; printf 'c%.0s' {1..77}; printf '..')
+OUT25_LINES=$(printf '1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12\n13\n14\n15\n16\n17\n18\n19\n20\n21\n22\n23\n24\n..')
+OUT25_LINES_EXACT=$(printf '1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12\n13\n14\n15\n16\n17\n18\n19\n20\n21\n22\n23\n24\n25')
+
+test_case() {
+    local name="$1"
+    local input="$2"
+    local expected="$3"
+    
+    result=$(echo -e "$input\nexit 0" | "$QO_BIN" 2>&1 | sed 's/^qo>//' | grep -v "^Welcome" | grep -v "^Type" | grep -v "^$" | tail -1)
+    
+    if [ "$result" = "$expected" ]; then
+        echo "[PASS] $name"
+        PASS=$((PASS + 1))
+    else
+        echo "[FAIL] $name"
+        echo "  Input:    $input"
+        echo "  Expected: $expected"
+        echo "  Got:      $result"
+        FAIL=$((FAIL + 1))
+    fi
+}
+
+test_case_multiline() {
+    local name="$1"
+    local input="$2"
+    local expected="$3"
+    local expected_lines
+
+    expected_lines=$(printf '%s\n' "$expected" | wc -l)
+    result=$(echo -e "$input\nexit 0" | "$QO_BIN" 2>&1 | sed 's/^qo>//' | grep -v "^Welcome" | grep -v "^Type" | grep -v "^$" | tail -n "$expected_lines")
+
+    if [ "$result" = "$expected" ]; then
+        echo "[PASS] $name"
+        PASS=$((PASS + 1))
+    else
+        echo "[FAIL] $name"
+        echo "  Input:    $input"
+        echo "  Expected:"
+        echo "$expected" | sed 's/^/    /'
+        echo "  Got:"
+        echo "$result" | sed 's/^/    /'
+        FAIL=$((FAIL + 1))
+    fi
+}
+
+cd "$(dirname "$0")/.."
+echo "Running test suite..."
+echo ""
+
+# Arithmetic
+test_case "addition" "1 + 2" "3"
+test_case "addition_default_long_unsuffixed" "5 + 7" "12"
+test_case "addition_default_long_matches_j" "1 + 2j" "3"
+test_case "addition_int_preserves_int" "1i + 2i" "3i"
+test_case "addition_short_preserves_short" "1h + 2h" "3h"
+test_case "addition_mixed_promotes_int" "1h + 2i" "3i"
+test_case "addition_mixed_promotes_long" "1i + 2j" "3"
+test_case "negative_literal_in_expression" "1 + -2" "-1"
+test_case "negative_literal_multiplication" "2 * -3" "-6"
+test_case "negative_float_literal" "1 + -.5" "0.5f"
+test_case "vector_with_negative_int_element" "1 -2 4" "1 -2 4"
+test_case "vector_with_negative_float_element" "1 -0.5 4" "1 -0.5 4f"
+test_case "first_of_int_vector" "a:(1;2;3); first a" "1"
+test_case "last_of_int_vector" "a:(1;2;3); last a" "3"
+test_case "first_of_list" "a:(enlist 1; enlist 2; enlist 3); first a" "1"
+test_case "last_of_list" "a:(enlist 1; enlist 2; enlist 3); last a" "3"
+test_case "first_of_atom" "first 42" "42"
+test_case "last_of_atom" "last 42" "42"
+test_case "shell_echo" "shell \"echo hello\"" "\"hello\""
+test_case "shell_assign" "x: shell \"echo test\"; x" "\"test\""
+test_case "drop_positive" "3 _ (5;6;7;8;9)" "8 9"
+test_case "drop_negative" "-3 _ (1;2;3;4;5)" "1 2"
+test_case "drop_zero" "0 _ (1;2;3)" "1 2 3"
+test_case "drop_all" "5 _ (1;2;3;4;5)" "[]"
+test_case "drop_from_atom" "0 _ 42" "42"
+test_case "subtraction" "10 - 3" "7"
+test_case "subtraction_int_preserves_int" "5i - 2i" "3i"
+test_case "subtraction_mixed_promotes_long" "5i - 2j" "3"
+test_case "large_int_multiply_exact" "5000000001*1000000001" "5000000006000000001"
+test_case "percent_is_division" "5 % 2" "2.5f"
+test_case "slash_undefined" "5 / 2" "Error: operator '/' is undefined"
+test_case "right_to_left_addition_comma" "10 + 10, 20" "20 30"
+test_case "right_to_left_comma_addition" "10, 20 + 5" "10 25"
+test_case "equal_atom_true" "3=3" "1b"
+test_case "equal_atom_false" "3=4" "0b"
+test_case "equal_atom_vector" "3=(1;3;5)" "010b"
+test_case "equal_vector_atom" "(1;3;5)=3" "010b"
+test_case "equal_vector_vector" "(1;3;5)=(1;2;5)" "101b"
+test_case "equal_vector_length_mismatch" "(1;2)=(1;2;3)" "Error: cannot compare vectors of different lengths"
+test_case "less_atom_true" "1<2" "1b"
+test_case "less_atom_false" "2<1" "0b"
+test_case "greater_atom_true" "3>2" "1b"
+test_case "greater_atom_false" "2>3" "0b"
+test_case "less_atom_vector" "3<(1;3;5)" "001b"
+test_case "greater_atom_vector" "3>(1;3;5)" "100b"
+test_case "less_vector_atom" "(1;3;5)<3" "100b"
+test_case "greater_vector_atom" "(1;3;5)>3" "001b"
+test_case "less_vector_vector" "(1;4;3)<(2;2;3)" "100b"
+test_case "greater_vector_vector" "(1;4;3)>(2;2;3)" "010b"
+test_case "less_vector_length_mismatch" "(1;2)<(1;2;3)" "Error: cannot compare vectors of different lengths"
+test_case "greater_vector_length_mismatch" "(1;2)>(1;2;3)" "Error: cannot compare vectors of different lengths"
+
+# Vectors
+test_case "vector_creation" "1, 2, 3" "1 2 3"
+test_case "vector_join" "(1, 2), (3, 4)" "1 2 3 4"
+test_case "vector_index_bracket" "(3,2)[0]" "3"
+test_case "vector_index_implicit_apply" "(3,2) 0" "3"
+test_case "empty_list_literal" "()" ""
+test_case "list_literal" "(1;2;3)" "1 2 3"
+test_case "list_index_bracket" "(3;2)[0]" "3"
+
+# Element-wise operations
+test_case "vector_plus_atom" "(10, 20) + 5" "15 25"
+test_case "atom_times_vector" "2 * (1, 2, 3)" "2 4 6"
+test_case "list_plus_atom" "(1;2;3) + 5" "6 7 8"
+test_case_multiline "list_of_vectors_prints_newlines" "(3#1;2#2)" $'1 1 1\n2 2'
+test_case_multiline "top_level_row_list_nested_list_old_style" "(5#1;(2#3;4#5))" $'1 1 1 1 1\n(3 3;5 5 5 5)'
+test_case_multiline "output_exactly_25_lines" "(1#1;1#2;1#3;1#4;1#5;1#6;1#7;1#8;1#9;1#10;1#11;1#12;1#13;1#14;1#15;1#16;1#17;1#18;1#19;1#20;1#21;1#22;1#23;1#24;1#25)" "$OUT25_LINES_EXACT"
+test_case_multiline "output_truncates_after_25_lines" "(1#1;1#2;1#3;1#4;1#5;1#6;1#7;1#8;1#9;1#10;1#11;1#12;1#13;1#14;1#15;1#16;1#17;1#18;1#19;1#20;1#21;1#22;1#23;1#24;1#25;1#26)" "$OUT25_LINES"
+test_case "take_list_wrap" "5#(1;2;3)" "1 2 3 1 2"
+test_case "take_negative_from_back" "-2#(1;2;3;4)" "3 4"
+test_case "take_negative_wrap_from_back" "-5#(1;2;3)" "2 3 1 2 3"
+test_case "take_negative_char_from_back" "-2#\"abcd\"" "\"cd\""
+test_case "take_negative_atom_same_result" "-3#1" "1 1 1"
+test_case "take_atom_promotes_vector" "5#1" "1 1 1 1 1"
+
+# Variables
+test_case "variable_assignment" "x : 42\nx" "42"
+test_case "undefined_variable_errors" "a" "Error: undefined variable 'a'"
+test_case "vector_assignment" "v : 1, 2, 3\nv" "1 2 3"
+test_case "vector_in_expr" "w : 5, 10\nw + 1" "6 11"
+test_case "refcount_chain_expression" "refcount[a:b:c:100]" "3"
+test_case "list_assignment_and_use" "a:(1;2;3)+5; a" "6 7 8"
+test_case "infix_assignment_in_expression" "2 + a:3" "5"
+test_case "eval_assignment_tree" "eval(:;\`a;3)" "3"
+test_case "symbol_literal_distinct_from_var" "a:5; \`a" "\`a"
+test_case "empty_symbol_literal" "\`" "\`"
+test_case "empty_symbol_in_list" "(\`;\`a;\`b)" "[\`;\`a;\`b]"
+test_case "symbol_literal_equality" "\`foo=\`foo" "1b"
+test_case "symbol_literal_inequality" "\`foo=\`bar" "0b"
+test_case "symbol_assignment_equality" "a:\`foo; b:\`foo; a=b" "1b"
+test_case "symbol_assignment_stable_after_new_symbol" "a:\`foo; b:\`bar; c:\`foo; a=c" "1b"
+test_case "failed_assignment_does_not_bind" "a:2+\`sym\na" "Error: undefined variable 'a'"
+test_case "error_halts_nested_evaluation" "shell\"sleep 2\",2+\`a" "Error: arithmetic operations require numeric operands"
+test_case "exit_stops_sequence_immediately" "exit 1; print \"hello\"; exit 2" ""
+test_case "exit_bracket_stops_sequence" "exit[0]; print \"hello\"" ""
+
+# Strings and Characters
+test_case "char_literal" "'a'" "'a'"
+test_case "string_literal" "\"hello\"" "\"hello\""
+test_case "print_exact_80_chars" "78#'a'" "$OUT80"
+test_case "print_truncates_over_80_chars" "79#'c'" "$OUT81_TRUNC"
+test_case "char_concatenation" "'h', 'i'" "\"hi\""
+test_case "char_string_concat" "'a', \"bc\"" "\"abc\""
+test_case "string_concatenation" "\"hello\", \" \", \"world\"" "\"hello world\""
+test_case "print_keyword_string" "print \"hello\"" "hello"
+test_case "print_bracket_call_string" "print[\"world\"]" "world"
+test_case "string_assignment" "s : \"test\"\ns" "\"test\""
+test_case "char_assignment" "c : 'x'\nc" "'x'"
+
+# Semicolon-separated statements
+test_case "two_statements" "x : 5; x + 1" "6"
+test_case "three_statements" "a : 2 + 2; b : a + 1; a + b" "9"
+test_case "statement_with_vector" "v : 1, 2, 3; v + 10" "11 12 13"
+
+# Function calls and keywords
+test_case "sum_keyword" "a : (1;2;3); sum a" "6"
+test_case "count_list" "count (1;2;3)" "3i"
+test_case "count_vector" "count (1,2,3)" "3i"
+test_case "count_char_vector" "count \"abc\"" "3i"
+test_case "til_long" "til[5]" "0 1 2 3 4"
+test_case "til_int" "til[5i]" "0 1 2 3 4"
+test_case "til_short" "til[5h]" "0 1 2 3 4"
+test_case "min_long_vector" "min[5 2 9]" "2"
+test_case "max_long_vector" "max[5 2 9]" "9"
+test_case "min_int_vector" "min[5 2 9i]" "2i"
+test_case "max_int_vector" "max[5 2 9i]" "9i"
+test_case "min_short_vector" "min[5 2 9h]" "2h"
+test_case "max_short_vector" "max[5 2 9h]" "9h"
+test_case "min_float_vector" "min[5 2.5 9]" "2.5f"
+test_case "max_float_vector" "max[5 2.5 9]" "9f"
+test_case "min_scalar_short" "min[4h]" "4h"
+test_case "max_scalar_int" "max[4i]" "4i"
+test_case "min_scalar_long" "min[4]" "4"
+test_case "sum_bracket_call" "a : (1;2;3); sum[a]" "6"
+test_case "plus_bracket_call" "+[2;3]" "5"
+test_case "enlist_basic" "enlist[1;2;3]" "1 2 3"
+test_case "enlist_var_resolves" "a:5; enlist[a;10]" "5 10"
+test_case "enlist_symbol_literal_stays_symbol" "type enlist[\`a;10]" "\`list"
+test_case "enlist_homogeneous_long_promotes_vector" "enlist[1;2;3]" "1 2 3"
+test_case "enlist_homogeneous_int_promotes_vector" "enlist[1i;2i;3i]" "1 2 3i"
+test_case "enlist_homogeneous_short_promotes_vector" "enlist[1h;2h;3h]" "1 2 3h"
+test_case "enlist_homogeneous_float_promotes_vector" "enlist[1f;2f;3f]" "1 2 3f"
+test_case "enlist_homogeneous_char_promotes_string" "enlist['a';'b';'c']" "\"abc\""
+test_case "enlist_homogeneous_bool_promotes_bool_vector" "enlist[1b;0b;1b]" "101b"
+test_case "enlist_homogeneous_byte_promotes_byte_vector" "enlist[0x01;0x02;0x03]" "0x010203"
+test_case "enlist_homogeneous_symbol_promotes_sym_vector" "enlist[\`a;\`b;\`c]" "[\`a;\`b;\`c]"
+test_case "enlist_mixed_types_stays_list" "type enlist[1;2f;3]" "\`list"
+test_case "sum_inline_call" "sum[(1;2;3)]" "6"
+test_case "sum_scalar" "sum 5" "5"
+test_case "keyword_alias_call" "a:sum; a (5;4;3)" "12"
+test_case "now_type" "type now[]" "\`long"
+test_case "now_positive" "now[] > 0" "1b"
+test_case "now_nanosecond_scale" "now[] > 1000000000000000000" "1b"
+test_case "empty_brackets_passes_null" "f:{[x] type x}; f[]" "\`null"
+test_case "read_file" "read \"test/read_fixture.txt\"" "\"Hello world!\""
+test_case "read_file_with_at_apply" "read @ \"test/read_fixture.txt\"" "\"Hello world!\""
+test_case "read_alias_with_at_apply" "r:read; r @ \"test/read_fixture.txt\"" "\"Hello world!\""
+test_case "read_missing_file" "read \"test/does_not_exist.txt\"" "Error: cannot open file 'test/does_not_exist.txt'"
+test_case "sum_keyword_normal_precedence" "a : 1 2 3; sum a + 5" "21"
+test_case "sum_bracket_precedence" "a : (1;2;3); sum[a] + 5" "11"
+test_case "rtl_fn_over_op"           "a:1 2 3; f:{[x] x[0]+x[1]}; f a + 5"  "13"
+test_case "rtl_fn_scalar_op"         "f:{[x] x*2}; f 3 + 1"                  "8"
+test_case "rtl_chain_kw"             "count til 5"                            "5i"
+test_case "generic_bracket_args_parse" "f[1;2]" "Error: undefined variable 'f'"
+test_case_multiline "nested_lists" "a:(1;2); b:(a;a); b" $'1 2\n1 2'
+test_case "dict_lookup" "d:(1;2;3)!(4;5;6); d[3]" "6"
+test_case "dict_lookup_implicit_apply" "d:(1;2;3)!(4;5;6); d 3" "6"
+test_case "dict_keys" "d:(1;2;3)!(4;5;6); key[d]" "1 2 3"
+test_case "dict_values" "d:(1;2;3)!(4;5;6); value[d]" "4 5 6"
+test_case "dict_add_scalar" "d:2 + ((1;2;3)!(4;5;6)); d[3]" "8"
+test_case "dict_type" "type ((1;2)!(4;5))" "\`dict"
+test_case "dict_string_lookup" "d:\"abc\"!\"def\"; d['b']" "'e'"
+test_case "dict_string_lookup_implicit_apply" "d:\"abc\"!\"def\"; d'b'" "'e'"
+test_case "dict_string_key" "key[\"abc\"!\"def\"]" "\"abc\""
+test_case "dict_string_value" "value[\"abc\"!\"def\"]" "\"def\""
+
+# Parse exposure
+test_case_multiline "parse_bracket_form" "parse[\"2+2\"]" $'+\n2\n2'
+test_case "eval_parse_chain" "eval[parse[\"2+3\"]]" "5"
+test_case "eval_comma_list" "eval[parse[\"1,2,3\"]]" "1 2 3"
+test_case_multiline "parse_keyword_form" "parse \"sum a + 5\"" $'sum\n(+;`a;5)'
+test_case "symbol_literal" "\`foo" "\`foo"
+test_case "function_literal_print" "{1;2;3}" "{1;2;3}"
+test_case "function_literal_type" "type {1;2}" "\`function"
+test_case "function_with_params_print" "{[a;b] a+b}" "{[a;b] a+b}"
+test_case "function_with_single_param" "{[x] x*2}" "{[x] x*2}"
+test_case "function_with_three_params" "{[a;b;c] a+b+c}" "{[a;b;c] a+b+c}"
+test_case "function_call_two_args" "f:{[a;b] a+b}; f[2;3]" "5"
+test_case "function_call_uses_global" "g:10; f:{[a] a+g}; f[2]" "12"
+test_case "function_call_local_shadowing" "x:100; f:{[x] x+1}; f[2]" "3"
+test_case "function_local_assignment_not_global" "f:{[a] b:a+1; b}; f[2]; b" "Error: undefined variable 'b'"
+test_case "function_no_outer_local_capture" "outer:{[x] inner:{[y] x+y}; inner[3]}; outer[4]" "Error: undefined variable 'x'"
+test_case "parse_symbol_literal_wrapper" "parse \"\`foo\"" "\`foo"
+test_case_multiline "parse_symbols" "parse \"foo + bar\"" $'+\n`foo\n`bar'
+test_case_multiline "parse_dict" "parse \"(1;2)!(4;5)\"" $'!\n(enlist;1;2)\n(enlist;4;5)'
+test_case_multiline "lex_simple_arithmetic" "lex \"1 + 2\"" $'"1"\n"+"\n"2"'
+test_case_multiline "lex_function_call" "lex \"f[x]\"" $'"f"\n"["\n"x"\n"]"'
+test_case_multiline "lex_keyword" "lex \"sum a\"" $'"sum"\n"a"'
+test_case "lex_empty_string" "lex \"\"" ""
+test_case "lex_float" "lex \"3.14\"" "\"3.14\""
+test_case "lex_symbol" "lex \"\`foo\"" "\"\`foo\""
+test_case_multiline "lex_empty_symbol_plus" "lex \"\`+\"" $'"`"\n"+"'
+test_case_multiline "lex_empty_symbol_amp" "lex \"\`&\"" $'"`"\n"&"'
+test_case_multiline "lex_empty_symbol_semicolon" "lex \"\`;\"" $'"`"\n";"'
+test_case "parse_generic_call_head_type" "type first parse\"f[2;3]\"" "\`symbol"
+test_case_multiline "parse_projection_holes" "parse \"f[;x;;y]\"" $'`f\nP\n`x\nP\n`y'
+test_case "projection_partial_apply" "f:{[x;y] x+y}; g:f[2;]; g[3]" "5"
+test_case "projection_print" "f:{[x;y;z]x+y+z}; g:f[2;;3]; g" "{[x;y;z]x+y+z}[2;;3]"
+test_case "projection_type" "f:{[x;y] x+y}; type f[2;]" "\`projection"
+
+# Type builtin
+test_case "type_int" "type 2" "\`long"
+test_case "type_default_long_literal" "type 5" "\`long"
+test_case "default_long_literal_print" "5" "5"
+test_case "default_long_equals_j_suffix" "5 = 5j" "1b"
+test_case "single_long_suffix" "1j" "1"
+test_case "single_int_suffix" "1i" "1i"
+test_case "single_short_suffix" "1h" "1h"
+test_case "long_null_literal" "0Nj" "-9223372036854775808"
+test_case "long_null_default_literal" "0N" "-9223372036854775808"
+test_case "long_inf_literal" "0Wj" "9223372036854775807"
+test_case "long_inf_default_literal" "0W" "9223372036854775807"
+test_case "long_negative_inf_literal" "-0Wj" "-9223372036854775807"
+test_case "long_negative_inf_default_literal" "-0W" "-9223372036854775807"
+test_case "int_null_literal" "0Ni" "-2147483648i"
+test_case "int_inf_literal" "0Wi" "2147483647i"
+test_case "int_negative_inf_literal" "-0Wi" "-2147483647i"
+test_case "default_null_is_long" "0N = 0Nj" "1b"
+test_case "type_int_vector" "type (1;2)" "\`LONG"
+test_case "type_float" "type 2.0" "\`float"
+test_case "type_string" "type \"str\"" "\`CHAR"
+test_case "type_symbol" "type \`hello" "\`symbol"
+test_case "type_symbol_vector" "type (\`a;\`b)" "\`SYMBOL"
+test_case "type_nested_builtin" "type type 1" "\`symbol"
+test_case "type_keyword" "type sum" "\`keyword"
+
+# Float suffix parsing
+test_case "float_suffix_simple" "1f" "1f"
+test_case "float_suffix_decimal" "1.5f" "1.5f"
+test_case "float_suffix_type" "type 1f" "\`float"
+test_case "float_suffix_vector" "1 2.5 3f" "1 2.5 3f"
+test_case "float_suffix_vector_type" "type (1 2.5 3f)" "\`FLOAT"
+test_case "float_suffix_arithmetic" "1f + 2f" "3f"
+test_case "float_suffix_multiply" "1.5f * 2" "3f"
+test_case "float_suffix_mixed_with_decimal" "1 2.5 3f" "1 2.5 3f"
+
+# Suffix parsing rules
+test_case "suffix_only_last_int" "1 2 3i" "1 2 3i"
+test_case "suffix_only_last_short" "1 2 3h" "1 2 3h"
+test_case "suffix_none_defaults_long" "1 2 3" "1 2 3"
+test_case "suffix_invalid_first" "1i 2 3" "Error: Failed to parse expression"
+test_case "suffix_invalid_middle" "1 2i 3" "Error: Failed to parse expression"
+test_case "suffix_invalid_multiple" "1i 2h 3j" "Error: Failed to parse expression"
+test_case "suffix_invalid_all_suffixed_ints" "1i 2i 3i" "Error: Failed to parse expression"
+test_case "suffix_invalid_mixed_shorts" "1h 2h 3h" "Error: Failed to parse expression"
+test_case "suffix_invalid_mixed_order" "1j 2i 3h" "Error: Failed to parse expression"
+
+# Null type
+test_case "trailing_semicolon_is_null" "2+3;" ""
+test_case "parse_empty_string_is_null" "parse[\"\"]" ""
+test_case "type_of_null" "type[parse[\"\"]]" "\`null"
+
+# Single-element list unwrapping
+test_case "bare_builtin_print" "print" "print"
+test_case "bare_builtin_sum" "sum" "sum"
+test_case "bare_builtin_count" "count" "count"
+test_case "single_element_list_int" "(42)" "42"
+test_case "single_element_list_float" "(3.14)" "3.14f"
+test_case "single_element_list_string" "(\"hello\")" "\"hello\""
+test_case "single_element_list_symbol" "(\`foo)" "\`foo"
+test_case "single_element_list_symbol_eval" "s:\`test; (s)" "\`test"
+test_case "single_element_list_function" "f:{[x] x+1}; (f)" "{[x] x+1}"
+test_case "single_element_list_char_vector" "(\"abc\")" "\"abc\""
+test_case "nested_single_element_unwrap" "a:1; ((a))" "1"
+
+# Boolean literals and vectors
+test_case "bool_zero" "0b" "0b"
+test_case "bool_one" "1b" "1b"
+test_case "bool_vector" "1010011b" "1010011b"
+test_case "bool_vector_complex" "10101010b" "10101010b"
+test_case "count_bool_vector" "count 1010b" "4i"
+test_case "type_bool_scalar" "type 1b" "\`bool"
+test_case "type_bool_vector" "type 1010011b" "\`BOOL"
+test_case "byte_scalar_literal" "0x01" "0x01"
+test_case "byte_scalar_literal_odd_digits" "0x1" "0x01"
+test_case "byte_vector_literal" "0x0102" "0x0102"
+test_case "byte_vector_literal_odd_digits" "0x102" "0x0102"
+test_case "type_byte_scalar" "type 0x7f" "\`byte"
+test_case "type_byte_vector" "type 0x010203" "\`BYTE"
+test_case "ser_byte" "ser 0x01" "0x080001"
+test_case "ser_char" "ser 'c'" "0x030063"
+test_case "ser_char_vec_no_trailing_nul" "ser \"cd\"" "0x130002000000000000006364"
+test_case "drop_serialized_char_vec" "1 _ ser \"cd\"" "0x0002000000000000006364"
+test_case "ser_list_unsupported" "ser (1;2)" "0x1300020000000000000001000000000000000200000000000000"
+test_case "parse_bool" "parse\"1b\"" "1b"
+test_case "parse_bool_vector" "parse\"1010011b\"" "1010011b"
+test_case "bool_in_list" "(0b; 1b; 1b; 0b)" "0110b"
+test_case "bool_assignment" "b:10110b; b" "10110b"
+
+# @ operator (apply left to right as a single argument: f@x = f[x])
+test_case "at_fn_scalar"            "{[x] x*2}@5"                               "10"
+test_case "at_fn_vector_result"     "{[x] x+1}@1 2 3"                           "2 3 4"
+test_case "at_fn_sum_arg"           "{[x] sum x}@1 2 3"                         "6"
+test_case "at_chained"              "{[x] x+1}@{[x] x*2}@3"                     "7"
+test_case "at_variable"             "f:{[x] x*x}; f@4"                          "16"
+test_case "at_vec_index"            "(10 20 30 40)@2"                           "30"
+test_case "at_builtin_alias"        "f:sum; f@1 2 3"                            "6"
+test_case "at_with_list_arg"        "{[x] count x}@(1 2 3)"                     "3i"
+test_case "at_in_expression"        "2*{[x] x+3}@4"                             "14"
+test_case "at_identity"             "{[x] x}@42"                                "42"
+test_case "at_two_calls"            "f:{[x] x+1}; f@f@f@1"                      "4"
+test_case "at_projection_fill"      "f:{[x;y] x+y}; f[1;]@3"                    "4"
+test_case "at_nested_result"        "{[x] x*2}@{[x] x+10}@5"                    "30"
+test_case "at_callable_form"        "@[{[x] x-1};8]"                            "7"
+test_case "at_on_dict"              "d:(0 1 2)!(10 20 30); d@1"                 "20"
+
+# . operator (apply left to right, spreading list elements as args: f.(x;y;z)=f[x;y;z])
+test_case "dot_two_args"            "{[x;y] x+y} . (3;4)"                       "7"
+test_case "dot_three_args"          "{[x;y;z] x+y+z} . (1;2;3)"                 "6"
+test_case "dot_variable_fn"         "f:{[x;y] x*y}; f . (3;7)"                  "21"
+test_case "dot_non_list_rhs"        "{[x] x+10} . 5"                            "15"
+test_case "dot_enlist_rhs"          "{[x] x*2} . enlist 5"                      "10"
+test_case "dot_vec_args"            "{[x;y] x+y} . (1 2 3;10 20 30)"            "11 22 33"
+test_case "dot_subtraction"         "{[x;y] x-y} . (10;3)"                      "7"
+test_case "dot_join"                "{[x;y] x,y} . (1 2;3 4)"                   "1 2 3 4"
+test_case "dot_composed_args"       "{[x;y] x+y} . ({[x] x*2}@3;{[x] x+1}@4)"   "11"
+test_case "dot_four_args"           "{[a;b;c;d] a+b+c+d} . (1;2;3;4)"           "10"
+test_case "dot_callable_form"       ".[{[x;y] x*y};(3;5)]"                      "15"
+test_case "dot_single_via_enlist"   "f:{[x] x*x}; f . enlist 9"                 "81"
+test_case "dot_mixed_types"         "{[x;y] x+y} . (2.5;1.5)"                   "4f"
+
+# | and & operators (greater/lesser)
+test_case "pipe_long_scalar"         "4|5"                                      "5"
+test_case "amp_long_scalar"          "4&5"                                      "4"
+test_case "pipe_bool_scalar"         "1b|0b"                                    "1b"
+test_case "amp_bool_scalar"          "1b&0b"                                    "0b"
+test_case "pipe_char_scalar"         "'a'|'z'"                                  "'z'"
+test_case "amp_char_scalar"          "'a'&'z'"                                  "'a'"
+test_case "pipe_float_scalar"        "2.5|4"                                    "4"
+test_case "amp_float_scalar"         "2.5&4"                                    "2.5f"
+test_case "pipe_vector_vector"       "1 5 3 | 2 4 9"                            "2 5 9"
+test_case "amp_vector_vector"        "1 5 3 & 2 4 9"                            "1 4 3"
+test_case "pipe_vector_scalar"       "1 5 3 | 4"                                "4 5 4"
+test_case "amp_scalar_vector"        "4 & 1 5 3"                                "1 4 3"
+test_case "pipe_bool_vectors"        "1010b | 0101b"                            "1111b"
+test_case "amp_bool_vectors"         "1010b & 0101b"                            "0000b"
+test_case "pipe_char_vectors"        "\"az\" | \"by\""                          "\"bz\""
+test_case "amp_char_vectors"         "\"az\" & \"by\""                          "\"ay\""
+test_case "pipe_callable_form"       "|[2;9]"                                   "9"
+test_case "amp_callable_form"        "&[2;9]"                                   "2"
+test_case "pipe_in_expression"       "10+2|9"                                   "19"
+test_case "amp_in_expression"        "10+2&9"                                   "12"
+test_case "pipe_negatives"           "-5|-2"                                    "-2"
+test_case "amp_negatives"            "-5&-2"                                    "-5"
+test_case "pipe_len_mismatch"        "1 2|3 4 5"                                "Error: cannot compare vectors of different lengths"
+test_case "amp_non_numeric"          "\`a & 2"                                  "Error: operator requires int/float/bool/char operands"
+
+echo ""
+echo "Passed: $PASS, Failed: $FAIL"
+exit $FAIL
