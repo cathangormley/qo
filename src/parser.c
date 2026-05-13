@@ -246,6 +246,7 @@ static int is_keyword_identifier(Token *token) {
             strcmp(token->lexeme, "til") == 0 ||
             strcmp(token->lexeme, "parse") == 0 ||
             strcmp(token->lexeme, "lex") == 0 ||
+            strcmp(token->lexeme, "not") == 0 ||
             strcmp(token->lexeme, "type") == 0 ||
             strcmp(token->lexeme, "key") == 0 ||
             strcmp(token->lexeme, "value") == 0 ||

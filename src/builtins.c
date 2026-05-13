@@ -167,6 +167,49 @@ static Qo eval_builtin_lex(Qo arg, Environment *env) {
     return result;
 }
 
+static Qo eval_builtin_not(Qo arg, Environment *env) {
+    (void)env;
+    if (arg == NULL) EVAL_ERROR("not expects a numeric argument");
+    
+    uint8_t t = qo_type(arg);
+    if (is_numeric_scalar_type(t)) {
+        double val = value_as_double(arg);
+        return make_bool_value(val == 0.0);
+    }
+    
+    if (is_numeric_vector_type(t)) {
+        int64_t n = qo_count(arg);
+        Qo result = alloc_data_vec(QO_BOOL_VEC, n);
+        for (int64_t i = 0; i < n; i++) {
+            double val = 0.0;
+            if (t == QO_SHORT_VEC) val = (double)qo_short_data(arg)[i];
+            else if (t == QO_INT_VEC) val = (double)qo_int_data(arg)[i];
+            else if (t == QO_LONG_VEC) val = (double)qo_long_data(arg)[i];
+            else if (t == QO_FLOAT_VEC) val = qo_float_data(arg)[i];
+            else if (t == QO_BOOL_VEC) val = (double)qo_bool_data(arg)[i];
+            qo_bool_data(result)[i] = (val == 0.0) ? 1 : 0;
+        }
+        return result;
+    }
+    
+    if (t == QO_LIST) {
+        int64_t n = qo_count(arg);
+        Qo result = alloc_data_vec(QO_BOOL_VEC, n);
+        for (int64_t i = 0; i < n; i++) {
+            Qo elem = qo_ptr_data(arg)[i];
+            if (elem == NULL) {
+                qo_release(result);
+                EVAL_ERROR("not expects numeric arguments");
+            }
+            double val = value_as_double(elem);
+            qo_bool_data(result)[i] = (val == 0.0) ? 1 : 0;
+        }
+        return result;
+    }
+    
+    EVAL_ERROR("not expects a numeric argument");
+}
+
 static Qo eval_builtin_count(Qo arg, Environment *env) {
     (void)env;
     if (arg != NULL && is_vector_type(qo_type(arg))) return make_int_value((int32_t)qo_count(arg));
@@ -774,6 +817,7 @@ static Qo eval_apply_keyword(Qo head, Qo *arg_values, int arg_count, Environment
         {"refcount", eval_builtin_refcount},
         {"parse", eval_builtin_parse},
         {"lex",   eval_builtin_lex},
+        {"not",   eval_builtin_not},
         {"type",  eval_builtin_type},
         {"key",   eval_builtin_key},
         {"value", eval_builtin_value_fn},
