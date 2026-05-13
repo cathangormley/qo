@@ -972,55 +972,81 @@ static Qo eval_apply_value(Qo head, Qo *args, int arg_count, Environment *env) {
         if (is_numeric_vector_type(it) || it == QO_BOOL_VEC || it == QO_LIST) {
             if (head == NULL) EVAL_ERROR("cannot index null");
             uint8_t ht = qo_type(head);
-            if (!is_vector_type(ht)) EVAL_ERROR("value is not indexable");
+            if (!is_vector_type(ht) && ht != QO_DICT) EVAL_ERROR("value is not indexable");
 
             int64_t n = qo_count(args[0]);
-            int64_t head_n = qo_count(head);
+            int64_t head_n = (ht == QO_DICT) ? QO_DICT_COUNT(head) : qo_count(head);
             Qo result;
-            int is_ptr = (ht == QO_LIST || ht == QO_SYM_VEC);
+            int is_ptr = (ht == QO_LIST || ht == QO_SYM_VEC || ht == QO_DICT);
 
             if (is_ptr) {
-                result = alloc_ptr_vec(ht, n);
+                result = alloc_ptr_vec(ht == QO_DICT ? QO_LIST : ht, n);
                 memset(qo_ptr_data(result), 0, (size_t)n * sizeof(Qo));
             } else {
                 result = alloc_data_vec(ht, n);
             }
 
             for (int64_t i = 0; i < n; i++) {
-                double idx_d;
-                if (it == QO_SHORT_VEC) idx_d = (double)qo_short_data(args[0])[i];
-                else if (it == QO_INT_VEC) idx_d = (double)qo_int_data(args[0])[i];
-                else if (it == QO_LONG_VEC) idx_d = (double)qo_long_data(args[0])[i];
-                else if (it == QO_FLOAT_VEC) idx_d = qo_float_data(args[0])[i];
-                else if (it == QO_BOOL_VEC) idx_d = (double)qo_bool_data(args[0])[i];
-                else {
-                    Qo idx_elem = qo_ptr_data(args[0])[i];
-                    if (idx_elem == NULL || !is_numeric_scalar_type(qo_type(idx_elem))) {
-                        qo_release(result);
-                        EVAL_ERROR("index must be numeric");
+                if (ht == QO_DICT) {
+                    Qo key;
+                    if (it == QO_SHORT_VEC) key = make_short_value(qo_short_data(args[0])[i]);
+                    else if (it == QO_INT_VEC) key = make_int_value(qo_int_data(args[0])[i]);
+                    else if (it == QO_LONG_VEC) key = make_long_value(qo_long_data(args[0])[i]);
+                    else if (it == QO_FLOAT_VEC) key = make_float_value(qo_float_data(args[0])[i]);
+                    else key = value_copy(qo_ptr_data(args[0])[i]);
+
+                    int found = 0;
+                    for (int64_t j = 0; j < head_n; j++) {
+                        if (value_equals(QO_DICT_KEYS(head)[j], key)) {
+                            qo_ptr_data(result)[i] = value_copy(QO_DICT_VALS(head)[j]);
+                            found = 1;
+                            break;
+                        }
                     }
-                    idx_d = value_as_double(idx_elem);
-                }
-
-                int64_t idx = (int64_t)idx_d;
-                if (idx < 0 || idx >= head_n) {
-                    qo_release(result);
-                    EVAL_ERROR("index out of bounds");
-                }
-
-                if (is_ptr) {
-                    qo_ptr_data(result)[i] = dict_elem_copy(head, idx);
+                    qo_release(key);
+                    if (!found) {
+                        qo_release(result);
+                        EVAL_ERROR("dictionary key not found");
+                    }
                 } else {
-                    Qo elem = dict_elem_copy(head, idx);
-                    uint8_t et = qo_type(elem);
-                    if (et == QO_SHORT) qo_short_data(result)[i] = qo_short(elem);
-                    else if (et == QO_INT) qo_int_data(result)[i] = qo_int(elem);
-                    else if (et == QO_LONG) qo_long_data(result)[i] = qo_long(elem);
-                    else if (et == QO_FLOAT) qo_float_data(result)[i] = qo_float(elem);
-                    else if (et == QO_BOOL) qo_bool_data(result)[i] = qo_bool(elem);
-                    else if (et == QO_CHAR) qo_char_data(result)[i] = qo_char(elem);
-                    else if (et == QO_BYTE) qo_byte_data(result)[i] = qo_byte(elem);
-                    qo_release(elem);
+                    if (it == QO_FLOAT_VEC) { qo_release(result); EVAL_ERROR("index must be numeric"); }
+                    int64_t idx;
+                    if (it == QO_SHORT_VEC) idx = qo_short_data(args[0])[i];
+                    else if (it == QO_INT_VEC) idx = qo_int_data(args[0])[i];
+                    else if (it == QO_LONG_VEC) idx = qo_long_data(args[0])[i];
+                    else if (it == QO_BOOL_VEC) idx = qo_bool_data(args[0])[i];
+                    else {
+                        Qo e = qo_ptr_data(args[0])[i];
+                        uint8_t et;
+                        if (e == NULL || (et = qo_type(e)) == QO_FLOAT || !is_numeric_scalar_type(et)) {
+                            qo_release(result);
+                            EVAL_ERROR("index must be numeric");
+                        }
+                        if (et == QO_SHORT) idx = qo_short(e);
+                        else if (et == QO_INT) idx = qo_int(e);
+                        else if (et == QO_LONG) idx = qo_long(e);
+                        else idx = qo_bool(e);
+                    }
+
+                    if (idx < 0 || idx >= head_n) {
+                        qo_release(result);
+                        EVAL_ERROR("index out of bounds");
+                    }
+
+                    if (is_ptr) {
+                        qo_ptr_data(result)[i] = dict_elem_copy(head, idx);
+                    } else {
+                        Qo elem = dict_elem_copy(head, idx);
+                        uint8_t et = qo_type(elem);
+                        if (et == QO_SHORT) qo_short_data(result)[i] = qo_short(elem);
+                        else if (et == QO_INT) qo_int_data(result)[i] = qo_int(elem);
+                        else if (et == QO_LONG) qo_long_data(result)[i] = qo_long(elem);
+                        else if (et == QO_FLOAT) qo_float_data(result)[i] = qo_float(elem);
+                        else if (et == QO_BOOL) qo_bool_data(result)[i] = qo_bool(elem);
+                        else if (et == QO_CHAR) qo_char_data(result)[i] = qo_char(elem);
+                        else if (et == QO_BYTE) qo_byte_data(result)[i] = qo_byte(elem);
+                        qo_release(elem);
+                    }
                 }
             }
             return result;

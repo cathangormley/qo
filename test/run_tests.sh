@@ -139,6 +139,9 @@ test_case "vector_multi_index_list" "a:3 4 5; a[(0;2)]" "3 5"
 test_case "list_multi_index" "a:(10;20;30); a[0 2]" "10 30"
 test_case "char_vec_multi_index" "a:\"hello\"; a[0 1 2]" "\"hel\""
 test_case "multi_index_oob" "a:3 4 5; a[0 5]" "Error: index out of bounds"
+test_case_multiline "dict_multi_index" "d:til[10]!2*til 10; d[5 6 7]" $'10\n12\n14'
+test_case_multiline "dict_multi_index_list" "d:til[10]!2*til 10; d[(4;6)]" $'8\n12'
+test_case "dict_multi_index_missing" "d:(1;2;3)!(10;20;30); d[1 9]" "Error: dictionary key not found"
 test_case "empty_list_literal" "()" ""
 test_case "list_literal" "(1;2;3)" "1 2 3"
 test_case "list_index_bracket" "(3;2)[0]" "3"
