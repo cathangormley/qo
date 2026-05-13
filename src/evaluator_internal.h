@@ -67,6 +67,8 @@ Qo eval_drop(Qo left, Qo right);
 Qo eval_equals(Qo left, Qo right);
 Qo eval_less(Qo left, Qo right);
 Qo eval_greater(Qo left, Qo right);
+Qo eval_lte(Qo left, Qo right);
+Qo eval_gte(Qo left, Qo right);
 Qo eval_max_of(Qo left, Qo right);
 Qo eval_min_of(Qo left, Qo right);
 Qo eval_add(Qo left, Qo right);

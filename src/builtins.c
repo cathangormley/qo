@@ -730,6 +730,8 @@ static Qo eval_apply_keyword(Qo head, Qo *arg_values, int arg_count, Environment
         else if (op_token == TOKEN_EQUAL)      return eval_equals(arg_values[0], arg_values[1]);
         else if (op_token == TOKEN_LESS)       return eval_less(arg_values[0], arg_values[1]);
         else if (op_token == TOKEN_GREATER)    return eval_greater(arg_values[0], arg_values[1]);
+        else if (op_token == TOKEN_LE)         return eval_lte(arg_values[0], arg_values[1]);
+        else if (op_token == TOKEN_GE)         return eval_gte(arg_values[0], arg_values[1]);
         else if (op_token == TOKEN_PIPE)       return eval_max_of(arg_values[0], arg_values[1]);
         else if (op_token == TOKEN_AMP)        return eval_min_of(arg_values[0], arg_values[1]);
         else if (op_token == TOKEN_PLUS)       return eval_add(arg_values[0], arg_values[1]);
@@ -1063,6 +1065,8 @@ int operator_name_to_token(const char *name, TokenType *op) {
     if (strcmp(name, "=") == 0)  { *op = TOKEN_EQUAL;      return 1; }
     if (strcmp(name, "<") == 0)  { *op = TOKEN_LESS;       return 1; }
     if (strcmp(name, ">") == 0)  { *op = TOKEN_GREATER;    return 1; }
+    if (strcmp(name, "<=") == 0) { *op = TOKEN_LE;         return 1; }
+    if (strcmp(name, ">=") == 0) { *op = TOKEN_GE;         return 1; }
     if (strcmp(name, "|") == 0)  { *op = TOKEN_PIPE;       return 1; }
     if (strcmp(name, "&") == 0)  { *op = TOKEN_AMP;        return 1; }
     if (strcmp(name, "@") == 0)  { *op = TOKEN_AT;         return 1; }

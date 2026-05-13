@@ -23,6 +23,8 @@ typedef enum {
     TOKEN_EQUAL,
     TOKEN_LESS,
     TOKEN_GREATER,
+    TOKEN_LE,
+    TOKEN_GE,
     TOKEN_PIPE,
     TOKEN_AMP,
     TOKEN_COLON,

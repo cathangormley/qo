@@ -343,6 +343,31 @@ Qo eval_greater(Qo left, Qo right) {
     return eval_order_compare(left, right, 0);
 }
 
+static Qo negate_bool_result(Qo result) {
+    if (result == NULL) return result;
+    uint8_t t = qo_type(result);
+    if (t == QO_BOOL) {
+        return make_bool_value(!qo_bool(result));
+    }
+    if (t == QO_BOOL_VEC) {
+        Qo negated = alloc_data_vec(QO_BOOL_VEC, qo_count(result));
+        for (int64_t i = 0; i < qo_count(result); i++) {
+            qo_bool_data(negated)[i] = !qo_bool_data(result)[i];
+        }
+        qo_release(result);
+        return negated;
+    }
+    return result;
+}
+
+Qo eval_lte(Qo left, Qo right) {
+    return negate_bool_result(eval_greater(left, right));
+}
+
+Qo eval_gte(Qo left, Qo right) {
+    return negate_bool_result(eval_less(left, right));
+}
+
 static int is_order_scalar_type(uint8_t t) {
     /* Scalar types accepted by | and &: they compare by numeric ordering. */
     return t == QO_SHORT || t == QO_INT || t == QO_LONG ||
