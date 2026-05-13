@@ -70,11 +70,11 @@ int is_vector_type(uint8_t t) {
 }
 
 int is_numeric_scalar_type(uint8_t t) {
-    return t == QO_SHORT || t == QO_INT || t == QO_LONG || t == QO_FLOAT;
+    return t == QO_SHORT || t == QO_INT || t == QO_LONG || t == QO_FLOAT || t == QO_BOOL;
 }
 
 int is_numeric_vector_type(uint8_t t) {
-    return t == QO_SHORT_VEC || t == QO_INT_VEC || t == QO_LONG_VEC || t == QO_FLOAT_VEC;
+    return t == QO_SHORT_VEC || t == QO_INT_VEC || t == QO_LONG_VEC || t == QO_FLOAT_VEC || t == QO_BOOL_VEC;
 }
 
 int is_symbolish_type(uint8_t t) {
@@ -98,7 +98,9 @@ double value_as_double(Qo q) {
     if (t == QO_SHORT) return (double)qo_short(q);
     if (t == QO_INT) return (double)qo_int(q);
     if (t == QO_LONG) return (double)qo_long(q);
-    return qo_float(q);
+    if (t == QO_FLOAT) return qo_float(q);
+    if (t == QO_BOOL) return (double)qo_bool(q);
+    return 0.0;
 }
 
 Qo alloc_ptr_vec(uint8_t type, int64_t count) {

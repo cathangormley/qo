@@ -83,8 +83,9 @@ static Qo make_special_int_value(const Token *token, char final_suffix) {
 
 /* Helper: Parse a sequence of numbers into a vector or single scalar */
 static Qo parse_number_sequence(Parser *parser, Token *first_token) {
-    Qo *values = xmalloc(sizeof(Qo) * 1000);
-    Token **tokens = xmalloc(sizeof(Token*) * 1000);
+    int capacity = 64;
+    Qo *values = xmalloc(sizeof(Qo) * (size_t)capacity);
+    Token **tokens = xmalloc(sizeof(Token*) * (size_t)capacity);
     int count = 0;
     
     /* Collect all consecutive numbers */
@@ -93,6 +94,11 @@ static Qo parse_number_sequence(Parser *parser, Token *first_token) {
     advance(parser);
     
     while (1) {
+        if (count >= capacity) {
+            capacity *= 2;
+            values = xrealloc(values, sizeof(Qo) * (size_t)capacity);
+            tokens = xrealloc(tokens, sizeof(Token*) * (size_t)capacity);
+        }
         Token *next = current_token(parser);
         if (!next || next->type != TOKEN_NUMBER) break;
         tokens[count] = next;
@@ -913,7 +919,8 @@ void parser_free(Parser *parser) {
 }
 
 Qo parser_parse(Parser *parser) {
-    Qo *statements = xmalloc(sizeof(Qo) * 1000);
+    int capacity = 64;
+    Qo *statements = xmalloc(sizeof(Qo) * (size_t)capacity);
     int count = 0;
 
     while (1) {
@@ -942,6 +949,10 @@ Qo parser_parse(Parser *parser) {
             return NULL;
         }
 
+        if (count >= capacity) {
+            capacity *= 2;
+            statements = xrealloc(statements, sizeof(Qo) * (size_t)capacity);
+        }
         statements[count++] = statement;
 
         token = current_token(parser);
@@ -961,6 +972,10 @@ Qo parser_parse(Parser *parser) {
         advance(parser);
         token = current_token(parser);
         if (token && token->type == TOKEN_EOF) {
+            if (count >= capacity) {
+                capacity *= 2;
+                statements = xrealloc(statements, sizeof(Qo) * (size_t)capacity);
+            }
             statements[count++] = make_null_value();
             break;
         }
@@ -978,7 +993,7 @@ Qo parser_parse(Parser *parser) {
     }
 
     {
-        Qo *sequence_elements = xmalloc(sizeof(Qo) * (count + 1));
+        Qo *sequence_elements = xmalloc(sizeof(Qo) * ((size_t)count + 1));
         sequence_elements[0] = make_keyword_value(";");
         for (int i = 0; i < count; i++) {
             sequence_elements[i + 1] = statements[i];

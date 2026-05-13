@@ -57,7 +57,6 @@ int is_symbolish_type(uint8_t type);
 int is_charish_type(uint8_t type);
 int is_non_numeric_operand(Qo value);
 double value_as_double(Qo value);
-int value_equals(Qo left, Qo right);
 Qo build_collection_from_copies(Qo *elements, int count, uint8_t collection_type);
 Qo extract_dict_side(Qo dict, int want_keys);
 Qo eval_dict_creation(Qo left, Qo right);

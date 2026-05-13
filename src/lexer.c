@@ -32,14 +32,8 @@ static int is_char_in_set(char c, const char *set) {
 static int is_unary_sign_context(const char *input, int pos) {
     int i = pos - 1;
 
-    /* If '-' is preceded by whitespace, treat it as a sign for compact signed literals like: 1 -2 4 */
-    if (i >= 0 && isspace((unsigned char)input[i])) {
+    if (i >= 0 && (input[i] == ' ' || input[i] == '\n' || input[i] == '\r' || input[i] == '\t'))
         return 1;
-    }
-
-    while (i >= 0 && (input[i] == ' ' || input[i] == '\n' || input[i] == '\r' || input[i] == '\t')) {
-        i--;
-    }
 
     if (i < 0) return 1;
 
@@ -118,10 +112,16 @@ Token* lexer_next_token(Lexer *lexer) {
     // Identifiers (variable names)
     // Note: '_' alone is an operator; '_' starts an identifier only if followed by alphanumeric
     if (isalpha(ch) || (ch == '_' && isalnum(lexer->input[lexer->pos + 1]))) {
-        char *value = malloc(256);
+        size_t capacity = 64;
         int len = 0;
-        while (isalnum(lexer->input[lexer->pos]) || lexer->input[lexer->pos] == '_')
+        char *value = xmalloc(capacity);
+        while (isalnum(lexer->input[lexer->pos]) || lexer->input[lexer->pos] == '_') {
+            if ((size_t)len + 1 >= capacity) {
+                capacity *= 2;
+                value = xrealloc(value, capacity);
+            }
             value[len++] = lexer->input[lexer->pos++];
+        }
         value[len] = '\0';
         return token_new(TOKEN_IDENTIFIER, value, false, '\0', start_pos);
     }
@@ -129,10 +129,15 @@ Token* lexer_next_token(Lexer *lexer) {
     // Symbols (`name)
     if (ch == '`') {
         lexer->pos++;  // Skip backtick
-        char *value = malloc(256);
+        size_t capacity = 64;
         int len = 0;
+        char *value = xmalloc(capacity);
 
         while (isalnum(lexer->input[lexer->pos]) || lexer->input[lexer->pos] == '_') {
+            if ((size_t)len + 1 >= capacity) {
+                capacity *= 2;
+                value = xrealloc(value, capacity);
+            }
             value[len++] = lexer->input[lexer->pos++];
         }
         value[len] = '\0';
@@ -142,11 +147,10 @@ Token* lexer_next_token(Lexer *lexer) {
     // Character literals (single-quoted)
     if (ch == '\'') {
         lexer->pos++;
-        char *value = malloc(256);
+        char *value = xmalloc(4);
         int len = 0;
         
         if (lexer->input[lexer->pos] == '\\') {
-            // Handle escape sequences
             value[len++] = lexer->input[lexer->pos++];
             if (lexer->input[lexer->pos] != '\0') {
                 value[len++] = lexer->input[lexer->pos++];
@@ -170,10 +174,15 @@ Token* lexer_next_token(Lexer *lexer) {
     // String literals (double-quoted)
     if (ch == '"') {
         lexer->pos++;
-        char *value = malloc(1024);
+        size_t capacity = 128;
         int len = 0;
+        char *value = xmalloc(capacity);
         
         while (lexer->input[lexer->pos] != '"' && lexer->input[lexer->pos] != '\0') {
+            if ((size_t)len + 2 >= capacity) {
+                capacity *= 2;
+                value = xrealloc(value, capacity);
+            }
             if (lexer->input[lexer->pos] == '\\') {
                 value[len++] = lexer->input[lexer->pos++];
                 if (lexer->input[lexer->pos] != '\0') {
@@ -214,14 +223,19 @@ Token* lexer_next_token(Lexer *lexer) {
         
         if (all_binary && lexer->input[temp_pos] == 'b') {
             // This is a boolean
-            char *value = malloc(256);
+            size_t capacity = 64;
             int len = 0;
+            char *value = xmalloc(capacity);
             
             if (ch == '-') {
                 value[len++] = lexer->input[lexer->pos++];
             }
             
             while (isdigit(lexer->input[lexer->pos])) {
+                if ((size_t)len + 2 >= capacity) {
+                    capacity *= 2;
+                    value = xrealloc(value, capacity);
+                }
                 value[len++] = lexer->input[lexer->pos++];
             }
             
@@ -240,7 +254,7 @@ Token* lexer_next_token(Lexer *lexer) {
             hex_len++;
         }
         if (hex_len > 0) {
-            char *value = malloc((size_t)hex_len + 3);
+            char *value = xmalloc((size_t)hex_len + 3);
             int len = 0;
             value[len++] = lexer->input[lexer->pos++];
             value[len++] = lexer->input[lexer->pos++];
@@ -257,8 +271,9 @@ Token* lexer_next_token(Lexer *lexer) {
         (ch == '-' && is_unary_sign_context(lexer->input, lexer->pos) &&
          (isdigit(lexer->input[lexer->pos + 1]) ||
           (lexer->input[lexer->pos + 1] == '.' && isdigit(lexer->input[lexer->pos + 2]))))) {
-        char *value = malloc(256);
+        size_t capacity = 64;
         int len = 0;
+        char *value = xmalloc(capacity);
         bool is_float = false;
         char type_suffix = '\0';
 
@@ -267,16 +282,30 @@ Token* lexer_next_token(Lexer *lexer) {
         }
         
         // Read integer part
-        while (isdigit(lexer->input[lexer->pos]))
+        while (isdigit(lexer->input[lexer->pos])) {
+            if ((size_t)len + 1 >= capacity) {
+                capacity *= 2;
+                value = xrealloc(value, capacity);
+            }
             value[len++] = lexer->input[lexer->pos++];
+        }
         
         // Check for decimal point
         if (lexer->input[lexer->pos] == '.') {
             is_float = true;
+            if ((size_t)len + 1 >= capacity) {
+                capacity *= 2;
+                value = xrealloc(value, capacity);
+            }
             value[len++] = lexer->input[lexer->pos++];
             // Read fractional part
-            while (isdigit(lexer->input[lexer->pos]))
+            while (isdigit(lexer->input[lexer->pos])) {
+                if ((size_t)len + 1 >= capacity) {
+                    capacity *= 2;
+                    value = xrealloc(value, capacity);
+                }
                 value[len++] = lexer->input[lexer->pos++];
+            }
         }
         
         // Check for type suffix (h=short, i=int, j=long, f=float)
