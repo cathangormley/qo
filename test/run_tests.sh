@@ -404,11 +404,22 @@ test_case "byte_vector_literal" "0x0102" "0x0102"
 test_case "byte_vector_literal_odd_digits" "0x102" "0x0102"
 test_case "type_byte_scalar" "type 0x7f" "\`byte"
 test_case "type_byte_vector" "type 0x010203" "\`BYTE"
-test_case "ser_byte" "ser 0x01" "0x080001"
-test_case "ser_char" "ser 'c'" "0x030063"
-test_case "ser_char_vec_no_trailing_nul" "ser \"cd\"" "0x130002000000000000006364"
+test_case "ser_byte" "ser 0x01" "0x0a0001"
+test_case "ser_char" "ser 'c'" "0x050063"
+test_case "ser_char_vec_no_trailing_nul" "ser \"cd\"" "0x150002000000000000006364"
 test_case "drop_serialized_char_vec" "1 _ ser \"cd\"" "0x0002000000000000006364"
 test_case "ser_list_unsupported" "ser (1;2)" "0x1300020000000000000001000000000000000200000000000000"
+test_case "deser_long" "deser ser 42" "42"
+test_case "deser_int" "deser ser 42i" "42i"
+test_case "deser_short" "deser ser 42h" "42h"
+test_case "deser_float" "deser ser 3.14f" "3.14f"
+test_case "deser_char" "deser ser 'c'" "'c'"
+test_case "deser_byte" "deser ser 0x01" "0x01"
+test_case "deser_bool_vec" "deser ser 10b" "10b"
+test_case "deser_long_vec" "deser ser 1 2 3" "1 2 3"
+test_case "deser_symbol" "deser ser \`abc" "\`abc"
+test_case "deser_string" "deser ser \"hello\"" "\"hello\""
+test_case "deser_not_byte_vec" "deser 42" "Error: deser expects a byte vector"
 test_case "parse_bool" "parse\"1b\"" "1b"
 test_case "parse_bool_vector" "parse\"1010011b\"" "1010011b"
 test_case "bool_in_list" "(0b; 1b; 1b; 0b)" "0110b"
@@ -471,6 +482,24 @@ test_case "pipe_negatives"           "-5|-2"                                    
 test_case "amp_negatives"            "-5&-2"                                    "-5"
 test_case "pipe_len_mismatch"        "1 2|3 4 5"                                "Error: cannot compare vectors of different lengths"
 test_case "amp_non_numeric"          "\`a & 2"                                  "Error: operator requires int/float/bool/char operands"
+
+# IPC tests (same-process via localhost)
+IPC_PORT=19101
+test_case "ipc_same_process_int"     "listen $IPC_PORT; h: hopen[\"127.0.0.1\";$IPC_PORT]; h[42]" "42"
+IPC_PORT=19102
+test_case "ipc_same_process_float"   "listen $IPC_PORT; h: hopen[\"127.0.0.1\";$IPC_PORT]; h[3.14]" "3.14f"
+IPC_PORT=19103
+test_case "ipc_same_process_string"  "listen $IPC_PORT; h: hopen[\"127.0.0.1\";$IPC_PORT]; h[\"hello\"]" "\"hello\""
+IPC_PORT=19104
+test_case "ipc_same_process_symbol"  "listen $IPC_PORT; h: hopen[\"127.0.0.1\";$IPC_PORT]; h[\`abc]" "\`abc"
+IPC_PORT=19105
+test_case "ipc_same_process_bool"    "listen $IPC_PORT; h: hopen[\"127.0.0.1\";$IPC_PORT]; h[1b]" "1b"
+IPC_PORT=19106
+test_case "ipc_same_process_vec"     "listen $IPC_PORT; h: hopen[\"127.0.0.1\";$IPC_PORT]; h[1 2 3]" "1 2 3"
+IPC_PORT=19107
+test_case "ipc_hclose"               "listen $IPC_PORT; h: hopen[\"127.0.0.1\";$IPC_PORT]; hclose h" ""
+IPC_PORT=19108
+test_case "ipc_same_process_ser_roundtrip" "listen $IPC_PORT; h: hopen[\"127.0.0.1\";$IPC_PORT]; ser h[42]" "0x03002a00000000000000"
 
 echo ""
 echo "Passed: $PASS, Failed: $FAIL"

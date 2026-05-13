@@ -87,6 +87,14 @@ Qo qo_symbol_intern(const char *text) {
     return entry->live_symbol;
 }
 
+Qo qo_symbol_by_id(int64_t id) {
+    if (id < 0 || id >= symbol_entry_count) return NULL;
+    SymbolInternEntry *entry = symbol_entries_by_id[id];
+    if (entry->live_symbol != NULL) return qo_retain(entry->live_symbol);
+    entry->live_symbol = make_symbol_object(id);
+    return entry->live_symbol;
+}
+
 const char *qo_symbol_name(Qo symbol) {
     int64_t id;
     if (symbol == NULL || qo_type(symbol) != QO_SYMBOL) return NULL;

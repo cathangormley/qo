@@ -6,6 +6,8 @@
 #include "internal.h"
 #include "lexer.h"
 #include "parser.h"
+#include "ipc.h"
+#include "symbol_intern.h"
 
 /* forward declaration: eval_apply_keyword and eval_apply_value are mutually recursive */
 static Qo eval_apply_value(Qo head, Qo *args, int arg_count, Environment *env);
@@ -21,7 +23,8 @@ static int is_parse_builtin_or_special(const char *name) {
            strcmp(name,"print")==0|| strcmp(name,"exit")==0 || strcmp(name,"enlist")==0 ||
            strcmp(name,"eval")==0 || strcmp(name,"first")==0|| strcmp(name,"last")==0  ||
            strcmp(name,"now")==0  || strcmp(name,"read")==0 || strcmp(name,"shell")==0 ||
-           strcmp(name,"ser")==0  || strcmp(name,"refcount")==0 || strcmp(name,"til")==0 ||
+           strcmp(name,"ser")==0  || strcmp(name,"deser")==0 || strcmp(name,"refcount")==0 || strcmp(name,"til")==0 ||
+           strcmp(name,"listen")==0 || strcmp(name,"hclose")==0 || strcmp(name,"hopen")==0 ||
            strcmp(name,";")==0;
 }
 
@@ -606,155 +609,32 @@ static Qo eval_builtin_shell(Qo arg, Environment *env) {
     return result;
 }
 
-static size_t value_block_size(Qo q) {
-    int64_t n;
-    if (q == NULL) return 0;
-    switch (qo_type(q)) {
-        case QO_SHORT:
-            return 4;
-        case QO_INT:
-            return 6;
-        case QO_LONG:
-        case QO_FLOAT:
-        case QO_PROJECTOR:
-            return 10;
-        case QO_CHAR:
-        case QO_BOOL:
-        case QO_BYTE:
-            return 3;
-        case QO_SYMBOL:
-            return 10;
-        case QO_KEYWORD:
-            n = qo_count(q);
-            return (size_t)(11 + n);
-        case QO_CHAR_VEC:
-            n = qo_count(q);
-            return (size_t)(10 + n);
-        case QO_SHORT_VEC:
-            n = qo_count(q);
-            return 10 + (size_t)n * 2;
-        case QO_INT_VEC:
-            n = qo_count(q);
-            return 10 + (size_t)n * 4;
-        case QO_LONG_VEC:
-        case QO_FLOAT_VEC:
-            n = qo_count(q);
-            return 10 + (size_t)n * 8;
-        case QO_BOOL_VEC:
-        case QO_BYTE_VEC:
-            n = qo_count(q);
-            return 10 + (size_t)n;
-        case QO_SYM_VEC:
-        case QO_LIST:
-            n = qo_count(q);
-            return 10 + (size_t)n * sizeof(Qo);
-        case QO_DICT:
-            n = QO_DICT_COUNT(q);
-            return 12 + (size_t)n * 2 * sizeof(Qo);
-        case QO_FUNCTION:
-            return 27 + (size_t)(QO_FN_PC(q) + QO_FN_BC(q)) * sizeof(Qo) + (size_t)QO_FN_SL(q);
-        case QO_PROJECTION:
-            return 18 + (size_t)QO_PROJ_AC(q) * sizeof(Qo);
-        default:
-            return 0;
-    }
-}
-
-static int ser_is_pointer_backed(uint8_t t) {
-    return t == QO_SYM_VEC || t == QO_LIST || t == QO_DICT ||
-           t == QO_FUNCTION || t == QO_PROJECTION;
-}
-
 static Qo eval_builtin_ser(Qo arg, Environment *env) {
-    uint8_t t;
-    size_t sz;
-    Qo result;
     (void)env;
-    if (arg == NULL) return alloc_data_vec(QO_BYTE_VEC, 0);
-    t = qo_type(arg);
-    if (ser_is_pointer_backed(t)) {
-        EVAL_ERROR("ser does not support pointer-backed values");
-    }
-    sz = value_block_size(arg);
-    result = alloc_data_vec(QO_BYTE_VEC, (int64_t)sz);
-    if (sz > 0) {
-        uint8_t *out = qo_byte_data(result);
-        int64_t n = 0;
-        out[0] = t;
-        out[1] = qo_attrs(arg);
-        if (t == QO_SHORT) {
-            int16_t v = qo_short(arg);
-            memcpy(out + 2, &v, sizeof(v));
-        } else if (t == QO_INT) {
-            int32_t v = qo_int(arg);
-            memcpy(out + 2, &v, sizeof(v));
-        } else if (t == QO_LONG || t == QO_SYMBOL || t == QO_PROJECTOR) {
-            int64_t v = (t == QO_SYMBOL) ? qo_symbol_id(arg) : qo_long(arg);
-            memcpy(out + 2, &v, sizeof(v));
-        } else if (t == QO_FLOAT) {
-            double v = qo_float(arg);
-            memcpy(out + 2, &v, sizeof(v));
-        } else if (t == QO_CHAR) {
-            out[2] = (uint8_t)qo_char(arg);
-        } else if (t == QO_BOOL) {
-            out[2] = qo_bool(arg);
-        } else if (t == QO_BYTE) {
-            out[2] = qo_byte(arg);
-        } else if (t == QO_KEYWORD) {
-            n = qo_count(arg);
-            memcpy(out + 2, &n, sizeof(n));
-            memcpy(out + 10, qo_char_data(arg), (size_t)n);
-            out[10 + n] = '\0';
-        } else if (t == QO_CHAR_VEC) {
-            n = qo_count(arg);
-            memcpy(out + 2, &n, sizeof(n));
-            memcpy(out + 10, qo_char_data(arg), (size_t)n);
-        } else if (t == QO_SHORT_VEC) {
-            n = qo_count(arg);
-            memcpy(out + 2, &n, sizeof(n));
-            memcpy(out + 10, qo_short_data(arg), (size_t)n * 2);
-        } else if (t == QO_INT_VEC) {
-            n = qo_count(arg);
-            memcpy(out + 2, &n, sizeof(n));
-            memcpy(out + 10, qo_int_data(arg), (size_t)n * 4);
-        } else if (t == QO_LONG_VEC) {
-            n = qo_count(arg);
-            memcpy(out + 2, &n, sizeof(n));
-            memcpy(out + 10, qo_long_data(arg), (size_t)n * 8);
-        } else if (t == QO_FLOAT_VEC) {
-            n = qo_count(arg);
-            memcpy(out + 2, &n, sizeof(n));
-            memcpy(out + 10, qo_float_data(arg), (size_t)n * 8);
-        } else if (t == QO_BOOL_VEC) {
-            n = qo_count(arg);
-            memcpy(out + 2, &n, sizeof(n));
-            memcpy(out + 10, qo_bool_data(arg), (size_t)n);
-        } else if (t == QO_BYTE_VEC) {
-            n = qo_count(arg);
-            memcpy(out + 2, &n, sizeof(n));
-            memcpy(out + 10, qo_byte_data(arg), (size_t)n);
-        }
+    return ipc_serialize(arg);
+}
 
-        if (t == QO_INT) out[0] = 0x01;
-        else if (t == QO_FLOAT) out[0] = 0x02;
-        else if (t == QO_CHAR) out[0] = 0x03;
-        else if (t == QO_BOOL) out[0] = 0x04;
-        else if (t == QO_SYMBOL) out[0] = 0x05;
-        else if (t == QO_KEYWORD) out[0] = 0x06;
-        else if (t == QO_PROJECTOR) out[0] = 0x07;
-        else if (t == QO_BYTE) out[0] = 0x08;
-        else if (t == QO_INT_VEC) out[0] = 0x11;
-        else if (t == QO_FLOAT_VEC) out[0] = 0x12;
-        else if (t == QO_CHAR_VEC) out[0] = 0x13;
-        else if (t == QO_BOOL_VEC) out[0] = 0x14;
-        else if (t == QO_SYM_VEC) out[0] = 0x15;
-        else if (t == QO_BYTE_VEC) out[0] = 0x16;
-        else if (t == QO_LIST) out[0] = 0x17;
-        else if (t == QO_DICT) out[0] = 0x18;
-        else if (t == QO_FUNCTION) out[0] = 0x19;
-        else if (t == QO_PROJECTION) out[0] = 0x1A;
-    }
+static Qo eval_builtin_deser(Qo arg, Environment *env) {
+    (void)env;
+    if (arg == NULL || qo_type(arg) != QO_BYTE_VEC) EVAL_ERROR("deser expects a byte vector");
+    Qo result = ipc_deserialize(qo_byte_data(arg), (size_t)qo_count(arg));
+    if (result == NULL) EVAL_ERROR("failed to deserialize value");
     return result;
+}
+
+static Qo eval_builtin_listen(Qo arg, Environment *env) {
+    (void)env;
+    if (arg == NULL || (!is_numeric_scalar_type(qo_type(arg)))) EVAL_ERROR("listen expects a numeric port");
+    int port = (int)value_as_double(arg);
+    if (ipc_listen(port) < 0) EVAL_ERROR("failed to listen on port");
+    return make_null_value();
+}
+
+static Qo eval_builtin_hclose(Qo arg, Environment *env) {
+    (void)env;
+    if (arg == NULL || qo_type(arg) != QO_INT) EVAL_ERROR("hclose expects an int handle");
+    ipc_close(qo_int(arg));
+    return make_null_value();
 }
 
 static Qo eval_apply_keyword(Qo head, Qo *arg_values, int arg_count, Environment *env) {
@@ -808,6 +688,37 @@ static Qo eval_apply_keyword(Qo head, Qo *arg_values, int arg_count, Environment
         else EVAL_ERROR("operator '/' is undefined");
     }
 
+    /* hopen: accepts 1 arg (port) or 2 args (host, port) */
+    if (strcmp(verb, "hopen") == 0) {
+        int fd;
+        if (arg_count == 1) {
+            Qo port_val = arg_values[0];
+            if (port_val == NULL || !is_numeric_scalar_type(qo_type(port_val)))
+                EVAL_ERROR("hopen expects a numeric port");
+            int port = (int)value_as_double(port_val);
+            fd = ipc_connect("127.0.0.1", port);
+        } else if (arg_count == 2) {
+            Qo host_val = arg_values[0];
+            Qo port_val = arg_values[1];
+            if (host_val == NULL || qo_type(host_val) != QO_CHAR_VEC)
+                EVAL_ERROR("hopen expects a string host");
+            if (port_val == NULL || !is_numeric_scalar_type(qo_type(port_val)))
+                EVAL_ERROR("hopen expects a numeric port");
+            char *host = charvec_to_cstr(host_val);
+            int port = (int)value_as_double(port_val);
+            fd = ipc_connect(host, port);
+            free(host);
+        } else {
+            EVAL_ERROR("hopen expects 1 or 2 arguments");
+        }
+        if (fd < 0) EVAL_ERROR("failed to connect");
+        // Accept the server-side connection if this process has a server socket
+        if (ipc_server_fd() >= 0) {
+            ipc_accept_connection();
+        }
+        return make_int_value(fd);
+    }
+
     static const BuiltinSpec builtins[] = {
         {"sum",   eval_builtin_sum},
         {"count", eval_builtin_count},
@@ -830,6 +741,9 @@ static Qo eval_apply_keyword(Qo head, Qo *arg_values, int arg_count, Environment
         {"read",  eval_builtin_read},
         {"shell", eval_builtin_shell},
         {"ser",   eval_builtin_ser},
+        {"deser", eval_builtin_deser},
+        {"listen", eval_builtin_listen},
+        {"hclose", eval_builtin_hclose},
     };
 
     for (size_t i = 0; i < sizeof(builtins) / sizeof(builtins[0]); i++) {
@@ -965,6 +879,11 @@ static Qo eval_apply_value(Qo head, Qo *args, int arg_count, Environment *env) {
     }
 
     if (arg_count != 1) EVAL_ERROR("application expects exactly one argument");
+
+    /* Handle apply: QO_INT as IPC file descriptor */
+    if (head != NULL && qo_type(head) == QO_INT && arg_count == 1) {
+        return ipc_handle_apply(qo_int(head), args[0]);
+    }
 
     /* Multi-index: numeric vector, bool vector, or list of indices */
     if (args[0] != NULL) {

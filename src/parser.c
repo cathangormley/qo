@@ -274,6 +274,10 @@ static int is_keyword_identifier(Token *token) {
             strcmp(token->lexeme, "read") == 0 ||
             strcmp(token->lexeme, "shell") == 0 ||
                strcmp(token->lexeme, "ser") == 0 ||
+               strcmp(token->lexeme, "deser") == 0 ||
+               strcmp(token->lexeme, "listen") == 0 ||
+               strcmp(token->lexeme, "hclose") == 0 ||
+               strcmp(token->lexeme, "hopen") == 0 ||
                strcmp(token->lexeme, "refcount") == 0);
 }
 
