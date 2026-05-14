@@ -278,7 +278,8 @@ static int is_keyword_identifier(Token *token) {
                strcmp(token->lexeme, "listen") == 0 ||
                strcmp(token->lexeme, "hclose") == 0 ||
                strcmp(token->lexeme, "hopen") == 0 ||
-               strcmp(token->lexeme, "refcount") == 0);
+               strcmp(token->lexeme, "refcount") == 0 ||
+               strcmp(token->lexeme, "find") == 0);
 }
 
 static void free_param_list(char **params, int param_count) {

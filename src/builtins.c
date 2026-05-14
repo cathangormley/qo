@@ -23,9 +23,10 @@ static int is_parse_builtin_or_special(const char *name) {
            strcmp(name,"print")==0|| strcmp(name,"exit")==0 || strcmp(name,"enlist")==0 ||
            strcmp(name,"eval")==0 || strcmp(name,"first")==0|| strcmp(name,"last")==0  ||
            strcmp(name,"now")==0  || strcmp(name,"read")==0 || strcmp(name,"shell")==0 ||
-           strcmp(name,"ser")==0  || strcmp(name,"deser")==0 || strcmp(name,"refcount")==0 || strcmp(name,"til")==0 ||
-           strcmp(name,"listen")==0 || strcmp(name,"hclose")==0 || strcmp(name,"hopen")==0 ||
-            strcmp(name,";")==0;
+            strcmp(name,"ser")==0  || strcmp(name,"deser")==0 || strcmp(name,"refcount")==0 || strcmp(name,"til")==0 ||
+            strcmp(name,"listen")==0 || strcmp(name,"hclose")==0 || strcmp(name,"hopen")==0 ||
+            strcmp(name,"find")==0 ||
+             strcmp(name,";")==0;
 }
 
 static Qo normalize_parsed_tree(Qo tree) {
@@ -638,6 +639,67 @@ static Qo eval_builtin_hclose(Qo arg, Environment *env) {
     return make_null_value();
 }
 
+static Qo eval_builtin_find(Qo haystack, Qo needles, Environment *env) {
+    (void)env;
+    if (haystack == NULL) EVAL_ERROR("find: haystack cannot be null");
+    uint8_t ht = qo_type(haystack);
+    if (!is_vector_type(ht)) EVAL_ERROR("find: haystack must be a vector");
+
+    int64_t n = qo_count(haystack);
+
+    /* Determine needle count and whether result should be scalar.
+       Iterate if it's a list or numeric vector (SHORT/INT/LONG/FLOAT).
+       Treat CHAR/BYTE/BOOL vectors and scalar atoms as a single needle. */
+    uint8_t nt = needles ? qo_type(needles) : 0;
+    int needle_count;
+    int result_is_scalar;
+    int iter_needles = (nt == QO_LIST || nt == QO_SHORT_VEC || nt == QO_INT_VEC ||
+                        nt == QO_LONG_VEC || nt == QO_FLOAT_VEC || nt == QO_SYM_VEC);
+    if (needles == NULL || !iter_needles) {
+        needle_count = 1;
+        result_is_scalar = 1;
+    } else {
+        needle_count = (int)qo_count(needles);
+        result_is_scalar = 0;
+    }
+
+    Qo result = alloc_data_vec(QO_LONG_VEC, needle_count);
+
+    for (int i = 0; i < needle_count; i++) {
+        Qo needle;
+        int own_needle = 0;
+        if (needles == NULL) {
+            needle = NULL;
+        } else if (iter_needles) {
+            needle = dict_elem_copy(needles, i);
+            own_needle = 1;
+        } else {
+            needle = needles;
+        }
+
+        int64_t idx = n;
+        for (int64_t j = 0; j < n; j++) {
+            Qo elem = dict_elem_copy(haystack, j);
+            if (value_equals(elem, needle)) {
+                idx = j;
+                qo_release(elem);
+                break;
+            }
+            qo_release(elem);
+        }
+
+        qo_long_data(result)[i] = idx;
+        if (own_needle) qo_release(needle);
+    }
+
+    if (result_is_scalar) {
+        int64_t val = qo_long_data(result)[0];
+        value_free(result);
+        return make_long_value(val);
+    }
+    return result;
+}
+
 static Qo eval_apply_keyword(Qo head, Qo *arg_values, int arg_count, Environment *env) {
     const char *verb = QO_STR(head);
     Qo result;
@@ -719,6 +781,12 @@ static Qo eval_apply_keyword(Qo head, Qo *arg_values, int arg_count, Environment
             ipc_accept_connection();
         }
         return make_int_value(fd);
+    }
+
+    /* find: 2 args (haystack, needles) */
+    if (strcmp(verb, "find") == 0) {
+        if (arg_count != 2) EVAL_ERROR("find expects exactly 2 arguments");
+        return eval_builtin_find(arg_values[0], arg_values[1], env);
     }
 
     static const BuiltinSpec builtins[] = {

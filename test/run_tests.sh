@@ -503,6 +503,16 @@ test_case "amp_negatives"            "-5&-2"                                    
 test_case "pipe_len_mismatch"        "1 2|3 4 5"                                "Error: cannot compare vectors of different lengths"
 test_case "amp_non_numeric"          "\`a & 2"                                  "Error: operator requires int/float/bool/char operands"
 
+# Find keyword
+test_case "find_scalar_found"       "find[3 4 5;4]"           "1"
+test_case "find_scalar_notfound"    "find[3 4 5;6]"           "3"
+test_case "find_vector_found"       "find[3 4 5;4 5]"         "1 2"
+test_case "find_vector_notfound"    "find[3 4 5;3 6]"         "0 3"
+test_case "find_string_in_list"     "find[(\"cat\";\"dog\");\"dog\"]" "1"
+test_case "find_multi_str_in_list"  "find[(\"cat\";\"dog\";\"bird\");(\"bird\";\"cat\")]" "2 0"
+test_case "find_char_in_str"        "find[\"cat\";first \"a\"]" "1"
+test_case "find_type"               "type find"               "\`keyword"
+
 # IPC tests (same-process via localhost)
 IPC_PORT=19101
 test_case "ipc_same_process_int"     "listen $IPC_PORT; h: hopen[\"127.0.0.1\";$IPC_PORT]; h[42]" "42"
