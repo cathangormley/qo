@@ -150,7 +150,12 @@ test_case "vector_multi_index_dup" "a:3 4 5; a[0 0]" "3 3"
 test_case "vector_multi_index_list" "a:3 4 5; a[(0;2)]" "3 5"
 test_case "list_multi_index" "a:(10;20;30); a[0 2]" "10 30"
 test_case "char_vec_multi_index" "a:\"hello\"; a[0 1 2]" "\"hel\""
-test_case "multi_index_oob" "a:3 4 5; a[0 5]" "Error: index out of bounds"
+test_case "multi_index_oob" "a:3 4 5; a[0 5]" "3 0N"
+test_case "single_index_oob" "(3 4 5) 5" "0N"
+test_case "single_index_oob_int" "(3 4 5i) 5" "0Ni"
+test_case "single_index_oob_short" "(3 4 5h) 5" "0Nh"
+test_case "single_index_oob_float" "(3 4 5f) 5" "0Nf"
+test_case "bracket_negative_index" "(3 4 5)[-1]" "0N"
 test_case_multiline "dict_multi_index" "d:til[10]!2*til 10; d[5 6 7]" $'10\n12\n14'
 test_case_multiline "dict_multi_index_list" "d:til[10]!2*til 10; d[(4;6)]" $'8\n12'
 test_case "dict_multi_index_missing" "d:(1;2;3)!(10;20;30); d[1 9]" "Error: dictionary key not found"

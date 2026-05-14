@@ -71,18 +71,18 @@ static Qo make_special_int_value(const Token *token, char final_suffix) {
     }
 
     if (use_float) {
-        if (strcmp(token->lexeme, "0N") == 0) return make_float_value(NAN);
+        if (strcmp(token->lexeme, "0N") == 0) return make_float_value(QO_FLOAT_NULL);
         if (strcmp(token->lexeme, "0W") == 0) return make_float_value(INFINITY);
         if (strcmp(token->lexeme, "-0W") == 0) return make_float_value(-INFINITY);
     } else {
         if (strcmp(token->lexeme, "0N") == 0) {
-            return use_int ? make_int_value(INT32_MIN) : make_long_value(INT64_MIN);
+            return use_int ? make_int_value(QO_INT_NULL) : make_long_value(QO_LONG_NULL);
         }
         if (strcmp(token->lexeme, "0W") == 0) {
-            return use_int ? make_int_value(INT32_MAX) : make_long_value(INT64_MAX);
+            return use_int ? make_int_value(QO_INT_INF) : make_long_value(QO_LONG_INF);
         }
         if (strcmp(token->lexeme, "-0W") == 0) {
-            return use_int ? make_int_value(INT32_MIN + 1) : make_long_value(INT64_MIN + 1);
+            return use_int ? make_int_value(QO_INT_NEGINF) : make_long_value(QO_LONG_NEGINF);
         }
     }
 

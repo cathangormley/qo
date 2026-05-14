@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
+#include <math.h>
 
 /*
  * Qo object model (k0-like):
@@ -47,6 +48,16 @@ typedef QoObject *Qo;
 #define QO_FUNCTION    0x22
 #define QO_PROJECTION  0x23
 #define QO_EACHED      0x24
+
+/* ── Sentinel values for null and infinity ──────────────────────────── */
+#define QO_SHORT_NULL    INT16_MIN
+#define QO_INT_NULL      INT32_MIN
+#define QO_INT_INF       INT32_MAX
+#define QO_INT_NEGINF    (INT32_MIN + 1)
+#define QO_LONG_NULL     INT64_MIN
+#define QO_LONG_INF      INT64_MAX
+#define QO_LONG_NEGINF   (INT64_MIN + 1)
+#define QO_FLOAT_NULL    NAN
 
 /* ── Stable external accessor API ───────────────────────────────────────── */
 static inline int qo_is_null(Qo q) {

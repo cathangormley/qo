@@ -700,6 +700,19 @@ static Qo eval_builtin_find(Qo haystack, Qo needles, Environment *env) {
     return result;
 }
 
+static Qo null_for_vector_type(uint8_t vec_type) {
+    switch (vec_type) {
+        case QO_LONG_VEC:  return make_long_value(QO_LONG_NULL);
+        case QO_INT_VEC:   return make_int_value(QO_INT_NULL);
+        case QO_SHORT_VEC: return make_short_value(QO_SHORT_NULL);
+        case QO_FLOAT_VEC: return make_float_value(QO_FLOAT_NULL);
+        case QO_CHAR_VEC:  return make_char_value(0);
+        case QO_BOOL_VEC:  return make_bool_value(0);
+        case QO_BYTE_VEC:  return make_byte_value(0);
+        default:           return NULL;
+    }
+}
+
 static Qo eval_apply_keyword(Qo head, Qo *arg_values, int arg_count, Environment *env) {
     const char *verb = QO_STR(head);
     Qo result;
@@ -1132,8 +1145,19 @@ static Qo eval_apply_value(Qo head, Qo *args, int arg_count, Environment *env) {
                     }
 
                     if (idx < 0 || idx >= head_n) {
-                        qo_release(result);
-                        EVAL_ERROR("index out of bounds");
+                        if (ht == QO_DICT) {
+                            qo_release(result);
+                            EVAL_ERROR("dictionary key not found");
+                        }
+                        if (is_ptr) qo_ptr_data(result)[i] = NULL;
+                        else if (ht == QO_LONG_VEC) qo_long_data(result)[i] = QO_LONG_NULL;
+                        else if (ht == QO_INT_VEC) qo_int_data(result)[i] = QO_INT_NULL;
+                        else if (ht == QO_SHORT_VEC) qo_short_data(result)[i] = QO_SHORT_NULL;
+                        else if (ht == QO_FLOAT_VEC) qo_float_data(result)[i] = QO_FLOAT_NULL;
+                        else if (ht == QO_CHAR_VEC) qo_char_data(result)[i] = 0;
+                        else if (ht == QO_BOOL_VEC) qo_bool_data(result)[i] = 0;
+                        else if (ht == QO_BYTE_VEC) qo_byte_data(result)[i] = 0;
+                        continue;
                     }
 
                     if (is_ptr) {
@@ -1177,14 +1201,14 @@ static Qo eval_apply_value(Qo head, Qo *args, int arg_count, Environment *env) {
     if (qo_type(args[0]) == QO_SHORT) index = qo_short(args[0]);
     else if (qo_type(args[0]) == QO_INT) index = qo_int(args[0]);
     else index = (long)qo_long(args[0]);
-    if (index < 0) EVAL_ERROR("index out of bounds");
+    if (index < 0) { return make_long_value(QO_LONG_NULL); }
 
     if (head == NULL) EVAL_ERROR("cannot index null");
     uint8_t ht = qo_type(head);
 
     if (is_vector_type(ht)) {
         int64_t n = qo_count(head);
-        if ((int64_t)index >= n) EVAL_ERROR("index out of bounds");
+        if ((int64_t)index >= n) return null_for_vector_type(ht);
         return dict_elem_copy(head, (int64_t)index);
     }
 
