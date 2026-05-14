@@ -23,6 +23,7 @@ static const char *token_type_to_operator(TokenType op) {
         case TOKEN_PLUS: return "+";
         case TOKEN_MINUS: return "-";
         case TOKEN_STAR: return "*";
+        case TOKEN_STAR_STAR: return "**";
         case TOKEN_SLASH: return "/";
         case TOKEN_PERCENT: return "%";
         case TOKEN_BANG: return "!";
@@ -227,7 +228,7 @@ static Qo parse_postfix_calls(Parser *parser, Qo base);
 
 static int is_expression_operator(TokenType type) {
     return type == TOKEN_PLUS || type == TOKEN_MINUS || type == TOKEN_STAR ||
-           type == TOKEN_SLASH || type == TOKEN_PERCENT || type == TOKEN_BANG ||
+           type == TOKEN_STAR_STAR || type == TOKEN_SLASH || type == TOKEN_PERCENT || type == TOKEN_BANG ||
            type == TOKEN_COMMA || type == TOKEN_HASH || type == TOKEN_UNDERSCORE ||
            type == TOKEN_EQUAL || type == TOKEN_LESS || type == TOKEN_GREATER ||
            type == TOKEN_LE || type == TOKEN_GE ||

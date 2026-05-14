@@ -86,6 +86,10 @@ static int apply_numeric_op(double left, double right, TokenType op,
             *out = left / right;
             *is_div_or_mod = 1;
             return 1;
+        case TOKEN_STAR_STAR:
+            *out = pow(left, right);
+            *is_div_or_mod = 1;
+            return 1;
         case TOKEN_SLASH:
             fprintf(stderr, "Error: operator '/' is undefined\n");
             evaluator_request_error();
@@ -724,7 +728,7 @@ static uint8_t scalar_to_vector_type(uint8_t scalar_type) {
 static Qo eval_numeric_vector_binop(Qo left, Qo right, TokenType op) {
     uint8_t lt = QO_TYPE(left);
     uint8_t rt = QO_TYPE(right);
-    int use_float = lt == QO_FLOAT || lt == QO_FLOAT_VEC || rt == QO_FLOAT || rt == QO_FLOAT_VEC || op == TOKEN_PERCENT;
+    int use_float = lt == QO_FLOAT || lt == QO_FLOAT_VEC || rt == QO_FLOAT || rt == QO_FLOAT_VEC || op == TOKEN_PERCENT || op == TOKEN_STAR_STAR;
 
     if (use_float) {
         int left_is_vec = is_numeric_vector_type(lt);
@@ -909,5 +913,27 @@ Qo eval_divide(Qo left, Qo right) {
     }
 
     return execute_float_scalar_binop(left, right, TOKEN_PERCENT);
+}
+
+Qo eval_power(Qo left, Qo right) {
+    if (left == NULL || right == NULL) EVAL_ERROR("arithmetic operations require non-null operands");
+    uint8_t lt = QO_TYPE(left);
+    uint8_t rt = QO_TYPE(right);
+
+    if ((lt == QO_DICT && is_numeric_scalar_type(rt)) ||
+        (rt == QO_DICT && is_numeric_scalar_type(lt))) {
+        return eval_dict_scalar_binop(left, right, TOKEN_STAR_STAR);
+    }
+    if (is_non_numeric_operand(left) || is_non_numeric_operand(right)) {
+        EVAL_ERROR("arithmetic operations require numeric operands");
+    }
+    if (lt == QO_LIST || rt == QO_LIST) {
+        EVAL_ERROR("list arithmetic is not supported");
+    }
+    if (is_numeric_vector_type(lt) || is_numeric_vector_type(rt)) {
+        return eval_numeric_vector_binop(left, right, TOKEN_STAR_STAR);
+    }
+
+    return execute_float_scalar_binop(left, right, TOKEN_STAR_STAR);
 }
 

@@ -74,4 +74,5 @@ Qo eval_add(Qo left, Qo right);
 Qo eval_subtract(Qo left, Qo right);
 Qo eval_multiply(Qo left, Qo right);
 Qo eval_divide(Qo left, Qo right);
+Qo eval_power(Qo left, Qo right);
 int operator_name_to_token(const char *name, TokenType *op);

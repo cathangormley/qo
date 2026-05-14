@@ -319,7 +319,12 @@ Token* lexer_next_token(Lexer *lexer) {
     switch (ch) {
         case '+': return token_new(TOKEN_PLUS, "+", false, '\0', start_pos);
         case '-': return token_new(TOKEN_MINUS, "-", false, '\0', start_pos);
-        case '*': return token_new(TOKEN_STAR, "*", false, '\0', start_pos);
+        case '*':
+            if (lexer->input[lexer->pos] == '*') {
+                lexer->pos++;
+                return token_new(TOKEN_STAR_STAR, "**", false, '\0', start_pos);
+            }
+            return token_new(TOKEN_STAR, "*", false, '\0', start_pos);
         case '/': return token_new(TOKEN_SLASH, "/", false, '\0', start_pos);
         case '%': return token_new(TOKEN_PERCENT, "%", false, '\0', start_pos);
         case '!': return token_new(TOKEN_BANG, "!", false, '\0', start_pos);

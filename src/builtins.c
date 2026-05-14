@@ -661,6 +661,7 @@ static Qo eval_apply_keyword(Qo head, Qo *arg_values, int arg_count, Environment
         else if (op_token == TOKEN_MINUS)      return eval_subtract(arg_values[0], arg_values[1]);
         else if (op_token == TOKEN_STAR)       return eval_multiply(arg_values[0], arg_values[1]);
         else if (op_token == TOKEN_PERCENT)    return eval_divide(arg_values[0], arg_values[1]);
+        else if (op_token == TOKEN_STAR_STAR)  return eval_power(arg_values[0], arg_values[1]);
         else if (op_token == TOKEN_AT) {
             /* f@x  =  f[x]: apply left to right as a single argument */
             return eval_apply_value(arg_values[0], &arg_values[1], 1, env);
@@ -1107,6 +1108,7 @@ int operator_name_to_token(const char *name, TokenType *op) {
     if (strcmp(name, "+") == 0)  { *op = TOKEN_PLUS;       return 1; }
     if (strcmp(name, "-") == 0)  { *op = TOKEN_MINUS;      return 1; }
     if (strcmp(name, "*") == 0)  { *op = TOKEN_STAR;       return 1; }
+    if (strcmp(name, "**") == 0) { *op = TOKEN_STAR_STAR;  return 1; }
     if (strcmp(name, "/") == 0)  { *op = TOKEN_SLASH;      return 1; }
     if (strcmp(name, "%") == 0)  { *op = TOKEN_PERCENT;    return 1; }
     if (strcmp(name, "!") == 0)  { *op = TOKEN_BANG;       return 1; }
