@@ -25,7 +25,7 @@ static int is_parse_builtin_or_special(const char *name) {
            strcmp(name,"now")==0  || strcmp(name,"read")==0 || strcmp(name,"shell")==0 ||
            strcmp(name,"ser")==0  || strcmp(name,"deser")==0 || strcmp(name,"refcount")==0 || strcmp(name,"til")==0 ||
            strcmp(name,"listen")==0 || strcmp(name,"hclose")==0 || strcmp(name,"hopen")==0 ||
-           strcmp(name,";")==0;
+            strcmp(name,";")==0;
 }
 
 static Qo normalize_parsed_tree(Qo tree) {
@@ -406,6 +406,7 @@ static Qo eval_builtin_type(Qo arg, Environment *env) {
         case QO_KEYWORD:    tag = "keyword";   break;
         case QO_LIST:       tag = "list";      break;
         case QO_FUNCTION:   tag = "function";  break;
+        case QO_EACHED:     tag = "each";      break;
         default: break;
     }
     return make_symbol_value(tag);
@@ -826,11 +827,124 @@ static int eval_args_or_stop(Qo tree, int start_index, int arg_count, Environmen
 
 /* ── eval_apply_value ────────────────────────────────────────────────────── */
 
+/* Try to pack an array of scalar Qo values into a typed vector.
+   Returns a typed vector if all elements share a single scalar type,
+   otherwise returns a list. Takes ownership of the values array. */
+static Qo pack_results(Qo *values, int count) {
+    if (count == 0) {
+        free(values);
+        return alloc_ptr_vec(QO_LIST, 0);
+    }
+    uint8_t first_type = qo_type(values[0]);
+    int all_same = 1;
+    for (int i = 1; i < count; i++) {
+        if (values[i] == NULL || qo_type(values[i]) != first_type) {
+            all_same = 0;
+            break;
+        }
+    }
+    if (all_same) {
+        uint8_t vec_type;
+        if (first_type == QO_SHORT) vec_type = QO_SHORT_VEC;
+        else if (first_type == QO_INT) vec_type = QO_INT_VEC;
+        else if (first_type == QO_LONG) vec_type = QO_LONG_VEC;
+        else if (first_type == QO_FLOAT) vec_type = QO_FLOAT_VEC;
+        else if (first_type == QO_CHAR) vec_type = QO_CHAR_VEC;
+        else if (first_type == QO_BOOL) vec_type = QO_BOOL_VEC;
+        else if (first_type == QO_BYTE) vec_type = QO_BYTE_VEC;
+        else if (first_type == QO_SYMBOL) vec_type = QO_SYM_VEC;
+        else all_same = 0;
+
+        if (all_same) {
+            if (vec_type == QO_CHAR_VEC) {
+                Qo result = alloc_charlike(QO_CHAR_VEC, count);
+                for (int i = 0; i < count; i++) qo_char_data(result)[i] = qo_char(values[i]);
+                for (int i = 0; i < count; i++) qo_release(values[i]);
+                free(values);
+                return result;
+            }
+            if (vec_type == QO_SYM_VEC) {
+                Qo result = alloc_ptr_vec(QO_SYM_VEC, count);
+                for (int i = 0; i < count; i++) qo_ptr_data(result)[i] = values[i];
+                free(values);
+                return result;
+            }
+            {
+                Qo result = alloc_data_vec(vec_type, count);
+                for (int i = 0; i < count; i++) {
+                    if (vec_type == QO_SHORT_VEC) qo_short_data(result)[i] = qo_short(values[i]);
+                    else if (vec_type == QO_INT_VEC) qo_int_data(result)[i] = qo_int(values[i]);
+                    else if (vec_type == QO_LONG_VEC) qo_long_data(result)[i] = qo_long(values[i]);
+                    else if (vec_type == QO_FLOAT_VEC) qo_float_data(result)[i] = qo_float(values[i]);
+                    else if (vec_type == QO_BOOL_VEC) qo_bool_data(result)[i] = qo_bool(values[i]);
+                    else qo_byte_data(result)[i] = qo_byte(values[i]);
+                    qo_release(values[i]);
+                }
+                free(values);
+                return result;
+            }
+        }
+    }
+    /* Heterogeneous: return as list */
+    Qo result = alloc_ptr_vec(QO_LIST, count);
+    for (int i = 0; i < count; i++) qo_ptr_data(result)[i] = values[i];
+    free(values);
+    return result;
+}
+
 static Qo eval_apply_value(Qo head, Qo *args, int arg_count, Environment *env) {
     if (head == NULL) EVAL_ERROR("cannot apply null value");
 
     if (qo_type(head) == QO_KEYWORD) {
         return eval_apply_keyword(head, args, arg_count, env);
+    }
+
+    if (qo_type(head) == QO_EACHED) {
+        if (arg_count != 1) EVAL_ERROR("each expects 1 argument");
+        Qo func = QO_EACHED_FUNC(head);
+        Qo arg = args[0];
+        if (arg == NULL) return eval_apply_value(func, args, arg_count, env);
+        uint8_t at = qo_type(arg);
+        if (is_vector_type(at)) {
+            int64_t n = qo_count(arg);
+            Qo *results = xmalloc(sizeof(Qo) * (n > 0 ? (size_t)n : 1));
+            for (int64_t i = 0; i < n; i++) {
+                Qo elem = dict_elem_copy(arg, i);
+                results[i] = eval_apply_value(func, &elem, 1, env);
+                qo_release(elem);
+                if (evaluator_error_requested() || evaluator_exit_requested()) {
+                    for (int64_t j = 0; j <= i; j++) qo_release(results[j]);
+                    free(results);
+                    return NULL;
+                }
+            }
+            return pack_results(results, (int)n);
+        }
+        if (at == QO_DICT) {
+            int64_t n = QO_DICT_COUNT(arg);
+            Qo *results = xmalloc(sizeof(Qo) * (n > 0 ? (size_t)n : 1));
+            for (int64_t i = 0; i < n; i++) {
+                Qo val = qo_clone(QO_DICT_VALS(arg)[i]);
+                results[i] = eval_apply_value(func, &val, 1, env);
+                qo_release(val);
+                if (evaluator_error_requested() || evaluator_exit_requested()) {
+                    for (int64_t j = 0; j <= i; j++) qo_release(results[j]);
+                    free(results);
+                    return NULL;
+                }
+            }
+            /* build dictionary with same keys, mapped values */
+            Qo dict = alloc_dict_block(n);
+            QO_DICT_KTYPE(dict) = QO_DICT_KTYPE(arg);
+            QO_DICT_VTYPE(dict) = QO_DICT_VTYPE(arg);
+            for (int64_t i = 0; i < n; i++) {
+                QO_DICT_KEYS(dict)[i] = qo_clone(QO_DICT_KEYS(arg)[i]);
+                QO_DICT_VALS(dict)[i] = results[i];
+            }
+            free(results);
+            return dict;
+        }
+        return eval_apply_value(func, args, arg_count, env);
     }
 
     if (qo_type(head) == QO_PROJECTION) {
@@ -1091,6 +1205,16 @@ Qo eval_value(Qo tree, Environment *env) {
             if (evaluator_exit_requested() || evaluator_error_requested()) break;
         }
         return last;
+    }
+
+    /* Each: wrap the evaluated func in eached (from ' postfix) */
+    if (strcmp(verb, "each") == 0) {
+        if (arg_count != 1) EVAL_ERROR("each expects exactly 1 argument");
+        Qo arg = eval_value(QO_LIST_DATA(tree)[1], env);
+        if (evaluator_error_requested() || evaluator_exit_requested()) { qo_release(arg); return NULL; }
+        Qo r = make_eached_value(arg);
+        qo_release(arg);
+        return r;
     }
 
     /* All other keywords: evaluate args first */

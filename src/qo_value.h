@@ -46,6 +46,7 @@ typedef QoObject *Qo;
 #define QO_DICT        0x21
 #define QO_FUNCTION    0x22
 #define QO_PROJECTION  0x23
+#define QO_EACHED      0x24
 
 /* ── Stable external accessor API ───────────────────────────────────────── */
 static inline int qo_is_null(Qo q) {

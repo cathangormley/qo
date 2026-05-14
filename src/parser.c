@@ -246,7 +246,6 @@ static int starts_factor(TokenType type) {
            type == TOKEN_HEX ||
            type == TOKEN_IDENTIFIER ||
            type == TOKEN_SYMBOL ||
-           type == TOKEN_CHAR ||
            type == TOKEN_STRING ||
            type == TOKEN_LPAREN ||
            type == TOKEN_LBRACE;
@@ -328,7 +327,16 @@ static Qo make_call_value(Qo base, Qo arg) {
 static Qo parse_postfix_calls(Parser *parser, Qo base) {
     Token *token = current_token(parser);
 
-    while (token && token->type == TOKEN_LBRACKET) {
+    while (token && (token->type == TOKEN_LBRACKET || token->type == TOKEN_EACH)) {
+        if (token->type == TOKEN_EACH) {
+            advance(parser);
+            Qo *elements = xmalloc(sizeof(Qo) * 2);
+            elements[0] = make_keyword_value("each");
+            elements[1] = base;
+            base = qo_make_list_take(elements, 2);
+            token = current_token(parser);
+            continue;
+        }
         int capacity = 4;
         int count = 0;
         Qo *args;
@@ -836,12 +844,6 @@ static Qo parse_factor(Parser *parser) {
         advance(parser);
         literal_elements[0] = make_symbol_value(token->lexeme);
         return parse_postfix_calls(parser, qo_make_list_take(literal_elements, 1));
-    }
-
-    if (token->type == TOKEN_CHAR) {
-        advance(parser);
-        node = make_char_value(token->lexeme[0]);
-        return parse_postfix_calls(parser, node);
     }
 
     if (token->type == TOKEN_STRING) {

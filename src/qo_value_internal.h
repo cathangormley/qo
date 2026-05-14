@@ -55,3 +55,6 @@
 #define QO_PROJ_AC(q)       (*(int64_t *)((q)->storage + 0))
 #define QO_PROJ_FUNC(q)     (*(Qo *)((q)->storage + 8))
 #define QO_PROJ_ARGS(q)     ((Qo *)((q)->storage + 16))
+
+/* eached payload: [0..7] wrapped function */
+#define QO_EACHED_FUNC(q)   (*(Qo *)((q)->storage))

@@ -140,33 +140,6 @@ Token* lexer_next_token(Lexer *lexer) {
         return token_new(TOKEN_SYMBOL, value, false, '\0', start_pos);
     }
 
-    // Character literals (single-quoted)
-    if (ch == '\'') {
-        lexer->pos++;
-        char *value = xmalloc(4);
-        int len = 0;
-        
-        if (lexer->input[lexer->pos] == '\\') {
-            value[len++] = lexer->input[lexer->pos++];
-            if (lexer->input[lexer->pos] != '\0') {
-                value[len++] = lexer->input[lexer->pos++];
-            }
-        } else if (lexer->input[lexer->pos] != '\'' && lexer->input[lexer->pos] != '\0') {
-            value[len++] = lexer->input[lexer->pos++];
-        }
-        
-        if (lexer->input[lexer->pos] == '\'') {
-            lexer->pos++;
-        } else {
-            fprintf(stderr, "Error: unterminated character literal\n");
-            free(value);
-            return token_new(TOKEN_ERROR, NULL, false, '\0', start_pos);
-        }
-        
-        value[len] = '\0';
-        return token_new(TOKEN_CHAR, value, false, '\0', start_pos);
-    }
-
     // String literals (double-quoted)
     if (ch == '"') {
         lexer->pos++;
@@ -358,6 +331,7 @@ Token* lexer_next_token(Lexer *lexer) {
         case '}': return token_new(TOKEN_RBRACE, "}", false, '\0', start_pos);
         case '@': return token_new(TOKEN_AT,     "@", false, '\0', start_pos);
         case '.': return token_new(TOKEN_DOT,    ".", false, '\0', start_pos);
+        case '\'': return token_new(TOKEN_EACH,   "'", false, '\0', start_pos);
         default: {
             char lexeme[2] = {ch, '\0'};
             return token_new(TOKEN_ERROR, lexeme, false, '\0', start_pos);

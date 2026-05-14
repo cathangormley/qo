@@ -25,7 +25,7 @@ static Qo alloc_scalar(uint8_t type, size_t scalar_size) {
 static size_t scalar_payload_size(uint8_t type) {
     if (type == QO_SHORT) return sizeof(int16_t);
     if (type == QO_INT) return sizeof(int32_t);
-    if (type == QO_LONG || type == QO_SYMBOL || type == QO_PROJECTOR) return sizeof(int64_t);
+    if (type == QO_LONG || type == QO_SYMBOL || type == QO_PROJECTOR || type == QO_EACHED) return sizeof(int64_t);
     if (type == QO_FLOAT) return sizeof(double);
     if (type == QO_CHAR) return sizeof(char);
     if (type == QO_BOOL || type == QO_BYTE) return sizeof(uint8_t);
@@ -179,6 +179,13 @@ Qo make_projector_value(void) {
     return q;
 }
 
+Qo make_eached_value(Qo func) {
+    Qo q = alloc_block(sizeof(Qo));
+    q->type_tag = QO_EACHED;
+    QO_EACHED_FUNC(q) = qo_retain(func);
+    return q;
+}
+
 Qo make_null_value(void) {
     return NULL;
 }
@@ -250,6 +257,13 @@ Qo qo_clone(Qo q) {
             c->type_tag = QO_PROJECTOR;
             c->attribute = q->attribute;
             QO_SET_COUNT(c, QO_COUNT(q));
+            return c;
+        }
+        case QO_EACHED: {
+            Qo c = alloc_block(sizeof(Qo));
+            c->type_tag = QO_EACHED;
+            c->attribute = q->attribute;
+            QO_EACHED_FUNC(c) = qo_clone(QO_EACHED_FUNC(q));
             return c;
         }
         case QO_SYMBOL:
@@ -360,6 +374,9 @@ static void qo_destroy(Qo q) {
         case QO_BOOL:
         case QO_BYTE:
         case QO_PROJECTOR:
+            break;
+        case QO_EACHED:
+            qo_release(QO_EACHED_FUNC(q));
             break;
         case QO_SYMBOL:
             qo_symbol_intern_remove(q);
