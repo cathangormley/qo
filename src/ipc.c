@@ -153,16 +153,6 @@ static Qo deserialize_scalar(uint8_t t, const uint8_t *data, size_t len) {
     }
 }
 
-static Qo deserialize_keyword(uint8_t t, const uint8_t *data, size_t len) {
-    int64_t n;
-    memcpy(&n, data, 8);
-    if ((size_t)n + 1 > len) return NULL;
-    Qo result = alloc_charlike(t, n);
-    memcpy(qo_char_data(result), data + 8, (size_t)n);
-    qo_char_data(result)[n] = '\0';
-    return result;
-}
-
 static Qo deserialize_vector(uint8_t t, const uint8_t *data, size_t len) {
     int64_t n;
     if (len < 8) return NULL;

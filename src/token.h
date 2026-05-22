@@ -38,6 +38,8 @@ typedef enum {
     TOKEN_RBRACE,
     TOKEN_AT,
     TOKEN_DOT,
+    TOKEN_DOT_DOT,
+    TOKEN_DOT_DOT_EQ,
     TOKEN_ERROR,
 } TokenType;
 

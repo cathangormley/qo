@@ -549,6 +549,16 @@ test_case "ipc_hclose"               "listen $IPC_PORT; h: hopen[\"127.0.0.1\";$
 IPC_PORT=19108
 test_case "ipc_same_process_ser_roundtrip" "listen $IPC_PORT; h: hopen[\"127.0.0.1\";$IPC_PORT]; ser h[42]" "0x03002a00000000000000"
 
+# Range operator tests
+test_case "range_basic"          "0..5"      "0 1 2 3 4"
+test_case "range_inclusive_basic" "0..=5"    "0 1 2 3 4 5"
+test_case "range_nonzero_start"  "3..7"      "3 4 5 6"
+test_case "range_negative"       "-2..2"     "-2 -1 0 1"
+test_case "range_empty"          "5..5"      "[]"
+test_case "range_inclusive_single" "5..=5"   "5"
+test_case "range_reverse"        "5..0"      "[]"
+test_case "range_type"           "type 0..5" "\`LONG"
+
 echo ""
 echo "Passed: $PASS, Failed: $FAIL"
 exit $FAIL

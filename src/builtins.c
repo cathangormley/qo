@@ -416,6 +416,30 @@ static Qo eval_builtin_til(Qo arg, Environment *env) {
     return out;
 }
 
+static Qo eval_builtin_range(Qo a, Qo b, Environment *env) {
+    (void)env;
+    if (a == NULL || b == NULL) EVAL_ERROR(".. expects two arguments");
+    int64_t start = (int64_t)value_as_double(a);
+    int64_t end = (int64_t)value_as_double(b);
+    if (end <= start) return alloc_data_vec(QO_LONG_VEC, 0);
+    int64_t n = end - start;
+    Qo out = alloc_data_vec(QO_LONG_VEC, n);
+    for (int64_t i = 0; i < n; i++) qo_long_data(out)[i] = start + i;
+    return out;
+}
+
+static Qo eval_builtin_range_inclusive(Qo a, Qo b, Environment *env) {
+    (void)env;
+    if (a == NULL || b == NULL) EVAL_ERROR("..= expects two arguments");
+    int64_t start = (int64_t)value_as_double(a);
+    int64_t end = (int64_t)value_as_double(b);
+    if (end < start) return alloc_data_vec(QO_LONG_VEC, 0);
+    int64_t n = end - start + 1;
+    Qo out = alloc_data_vec(QO_LONG_VEC, n);
+    for (int64_t i = 0; i < n; i++) qo_long_data(out)[i] = start + i;
+    return out;
+}
+
 static Qo eval_builtin_refcount(Qo arg, Environment *env) {
     uint32_t rc;
     (void)env;
@@ -807,6 +831,10 @@ static Qo eval_apply_keyword(Qo head, Qo *arg_values, int arg_count, Environment
                 }
                 return eval_apply_value(func, &rhs, 1, env);
             }
+            case TOKEN_DOT_DOT:
+                return eval_builtin_range(arg_values[0], arg_values[1], env);
+            case TOKEN_DOT_DOT_EQ:
+                return eval_builtin_range_inclusive(arg_values[0], arg_values[1], env);
             case TOKEN_COLON:
                 EVAL_ERROR("unexpected assignment in apply");
             case TOKEN_SLASH:
@@ -1369,27 +1397,3 @@ Qo eval_value(Qo tree, Environment *env) {
     return value_copy(verb_val);
 }
 
-/* ── operator_name_to_token ──────────────────────────────────────────────── */
-
-int operator_name_to_token(const char *name, TokenType *op) {
-    if (strcmp(name, "+") == 0)  { *op = TOKEN_PLUS;       return 1; }
-    if (strcmp(name, "-") == 0)  { *op = TOKEN_MINUS;      return 1; }
-    if (strcmp(name, "*") == 0)  { *op = TOKEN_STAR;       return 1; }
-    if (strcmp(name, "**") == 0) { *op = TOKEN_STAR_STAR;  return 1; }
-    if (strcmp(name, "/") == 0)  { *op = TOKEN_SLASH;      return 1; }
-    if (strcmp(name, "%") == 0)  { *op = TOKEN_PERCENT;    return 1; }
-    if (strcmp(name, "!") == 0)  { *op = TOKEN_BANG;       return 1; }
-    if (strcmp(name, ",") == 0)  { *op = TOKEN_COMMA;      return 1; }
-    if (strcmp(name, "#") == 0)  { *op = TOKEN_HASH;       return 1; }
-    if (strcmp(name, "_") == 0)  { *op = TOKEN_UNDERSCORE; return 1; }
-    if (strcmp(name, "=") == 0)  { *op = TOKEN_EQUAL;      return 1; }
-    if (strcmp(name, "<") == 0)  { *op = TOKEN_LESS;       return 1; }
-    if (strcmp(name, ">") == 0)  { *op = TOKEN_GREATER;    return 1; }
-    if (strcmp(name, "<=") == 0) { *op = TOKEN_LE;         return 1; }
-    if (strcmp(name, ">=") == 0) { *op = TOKEN_GE;         return 1; }
-    if (strcmp(name, "|") == 0)  { *op = TOKEN_PIPE;       return 1; }
-    if (strcmp(name, "&") == 0)  { *op = TOKEN_AMP;        return 1; }
-    if (strcmp(name, "@") == 0)  { *op = TOKEN_AT;         return 1; }
-    if (strcmp(name, ".") == 0)  { *op = TOKEN_DOT;        return 1; }
-    return 0;
-}

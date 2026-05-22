@@ -259,8 +259,8 @@ Token* lexer_next_token(Lexer *lexer) {
             value[len++] = lexer->input[lexer->pos++];
         }
         
-        // Check for decimal point
-        if (lexer->input[lexer->pos] == '.') {
+        // Check for decimal point (but not `..` range operator)
+        if (lexer->input[lexer->pos] == '.' && lexer->input[lexer->pos + 1] != '.') {
             is_float = true;
             if ((size_t)len + 1 >= capacity) {
                 capacity *= 2;
@@ -330,7 +330,17 @@ Token* lexer_next_token(Lexer *lexer) {
         case '{': return token_new(TOKEN_LBRACE, "{", false, '\0', start_pos);
         case '}': return token_new(TOKEN_RBRACE, "}", false, '\0', start_pos);
         case '@': return token_new(TOKEN_AT,     "@", false, '\0', start_pos);
-        case '.': return token_new(TOKEN_DOT,    ".", false, '\0', start_pos);
+        case '.': {
+            if (lexer->input[lexer->pos] == '.') {
+                lexer->pos++;
+                if (lexer->input[lexer->pos] == '=') {
+                    lexer->pos++;
+                    return token_new(TOKEN_DOT_DOT_EQ, "..=", false, '\0', start_pos);
+                }
+                return token_new(TOKEN_DOT_DOT, "..", false, '\0', start_pos);
+            }
+            return token_new(TOKEN_DOT,    ".", false, '\0', start_pos);
+        }
         case '\'': return token_new(TOKEN_EACH,   "'", false, '\0', start_pos);
         default: {
             char lexeme[2] = {ch, '\0'};
