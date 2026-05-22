@@ -35,7 +35,6 @@ typedef struct QoObject {
 typedef QoObject *Qo;
 
 /* ── Type bytes ─────────────────────────────────────────────────────────── */
-#define QO_NULL        0x00
 #define QO_SHORT       0x01
 #define QO_INT         0x02
 #define QO_LONG        0x03

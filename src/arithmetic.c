@@ -482,9 +482,9 @@ Qo eval_dict_creation(Qo left, Qo right) {
     {
         Qo result = alloc_dict_block(ln);
         QO_DICT_KTYPE(result) = (left != NULL && is_vector_type(QO_TYPE(left))) ? QO_TYPE(left)
-                                               : (left != NULL ? QO_TYPE(left) : QO_NULL);
+                                               : (left != NULL ? QO_TYPE(left) : 0);
         QO_DICT_VTYPE(result) = (right != NULL && is_vector_type(QO_TYPE(right))) ? QO_TYPE(right)
-                                               : (right != NULL ? QO_TYPE(right) : QO_NULL);
+                                               : (right != NULL ? QO_TYPE(right) : 0);
         for (int64_t i = 0; i < ln; i++) {
             QO_DICT_KEYS(result)[i] = dict_elem_copy(left, i);
             QO_DICT_VALS(result)[i] = dict_elem_copy(right, i);
