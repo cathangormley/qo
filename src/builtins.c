@@ -43,6 +43,7 @@ int builtin_name_to_id(const char *name) {
     if (strcmp(name, "refcount") == 0) return QO_BUILTIN_REFCOUNT;
     if (strcmp(name, "find") == 0)     return QO_BUILTIN_FIND;
     if (strcmp(name, ";") == 0)        return QO_BUILTIN_SEMICOLON;
+    if (strcmp(name, "null") == 0)     return QO_BUILTIN_NULL;
     return -1;
 }
 
@@ -76,6 +77,7 @@ const char *builtin_id_to_name(uint8_t id) {
         case QO_BUILTIN_REFCOUNT: return "refcount";
         case QO_BUILTIN_FIND:     return "find";
         case QO_BUILTIN_SEMICOLON:return ";";
+        case QO_BUILTIN_NULL:     return "null";
         default:                  return NULL;
     }
 }
@@ -258,6 +260,68 @@ static Qo eval_builtin_not(Qo arg, Environment *env) {
     }
     
     EVAL_ERROR("not expects a numeric argument");
+}
+
+static Qo eval_builtin_null(Qo arg, Environment *env) {
+    (void)env;
+    if (arg == NULL) return make_bool_value(1);
+
+    uint8_t t = qo_type(arg);
+
+    switch (t) {
+        case QO_SHORT:
+            return make_bool_value(qo_short(arg) == QO_SHORT_NULL);
+        case QO_INT:
+            return make_bool_value(qo_int(arg) == QO_INT_NULL);
+        case QO_LONG:
+            return make_bool_value(qo_long(arg) == QO_LONG_NULL);
+        case QO_FLOAT:
+            return make_bool_value(isnan(qo_float(arg)));
+
+        case QO_SHORT_VEC:
+        case QO_INT_VEC:
+        case QO_LONG_VEC:
+        case QO_FLOAT_VEC:
+        case QO_BOOL_VEC:
+        case QO_BYTE_VEC:
+        case QO_CHAR_VEC:
+        case QO_SYM_VEC: {
+            int64_t n = qo_count(arg);
+            Qo result = alloc_data_vec(QO_BOOL_VEC, n);
+            for (int64_t i = 0; i < n; i++) {
+                int is_null = 0;
+                if (t == QO_SHORT_VEC) is_null = (qo_short_data(arg)[i] == QO_SHORT_NULL);
+                else if (t == QO_INT_VEC) is_null = (qo_int_data(arg)[i] == QO_INT_NULL);
+                else if (t == QO_LONG_VEC) is_null = (qo_long_data(arg)[i] == QO_LONG_NULL);
+                else if (t == QO_FLOAT_VEC) is_null = isnan(qo_float_data(arg)[i]);
+                qo_bool_data(result)[i] = is_null ? 1 : 0;
+            }
+            return result;
+        }
+
+        case QO_LIST: {
+            int64_t n = qo_count(arg);
+            Qo result = alloc_data_vec(QO_BOOL_VEC, n);
+            for (int64_t i = 0; i < n; i++) {
+                Qo elem = qo_ptr_data(arg)[i];
+                int is_null = 0;
+                if (elem == NULL) {
+                    is_null = 1;
+                } else {
+                    uint8_t et = qo_type(elem);
+                    if (et == QO_SHORT) is_null = (qo_short(elem) == QO_SHORT_NULL);
+                    else if (et == QO_INT) is_null = (qo_int(elem) == QO_INT_NULL);
+                    else if (et == QO_LONG) is_null = (qo_long(elem) == QO_LONG_NULL);
+                    else if (et == QO_FLOAT) is_null = isnan(qo_float(elem));
+                }
+                qo_bool_data(result)[i] = is_null ? 1 : 0;
+            }
+            return result;
+        }
+
+        default:
+            return make_bool_value(0);
+    }
 }
 
 static Qo eval_builtin_count(Qo arg, Environment *env) {
@@ -903,6 +967,7 @@ static Qo eval_apply_keyword(Qo head, Qo *arg_values, int arg_count, Environment
                     case QO_BUILTIN_LISTEN:   return eval_builtin_listen(arg_values[0], env);
                     case QO_BUILTIN_HCLOSE:   return eval_builtin_hclose(arg_values[0], env);
                     case QO_BUILTIN_REFCOUNT: return eval_builtin_refcount(arg_values[0], env);
+                    case QO_BUILTIN_NULL:     return eval_builtin_null(arg_values[0], env);
                     default:
                         EVAL_ERROR_FMT("unknown builtin id %d", id);
                 }

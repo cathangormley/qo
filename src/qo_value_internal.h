@@ -96,3 +96,4 @@
 #define QO_BUILTIN_REFCOUNT     25
 #define QO_BUILTIN_FIND         26
 #define QO_BUILTIN_SEMICOLON    27
+#define QO_BUILTIN_NULL         28
