@@ -32,8 +32,9 @@ typedef QoObject *Qo;
 #define QO_CHAR        0x05
 #define QO_BOOL        0x06
 #define QO_SYMBOL      0x07
-#define QO_KEYWORD     0x08
+#define QO_OPERATOR    0x08
 #define QO_PROJECTOR   0x09
+#define QO_BUILTIN     0x0B
 #define QO_BYTE        0x0A
 #define QO_SHORT_VEC   0x11
 #define QO_INT_VEC     0x12

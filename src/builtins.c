@@ -12,23 +12,78 @@
 /* forward declaration: eval_apply_keyword and eval_apply_value are mutually recursive */
 static Qo eval_apply_value(Qo head, Qo *args, int arg_count, Environment *env);
 
-/* ── parse helpers ───────────────────────────────────────────────────────── */
+/* ── builtin name ↔ id mapping ────────────────────────────────────────────── */
 
-static int is_parse_builtin_or_special(const char *name) {
-    TokenType op;
-    if (operator_name_to_token(name, &op)) return 1;
-        return strcmp(name,"sum")==0 || strcmp(name,"count")==0 || strcmp(name,"min")==0 ||
-            strcmp(name,"max")==0 || strcmp(name,"parse")==0 || strcmp(name,"lex")==0 ||
-           strcmp(name,"type")==0 || strcmp(name,"key")==0  || strcmp(name,"value")==0 ||
-           strcmp(name,"print")==0|| strcmp(name,"exit")==0 || strcmp(name,"enlist")==0 ||
-           strcmp(name,"eval")==0 || strcmp(name,"first")==0|| strcmp(name,"last")==0  ||
-           strcmp(name,"now")==0  || strcmp(name,"read")==0 || strcmp(name,"shell")==0 ||
-            strcmp(name,"ser")==0  || strcmp(name,"deser")==0 || strcmp(name,"refcount")==0 || strcmp(name,"til")==0 ||
-            strcmp(name,"listen")==0 || strcmp(name,"hclose")==0 || strcmp(name,"hopen")==0 ||
-            strcmp(name,"find")==0 ||
-             strcmp(name,";")==0;
+int builtin_name_to_id(const char *name) {
+    if (strcmp(name, "sum") == 0)      return QO_BUILTIN_SUM;
+    if (strcmp(name, "count") == 0)    return QO_BUILTIN_COUNT;
+    if (strcmp(name, "min") == 0)      return QO_BUILTIN_MIN;
+    if (strcmp(name, "max") == 0)      return QO_BUILTIN_MAX;
+    if (strcmp(name, "til") == 0)      return QO_BUILTIN_TIL;
+    if (strcmp(name, "parse") == 0)    return QO_BUILTIN_PARSE;
+    if (strcmp(name, "lex") == 0)      return QO_BUILTIN_LEX;
+    if (strcmp(name, "not") == 0)      return QO_BUILTIN_NOT;
+    if (strcmp(name, "type") == 0)     return QO_BUILTIN_TYPE;
+    if (strcmp(name, "key") == 0)      return QO_BUILTIN_KEY;
+    if (strcmp(name, "value") == 0)    return QO_BUILTIN_VALUE;
+    if (strcmp(name, "print") == 0)    return QO_BUILTIN_PRINT;
+    if (strcmp(name, "exit") == 0)     return QO_BUILTIN_EXIT;
+    if (strcmp(name, "enlist") == 0)   return QO_BUILTIN_ENLIST;
+    if (strcmp(name, "eval") == 0)     return QO_BUILTIN_EVAL;
+    if (strcmp(name, "first") == 0)    return QO_BUILTIN_FIRST;
+    if (strcmp(name, "last") == 0)     return QO_BUILTIN_LAST;
+    if (strcmp(name, "now") == 0)      return QO_BUILTIN_NOW;
+    if (strcmp(name, "read") == 0)     return QO_BUILTIN_READ;
+    if (strcmp(name, "shell") == 0)    return QO_BUILTIN_SHELL;
+    if (strcmp(name, "ser") == 0)      return QO_BUILTIN_SER;
+    if (strcmp(name, "deser") == 0)    return QO_BUILTIN_DESER;
+    if (strcmp(name, "listen") == 0)   return QO_BUILTIN_LISTEN;
+    if (strcmp(name, "hclose") == 0)   return QO_BUILTIN_HCLOSE;
+    if (strcmp(name, "hopen") == 0)    return QO_BUILTIN_HOPEN;
+    if (strcmp(name, "refcount") == 0) return QO_BUILTIN_REFCOUNT;
+    if (strcmp(name, "find") == 0)     return QO_BUILTIN_FIND;
+    if (strcmp(name, ";") == 0)        return QO_BUILTIN_SEMICOLON;
+    return -1;
 }
 
+const char *builtin_id_to_name(uint8_t id) {
+    switch (id) {
+        case QO_BUILTIN_SUM:      return "sum";
+        case QO_BUILTIN_COUNT:    return "count";
+        case QO_BUILTIN_MIN:      return "min";
+        case QO_BUILTIN_MAX:      return "max";
+        case QO_BUILTIN_TIL:      return "til";
+        case QO_BUILTIN_PARSE:    return "parse";
+        case QO_BUILTIN_LEX:      return "lex";
+        case QO_BUILTIN_NOT:      return "not";
+        case QO_BUILTIN_TYPE:     return "type";
+        case QO_BUILTIN_KEY:      return "key";
+        case QO_BUILTIN_VALUE:    return "value";
+        case QO_BUILTIN_PRINT:    return "print";
+        case QO_BUILTIN_EXIT:     return "exit";
+        case QO_BUILTIN_ENLIST:   return "enlist";
+        case QO_BUILTIN_EVAL:     return "eval";
+        case QO_BUILTIN_FIRST:    return "first";
+        case QO_BUILTIN_LAST:     return "last";
+        case QO_BUILTIN_NOW:      return "now";
+        case QO_BUILTIN_READ:     return "read";
+        case QO_BUILTIN_SHELL:    return "shell";
+        case QO_BUILTIN_SER:      return "ser";
+        case QO_BUILTIN_DESER:    return "deser";
+        case QO_BUILTIN_LISTEN:   return "listen";
+        case QO_BUILTIN_HCLOSE:   return "hclose";
+        case QO_BUILTIN_HOPEN:    return "hopen";
+        case QO_BUILTIN_REFCOUNT: return "refcount";
+        case QO_BUILTIN_FIND:     return "find";
+        case QO_BUILTIN_SEMICOLON:return ";";
+        default:                  return NULL;
+    }
+}
+
+/* ── parse helpers ───────────────────────────────────────────────────────── */
+
+/* Recursively copy a parsed tree. Operators and builtins keep their type;
+   the parser already resolves non-builtin identifiers to symbols. */
 static Qo normalize_parsed_tree(Qo tree) {
     if (tree == NULL) return NULL;
     if (qo_type(tree) != QO_LIST) return value_copy(tree);
@@ -36,15 +91,6 @@ static Qo normalize_parsed_tree(Qo tree) {
     Qo result = alloc_ptr_vec(QO_LIST, n);
     for (int64_t i = 0; i < n; i++) {
         qo_ptr_data(result)[i] = normalize_parsed_tree(qo_ptr_data(tree)[i]);
-    }
-    if (n > 0) {
-        Qo h = qo_ptr_data(result)[0];
-        if (h != NULL && qo_type(h) == QO_KEYWORD &&
-            !is_parse_builtin_or_special((char *)qo_char_data(h))) {
-            Qo sym = make_symbol_value((char *)qo_char_data(h));
-            value_free(qo_ptr_data(result)[0]);
-            qo_ptr_data(result)[0] = sym;
-        }
     }
     return result;
 }
@@ -404,7 +450,8 @@ static Qo eval_builtin_type(Qo arg, Environment *env) {
         case QO_SYMBOL:     tag = "symbol";    break;
         case QO_SYM_VEC:    tag = "SYMBOL";    break;
         case QO_DICT:       tag = "dict";      break;
-        case QO_KEYWORD:    tag = "keyword";   break;
+        case QO_OPERATOR:   tag = "operator";  break;
+        case QO_BUILTIN:    tag = "builtin";   break;
         case QO_LIST:       tag = "list";      break;
         case QO_FUNCTION:   tag = "function";  break;
         case QO_EACHED:     tag = "each";      break;
@@ -715,132 +762,133 @@ static Qo null_for_vector_type(uint8_t vec_type) {
 }
 
 static Qo eval_apply_keyword(Qo head, Qo *arg_values, int arg_count, Environment *env) {
-    const char *verb = QO_STR(head);
     Qo result;
-    TokenType op_token;
 
-    if (operator_name_to_token(verb, &op_token)) {
+    if (qo_type(head) == QO_OPERATOR) {
+        TokenType op_token = (TokenType)QO_OPERATOR_OP(head);
         if (arg_count != 2) {
-            EVAL_ERROR_FMT("%s expects exactly 2 arguments, got %d", verb, arg_count);
+            EVAL_ERROR("operator expects exactly 2 arguments");
         }
-        if      (op_token == TOKEN_BANG)       return eval_dict_creation(arg_values[0], arg_values[1]);
-        else if (op_token == TOKEN_COMMA)      return eval_comma_binop(arg_values[0], arg_values[1]);
-        else if (op_token == TOKEN_HASH)       return eval_take(arg_values[0], arg_values[1]);
-        else if (op_token == TOKEN_UNDERSCORE) return eval_drop(arg_values[0], arg_values[1]);
-        else if (op_token == TOKEN_EQUAL)      return eval_equals(arg_values[0], arg_values[1]);
-        else if (op_token == TOKEN_LESS)       return eval_less(arg_values[0], arg_values[1]);
-        else if (op_token == TOKEN_GREATER)    return eval_greater(arg_values[0], arg_values[1]);
-        else if (op_token == TOKEN_LE)         return eval_lte(arg_values[0], arg_values[1]);
-        else if (op_token == TOKEN_GE)         return eval_gte(arg_values[0], arg_values[1]);
-        else if (op_token == TOKEN_PIPE)       return eval_max_of(arg_values[0], arg_values[1]);
-        else if (op_token == TOKEN_AMP)        return eval_min_of(arg_values[0], arg_values[1]);
-        else if (op_token == TOKEN_PLUS)       return eval_add(arg_values[0], arg_values[1]);
-        else if (op_token == TOKEN_MINUS)      return eval_subtract(arg_values[0], arg_values[1]);
-        else if (op_token == TOKEN_STAR)       return eval_multiply(arg_values[0], arg_values[1]);
-        else if (op_token == TOKEN_PERCENT)    return eval_divide(arg_values[0], arg_values[1]);
-        else if (op_token == TOKEN_STAR_STAR)  return eval_power(arg_values[0], arg_values[1]);
-        else if (op_token == TOKEN_AT) {
-            /* f@x  =  f[x]: apply left to right as a single argument */
-            return eval_apply_value(arg_values[0], &arg_values[1], 1, env);
-        }
-        else if (op_token == TOKEN_DOT) {
-            /* f . v  =  f[...v]: apply left, spreading rhs vector/list elements as args */
-            Qo func = arg_values[0];
-            Qo rhs  = arg_values[1];
-            if (rhs != NULL && is_vector_type(qo_type(rhs))) {
-                int64_t n = qo_count(rhs);
-                Qo *spread = xmalloc(sizeof(Qo) * (n > 0 ? (size_t)n : 1));
-                int owns_spread_values = (qo_type(rhs) != QO_LIST);
-                for (int64_t i = 0; i < n; i++) {
-                    spread[i] = owns_spread_values ? dict_elem_copy(rhs, i) : qo_ptr_data(rhs)[i];
+        switch (op_token) {
+            case TOKEN_BANG:       return eval_dict_creation(arg_values[0], arg_values[1]);
+            case TOKEN_COMMA:      return eval_comma_binop(arg_values[0], arg_values[1]);
+            case TOKEN_HASH:       return eval_take(arg_values[0], arg_values[1]);
+            case TOKEN_UNDERSCORE: return eval_drop(arg_values[0], arg_values[1]);
+            case TOKEN_EQUAL:      return eval_equals(arg_values[0], arg_values[1]);
+            case TOKEN_LESS:       return eval_less(arg_values[0], arg_values[1]);
+            case TOKEN_GREATER:    return eval_greater(arg_values[0], arg_values[1]);
+            case TOKEN_LE:         return eval_lte(arg_values[0], arg_values[1]);
+            case TOKEN_GE:         return eval_gte(arg_values[0], arg_values[1]);
+            case TOKEN_PIPE:       return eval_max_of(arg_values[0], arg_values[1]);
+            case TOKEN_AMP:        return eval_min_of(arg_values[0], arg_values[1]);
+            case TOKEN_PLUS:       return eval_add(arg_values[0], arg_values[1]);
+            case TOKEN_MINUS:      return eval_subtract(arg_values[0], arg_values[1]);
+            case TOKEN_STAR:       return eval_multiply(arg_values[0], arg_values[1]);
+            case TOKEN_PERCENT:    return eval_divide(arg_values[0], arg_values[1]);
+            case TOKEN_STAR_STAR:  return eval_power(arg_values[0], arg_values[1]);
+            case TOKEN_AT:
+                return eval_apply_value(arg_values[0], &arg_values[1], 1, env);
+            case TOKEN_DOT: {
+                Qo func = arg_values[0];
+                Qo rhs  = arg_values[1];
+                if (rhs != NULL && is_vector_type(qo_type(rhs))) {
+                    int64_t n = qo_count(rhs);
+                    Qo *spread = xmalloc(sizeof(Qo) * (n > 0 ? (size_t)n : 1));
+                    int owns_spread_values = (qo_type(rhs) != QO_LIST);
+                    for (int64_t i = 0; i < n; i++) {
+                        spread[i] = owns_spread_values ? dict_elem_copy(rhs, i) : qo_ptr_data(rhs)[i];
+                    }
+                    result = eval_apply_value(func, spread, (int)n, env);
+                    if (owns_spread_values) {
+                        for (int64_t i = 0; i < n; i++) value_free(spread[i]);
+                    }
+                    free(spread);
+                    return result;
                 }
-                result = eval_apply_value(func, spread, (int)n, env);
-                if (owns_spread_values) {
-                    for (int64_t i = 0; i < n; i++) value_free(spread[i]);
-                }
-                free(spread);
-                return result;
+                return eval_apply_value(func, &rhs, 1, env);
             }
-            return eval_apply_value(func, &rhs, 1, env);
-        }
-        else EVAL_ERROR("operator '/' is undefined");
-    }
-
-    /* hopen: accepts 1 arg (port) or 2 args (host, port) */
-    if (strcmp(verb, "hopen") == 0) {
-        int fd;
-        if (arg_count == 1) {
-            Qo port_val = arg_values[0];
-            if (port_val == NULL || !is_numeric_scalar_type(qo_type(port_val)))
-                EVAL_ERROR("hopen expects a numeric port");
-            int port = (int)value_as_double(port_val);
-            fd = ipc_connect("127.0.0.1", port);
-        } else if (arg_count == 2) {
-            Qo host_val = arg_values[0];
-            Qo port_val = arg_values[1];
-            if (host_val == NULL || qo_type(host_val) != QO_CHAR_VEC)
-                EVAL_ERROR("hopen expects a string host");
-            if (port_val == NULL || !is_numeric_scalar_type(qo_type(port_val)))
-                EVAL_ERROR("hopen expects a numeric port");
-            char *host = charvec_to_cstr(host_val);
-            int port = (int)value_as_double(port_val);
-            fd = ipc_connect(host, port);
-            free(host);
-        } else {
-            EVAL_ERROR("hopen expects 1 or 2 arguments");
-        }
-        if (fd < 0) EVAL_ERROR("failed to connect");
-        // Accept the server-side connection if this process has a server socket
-        if (ipc_server_fd() >= 0) {
-            ipc_accept_connection();
-        }
-        return make_int_value(fd);
-    }
-
-    /* find: 2 args (haystack, needles) */
-    if (strcmp(verb, "find") == 0) {
-        if (arg_count != 2) EVAL_ERROR("find expects exactly 2 arguments");
-        return eval_builtin_find(arg_values[0], arg_values[1], env);
-    }
-
-    static const BuiltinSpec builtins[] = {
-        {"sum",   eval_builtin_sum},
-        {"count", eval_builtin_count},
-        {"min",   eval_builtin_min},
-        {"max",   eval_builtin_max},
-        {"til",   eval_builtin_til},
-        {"refcount", eval_builtin_refcount},
-        {"parse", eval_builtin_parse},
-        {"lex",   eval_builtin_lex},
-        {"not",   eval_builtin_not},
-        {"type",  eval_builtin_type},
-        {"key",   eval_builtin_key},
-        {"value", eval_builtin_value_fn},
-        {"print", eval_builtin_print},
-        {"exit",  eval_builtin_exit},
-        {"eval",  eval_builtin_eval},
-        {"first", eval_builtin_first},
-        {"last",  eval_builtin_last},
-        {"now",   eval_builtin_now},
-        {"read",  eval_builtin_read},
-        {"shell", eval_builtin_shell},
-        {"ser",   eval_builtin_ser},
-        {"deser", eval_builtin_deser},
-        {"listen", eval_builtin_listen},
-        {"hclose", eval_builtin_hclose},
-    };
-
-    for (size_t i = 0; i < sizeof(builtins) / sizeof(builtins[0]); i++) {
-        if (strcmp(verb, builtins[i].name) == 0) {
-            if (arg_count != 1)
-                EVAL_ERROR_FMT("%s expects exactly 1 argument, got %d",
-                               builtins[i].name, arg_count);
-            result = builtins[i].fn(arg_values[0], env);
-            return result;
+            case TOKEN_COLON:
+                EVAL_ERROR("unexpected assignment in apply");
+            case TOKEN_SLASH:
+                EVAL_ERROR("operator '/' is undefined");
+            default:
+                EVAL_ERROR("unknown operator");
         }
     }
 
-    EVAL_ERROR_FMT("unknown keyword '%s'", verb);
+    if (qo_type(head) == QO_BUILTIN) {
+        uint8_t id = QO_BUILTIN_ID(head);
+        switch (id) {
+            case QO_BUILTIN_HOPEN: {
+                int fd;
+                if (arg_count == 1) {
+                    Qo port_val = arg_values[0];
+                    if (port_val == NULL || !is_numeric_scalar_type(qo_type(port_val)))
+                        EVAL_ERROR("hopen expects a numeric port");
+                    int port = (int)value_as_double(port_val);
+                    fd = ipc_connect("127.0.0.1", port);
+                } else if (arg_count == 2) {
+                    Qo host_val = arg_values[0];
+                    Qo port_val = arg_values[1];
+                    if (host_val == NULL || qo_type(host_val) != QO_CHAR_VEC)
+                        EVAL_ERROR("hopen expects a string host");
+                    if (port_val == NULL || !is_numeric_scalar_type(qo_type(port_val)))
+                        EVAL_ERROR("hopen expects a numeric port");
+                    char *host = charvec_to_cstr(host_val);
+                    int port = (int)value_as_double(port_val);
+                    fd = ipc_connect(host, port);
+                    free(host);
+                } else {
+                    EVAL_ERROR("hopen expects 1 or 2 arguments");
+                }
+                if (fd < 0) EVAL_ERROR("failed to connect");
+                if (ipc_server_fd() >= 0) {
+                    ipc_accept_connection();
+                }
+                return make_int_value(fd);
+            }
+            case QO_BUILTIN_FIND:
+                if (arg_count != 2) EVAL_ERROR("find expects exactly 2 arguments");
+                return eval_builtin_find(arg_values[0], arg_values[1], env);
+            case QO_BUILTIN_ENLIST:
+                return eval_builtin_enlist(arg_values, arg_count, env);
+            case QO_BUILTIN_SEMICOLON:
+                EVAL_ERROR("unexpected semicolon in apply");
+            default:
+                if (arg_count != 1)
+                    EVAL_ERROR_FMT("builtin expects exactly 1 argument, got %d", arg_count);
+                switch (id) {
+                    case QO_BUILTIN_SUM:      return eval_builtin_sum(arg_values[0], env);
+                    case QO_BUILTIN_COUNT:    return eval_builtin_count(arg_values[0], env);
+                    case QO_BUILTIN_MIN:      return eval_builtin_min(arg_values[0], env);
+                    case QO_BUILTIN_MAX:      return eval_builtin_max(arg_values[0], env);
+                    case QO_BUILTIN_TIL:      return eval_builtin_til(arg_values[0], env);
+                    case QO_BUILTIN_PARSE:    return eval_builtin_parse(arg_values[0], env);
+                    case QO_BUILTIN_LEX:      return eval_builtin_lex(arg_values[0], env);
+                    case QO_BUILTIN_NOT:      return eval_builtin_not(arg_values[0], env);
+                    case QO_BUILTIN_TYPE:     return eval_builtin_type(arg_values[0], env);
+                    case QO_BUILTIN_KEY:      return eval_builtin_key(arg_values[0], env);
+                    case QO_BUILTIN_VALUE:    return eval_builtin_value_fn(arg_values[0], env);
+                    case QO_BUILTIN_PRINT:    return eval_builtin_print(arg_values[0], env);
+                    case QO_BUILTIN_EXIT:     return eval_builtin_exit(arg_values[0], env);
+                    case QO_BUILTIN_EVAL:     return eval_builtin_eval(arg_values[0], env);
+                    case QO_BUILTIN_FIRST:    return eval_builtin_first(arg_values[0], env);
+                    case QO_BUILTIN_LAST:     return eval_builtin_last(arg_values[0], env);
+                    case QO_BUILTIN_NOW:      return eval_builtin_now(arg_values[0], env);
+                    case QO_BUILTIN_READ:     return eval_builtin_read(arg_values[0], env);
+                    case QO_BUILTIN_SHELL:    return eval_builtin_shell(arg_values[0], env);
+                    case QO_BUILTIN_SER:      return eval_builtin_ser(arg_values[0], env);
+                    case QO_BUILTIN_DESER:    return eval_builtin_deser(arg_values[0], env);
+                    case QO_BUILTIN_LISTEN:   return eval_builtin_listen(arg_values[0], env);
+                    case QO_BUILTIN_HCLOSE:   return eval_builtin_hclose(arg_values[0], env);
+                    case QO_BUILTIN_REFCOUNT: return eval_builtin_refcount(arg_values[0], env);
+                    default:
+                        EVAL_ERROR_FMT("unknown builtin id %d", id);
+                }
+        }
+    }
+
+    EVAL_ERROR("unknown keyword type");
 }
 
 static Qo eval_builtin_assign(Qo *args, int arg_count, Environment *env) {
@@ -977,7 +1025,7 @@ static Qo pack_results(Qo *values, int count) {
 static Qo eval_apply_value(Qo head, Qo *args, int arg_count, Environment *env) {
     if (head == NULL) EVAL_ERROR("cannot apply null value");
 
-    if (qo_type(head) == QO_KEYWORD) {
+    if (qo_type(head) == QO_OPERATOR || qo_type(head) == QO_BUILTIN) {
         return eval_apply_keyword(head, args, arg_count, env);
     }
 
@@ -1264,7 +1312,8 @@ Qo eval_value(Qo tree, Environment *env) {
     int arg_count = (int)(n - 1);
     Qo result;
 
-    if (verb_val == NULL || qo_type(verb_val) != QO_KEYWORD) {
+    uint8_t vt = verb_val ? qo_type(verb_val) : 0;
+    if (verb_val == NULL || (vt != QO_OPERATOR && vt != QO_BUILTIN)) {
         /* Non-keyword head: evaluate and apply */
         Qo head = eval_value(verb_val, env);
         Qo *args = xmalloc(sizeof(Qo) * arg_count);
@@ -1280,40 +1329,44 @@ Qo eval_value(Qo tree, Environment *env) {
         return result;
     }
 
-    const char *verb = QO_STR(verb_val);
-
-    /* Assignment: raw LHS symbol, evaluated RHS */
-    if (strcmp(verb, ":") == 0)
-        return eval_builtin_assign(&QO_LIST_DATA(tree)[1], arg_count, env);
-
-    /* Enlist: evaluate args normally */
-    if (strcmp(verb, "enlist") == 0) {
-        Qo *av = xmalloc(sizeof(Qo) * (arg_count > 0 ? arg_count : 1));
-        if (!eval_args_or_stop(tree, 1, arg_count, env, av)) { free(av); return NULL; }
-        result = eval_builtin_enlist(av, arg_count, env);
-        free_evaluated_args(av, arg_count);
+    if (vt == QO_OPERATOR) {
+        TokenType op = (TokenType)QO_OPERATOR_OP(verb_val);
+        if (op == TOKEN_COLON)
+            return eval_builtin_assign(&QO_LIST_DATA(tree)[1], arg_count, env);
+        Qo *arg_values = xmalloc(sizeof(Qo) * (arg_count > 0 ? arg_count : 1));
+        if (!eval_args_or_stop(tree, 1, arg_count, env, arg_values)) { free(arg_values); return NULL; }
+        result = eval_apply_keyword(verb_val, arg_values, arg_count, env);
+        free_evaluated_args(arg_values, arg_count);
         return result;
     }
 
-    /* Sequence: one statement at a time */
-    if (strcmp(verb, ";") == 0) {
-        Qo last = NULL;
-        for (int i = 0; i < arg_count; i++) {
-            Qo cur = eval_value(QO_LIST_DATA(tree)[i + 1], env);
-            if (i > 0) value_free(last);
-            last = cur;
-            if (evaluator_exit_requested() || evaluator_error_requested()) break;
+    if (vt == QO_BUILTIN) {
+        uint8_t id = QO_BUILTIN_ID(verb_val);
+        if (id == QO_BUILTIN_ENLIST) {
+            Qo *av = xmalloc(sizeof(Qo) * (arg_count > 0 ? arg_count : 1));
+            if (!eval_args_or_stop(tree, 1, arg_count, env, av)) { free(av); return NULL; }
+            result = eval_builtin_enlist(av, arg_count, env);
+            free_evaluated_args(av, arg_count);
+            return result;
         }
-        return last;
+        if (id == QO_BUILTIN_SEMICOLON) {
+            Qo last = NULL;
+            for (int i = 0; i < arg_count; i++) {
+                Qo cur = eval_value(QO_LIST_DATA(tree)[i + 1], env);
+                if (i > 0) value_free(last);
+                last = cur;
+                if (evaluator_exit_requested() || evaluator_error_requested()) break;
+            }
+            return last;
+        }
+        Qo *arg_values = xmalloc(sizeof(Qo) * (arg_count > 0 ? arg_count : 1));
+        if (!eval_args_or_stop(tree, 1, arg_count, env, arg_values)) { free(arg_values); return NULL; }
+        result = eval_apply_keyword(verb_val, arg_values, arg_count, env);
+        free_evaluated_args(arg_values, arg_count);
+        return result;
     }
 
-    /* All other keywords: evaluate args first */
-    Qo *arg_values = xmalloc(sizeof(Qo) * (arg_count > 0 ? arg_count : 1));
-    if (!eval_args_or_stop(tree, 1, arg_count, env, arg_values)) { free(arg_values); return NULL; }
-
-    result = eval_apply_keyword(verb_val, arg_values, arg_count, env);
-    free_evaluated_args(arg_values, arg_count);
-    return result;
+    return value_copy(verb_val);
 }
 
 /* ── operator_name_to_token ──────────────────────────────────────────────── */

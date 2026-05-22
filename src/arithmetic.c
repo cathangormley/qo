@@ -144,10 +144,10 @@ Qo eval_take(Qo lhs, Qo rhs) {
     take_count = get_integer_value(lhs);
     output_count = (take_count < 0) ? -take_count : take_count;
     if (rhs == NULL) EVAL_ERROR("take right argument must be a list, vector, or atom");
-    if (qo_type(rhs) == QO_DICT || qo_type(rhs) == QO_KEYWORD) {
+    if (qo_type(rhs) == QO_DICT || qo_type(rhs) == QO_OPERATOR || qo_type(rhs) == QO_BUILTIN) {
         EVAL_ERROR("take right argument must be a list, vector, or atom");
     }
-
+ 
     if (is_vector_type(qo_type(rhs))) {
         int64_t source_count = qo_count(rhs);
         Qo result;
@@ -193,7 +193,7 @@ Qo eval_drop(Qo lhs, Qo rhs) {
     if (lhs == NULL || !is_numeric_int_type(qo_type(lhs))) EVAL_ERROR("drop count must be an integer");
     drop_count = get_integer_value(lhs);
     if (rhs == NULL) EVAL_ERROR("drop right argument must be a list, vector, or atom");
-    if (qo_type(rhs) == QO_DICT || qo_type(rhs) == QO_KEYWORD) {
+    if (qo_type(rhs) == QO_DICT || qo_type(rhs) == QO_OPERATOR || qo_type(rhs) == QO_BUILTIN) {
         EVAL_ERROR("drop right argument must be a list, vector, or atom");
     }
 

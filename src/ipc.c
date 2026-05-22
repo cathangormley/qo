@@ -53,7 +53,8 @@ static size_t ipc_block_size(Qo q) {
         case QO_BOOL:
         case QO_BYTE: return 3;
         case QO_SYMBOL: return 10;
-        case QO_KEYWORD: return (size_t)(11 + qo_count(q));
+        case QO_OPERATOR:
+        case QO_BUILTIN: return 3;
         case QO_CHAR_VEC: return (size_t)(10 + qo_count(q));
         case QO_SHORT_VEC: return (size_t)(10 + qo_count(q) * 2);
         case QO_INT_VEC: return (size_t)(10 + qo_count(q) * 4);
@@ -89,11 +90,11 @@ Qo ipc_serialize(Qo arg) {
         case QO_CHAR: out[2] = (uint8_t)qo_char(arg); break;
         case QO_BOOL: out[2] = qo_bool(arg); break;
         case QO_BYTE: out[2] = qo_byte(arg); break;
-        case QO_KEYWORD:
-            n = qo_count(arg);
-            memcpy(out + 2, &n, 8);
-            memcpy(out + 10, qo_char_data(arg), (size_t)n);
-            out[10 + n] = '\0';
+        case QO_OPERATOR:
+            out[2] = QO_OPERATOR_OP(arg);
+            break;
+        case QO_BUILTIN:
+            out[2] = QO_BUILTIN_ID(arg);
             break;
         case QO_CHAR_VEC:
             n = qo_count(arg);
@@ -152,11 +153,11 @@ static Qo deserialize_scalar(uint8_t t, const uint8_t *data, size_t len) {
     }
 }
 
-static Qo deserialize_keyword(const uint8_t *data, size_t len) {
+static Qo deserialize_keyword(uint8_t t, const uint8_t *data, size_t len) {
     int64_t n;
     memcpy(&n, data, 8);
     if ((size_t)n + 1 > len) return NULL;
-    Qo result = alloc_charlike(QO_KEYWORD, n);
+    Qo result = alloc_charlike(t, n);
     memcpy(qo_char_data(result), data + 8, (size_t)n);
     qo_char_data(result)[n] = '\0';
     return result;
@@ -217,7 +218,8 @@ Qo ipc_deserialize(const uint8_t *data, size_t len) {
         case QO_CHAR:
         case QO_BOOL:
         case QO_BYTE: return (len < 1)  ? NULL : deserialize_scalar(t, data, len);
-        case QO_KEYWORD: return (len < 8) ? NULL : deserialize_keyword(data, len);
+        case QO_OPERATOR: return (len < 1) ? NULL : make_operator_value((TokenType)data[0]);
+        case QO_BUILTIN:  return (len < 1) ? NULL : make_builtin_value(data[0]);
         case QO_CHAR_VEC:
         case QO_SHORT_VEC:
         case QO_INT_VEC:

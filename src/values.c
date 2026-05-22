@@ -28,7 +28,7 @@ static size_t scalar_payload_size(uint8_t type) {
     if (type == QO_LONG || type == QO_SYMBOL || type == QO_PROJECTOR || type == QO_EACHED) return sizeof(int64_t);
     if (type == QO_FLOAT) return sizeof(double);
     if (type == QO_CHAR) return sizeof(char);
-    if (type == QO_BOOL || type == QO_BYTE || type == QO_ADVERB) return sizeof(uint8_t);
+    if (type == QO_BOOL || type == QO_BYTE || type == QO_ADVERB || type == QO_OPERATOR || type == QO_BUILTIN) return sizeof(uint8_t);
     return 0;
 }
 
@@ -88,7 +88,7 @@ int is_charish_type(uint8_t t) {
 int is_non_numeric_operand(Qo q) {
     if (q == NULL) return 1;
     uint8_t t = qo_type(q);
-    return t == QO_SYMBOL || t == QO_SYM_VEC || t == QO_DICT || t == QO_KEYWORD ||
+    return t == QO_SYMBOL || t == QO_SYM_VEC || t == QO_DICT || t == QO_OPERATOR || t == QO_BUILTIN ||
            t == QO_CHAR_VEC || t == QO_CHAR || t == QO_BYTE || t == QO_BYTE_VEC || t == QO_FUNCTION ||
            t == QO_PROJECTOR || t == QO_PROJECTION;
 }
@@ -206,8 +206,16 @@ Qo make_symbol_value(const char *text) {
     return qo_symbol_intern(text);
 }
 
-Qo make_keyword_value(const char *text) {
-    return make_strlike(QO_KEYWORD, text, (int64_t)strlen(text));
+Qo make_operator_value(TokenType op) {
+    Qo q = alloc_scalar(QO_OPERATOR, sizeof(uint8_t));
+    QO_OPERATOR_OP(q) = (uint8_t)op;
+    return q;
+}
+
+Qo make_builtin_value(uint8_t id) {
+    Qo q = alloc_scalar(QO_BUILTIN, sizeof(uint8_t));
+    QO_BUILTIN_ID(q) = id;
+    return q;
 }
 
 Qo qo_make_list_take(Qo *elements, int64_t count) {
@@ -259,7 +267,9 @@ Qo qo_clone(Qo q) {
             return c;
         }
         case QO_PROJECTOR:
-        case QO_ADVERB: {
+        case QO_ADVERB:
+        case QO_OPERATOR:
+        case QO_BUILTIN: {
             size_t sz = scalar_payload_size(QO_TYPE(q));
             Qo c = alloc_scalar(QO_TYPE(q), sz);
             c->attribute = q->attribute;
@@ -275,7 +285,6 @@ Qo qo_clone(Qo q) {
         }
         case QO_SYMBOL:
             return qo_retain(q);
-        case QO_KEYWORD:
         case QO_CHAR_VEC: {
             n = QO_COUNT(q);
             {
@@ -382,6 +391,8 @@ static void qo_destroy(Qo q) {
         case QO_BYTE:
         case QO_PROJECTOR:
         case QO_ADVERB:
+        case QO_OPERATOR:
+        case QO_BUILTIN:
             break;
         case QO_EACHED:
             qo_release(QO_EACHED_FUNC(q));
@@ -389,7 +400,6 @@ static void qo_destroy(Qo q) {
         case QO_SYMBOL:
             qo_symbol_intern_remove(q);
             break;
-        case QO_KEYWORD:
         case QO_CHAR_VEC:
         case QO_SHORT_VEC:
         case QO_INT_VEC:
@@ -462,8 +472,10 @@ int value_equals(Qo a, Qo b) {
             return QO_ADVERB_KIND(a) == QO_ADVERB_KIND(b);
         case QO_SYMBOL:
             return QO_SYMBOL_ID(a) == QO_SYMBOL_ID(b);
-        case QO_KEYWORD:
-            return strcmp(QO_STR(a), QO_STR(b)) == 0;
+        case QO_OPERATOR:
+            return QO_OPERATOR_OP(a) == QO_OPERATOR_OP(b);
+        case QO_BUILTIN:
+            return QO_BUILTIN_ID(a) == QO_BUILTIN_ID(b);
         case QO_CHAR_VEC: {
             int64_t n = QO_COUNT(a);
             if (n != QO_COUNT(b)) return 0;

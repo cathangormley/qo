@@ -62,3 +62,38 @@
 /* adverb payload: [0] kind byte */
 #define QO_ADVERB_KIND(q)   (*(uint8_t *)((q)->storage))
 #define QO_ADVERB_EACH      0
+
+/* operator payload: [0] TokenType byte */
+#define QO_OPERATOR_OP(q)   (*(uint8_t *)((q)->storage))
+
+/* builtin payload: [0] ID byte */
+#define QO_BUILTIN_ID(q)        (*(uint8_t *)((q)->storage))
+
+#define QO_BUILTIN_SUM          0
+#define QO_BUILTIN_COUNT        1
+#define QO_BUILTIN_MIN          2
+#define QO_BUILTIN_MAX          3
+#define QO_BUILTIN_TIL          4
+#define QO_BUILTIN_PARSE        5
+#define QO_BUILTIN_LEX          6
+#define QO_BUILTIN_NOT          7
+#define QO_BUILTIN_TYPE         8
+#define QO_BUILTIN_KEY          9
+#define QO_BUILTIN_VALUE        10
+#define QO_BUILTIN_PRINT        11
+#define QO_BUILTIN_EXIT         12
+#define QO_BUILTIN_ENLIST       13
+#define QO_BUILTIN_EVAL         14
+#define QO_BUILTIN_FIRST        15
+#define QO_BUILTIN_LAST         16
+#define QO_BUILTIN_NOW          17
+#define QO_BUILTIN_READ         18
+#define QO_BUILTIN_SHELL        19
+#define QO_BUILTIN_SER          20
+#define QO_BUILTIN_DESER        21
+#define QO_BUILTIN_LISTEN       22
+#define QO_BUILTIN_HCLOSE       23
+#define QO_BUILTIN_HOPEN        24
+#define QO_BUILTIN_REFCOUNT     25
+#define QO_BUILTIN_FIND         26
+#define QO_BUILTIN_SEMICOLON    27

@@ -18,7 +18,7 @@ static void advance(Parser *parser) {
     parser->pos++;
 }
 
-static const char *token_type_to_operator(TokenType op) {
+const char *token_type_to_operator(TokenType op) {
     switch (op) {
         case TOKEN_PLUS: return "+";
         case TOKEN_MINUS: return "-";
@@ -252,36 +252,7 @@ static int starts_factor(TokenType type) {
            type == TOKEN_EACH;
 }
 
-static int is_keyword_identifier(Token *token) {
-    return token && token->type == TOKEN_IDENTIFIER &&
-           (strcmp(token->lexeme, "sum") == 0 ||
-            strcmp(token->lexeme, "count") == 0 ||
-            strcmp(token->lexeme, "min") == 0 ||
-            strcmp(token->lexeme, "max") == 0 ||
-            strcmp(token->lexeme, "til") == 0 ||
-            strcmp(token->lexeme, "parse") == 0 ||
-            strcmp(token->lexeme, "lex") == 0 ||
-            strcmp(token->lexeme, "not") == 0 ||
-            strcmp(token->lexeme, "type") == 0 ||
-            strcmp(token->lexeme, "key") == 0 ||
-            strcmp(token->lexeme, "value") == 0 ||
-            strcmp(token->lexeme, "print") == 0 ||
-            strcmp(token->lexeme, "exit") == 0 ||
-            strcmp(token->lexeme, "enlist") == 0 ||
-            strcmp(token->lexeme, "eval") == 0 ||
-            strcmp(token->lexeme, "first") == 0 ||
-            strcmp(token->lexeme, "last") == 0 ||
-            strcmp(token->lexeme, "now") == 0 ||
-            strcmp(token->lexeme, "read") == 0 ||
-            strcmp(token->lexeme, "shell") == 0 ||
-               strcmp(token->lexeme, "ser") == 0 ||
-               strcmp(token->lexeme, "deser") == 0 ||
-               strcmp(token->lexeme, "listen") == 0 ||
-               strcmp(token->lexeme, "hclose") == 0 ||
-               strcmp(token->lexeme, "hopen") == 0 ||
-               strcmp(token->lexeme, "refcount") == 0 ||
-               strcmp(token->lexeme, "find") == 0);
-}
+
 
 static void free_param_list(char **params, int param_count) {
     if (!params) return;
@@ -549,7 +520,7 @@ static Qo parse_parenthesized(Parser *parser) {
         advance(parser);
         {
             Qo *enlist_elements = xmalloc(sizeof(Qo) * (count + 1));
-            enlist_elements[0] = make_keyword_value("enlist");
+            enlist_elements[0] = make_builtin_value(QO_BUILTIN_ENLIST);
             for (int i = 0; i < count; i++) {
                 enlist_elements[i + 1] = elements[i];
             }
@@ -829,15 +800,16 @@ static Qo parse_factor(Parser *parser) {
 
     if (token->type == TOKEN_IDENTIFIER) {
         const char *name = token->lexeme;
+        int builtin_id = builtin_name_to_id(name);
         advance(parser);
-        node = is_keyword_identifier(token) ? make_keyword_value(name) : make_symbol_value(name);
+        node = builtin_id >= 0 ? make_builtin_value((uint8_t)builtin_id) : make_symbol_value(name);
         return parse_postfix_calls(parser, node);
     }
 
     if (is_callable_operator(token->type)) {
-        const char *op_name = token_type_to_operator(token->type);
+        TokenType op_type = token->type;
         advance(parser);
-        node = make_keyword_value(op_name);
+        node = make_operator_value(op_type);
         return parse_postfix_calls(parser, node);
     }
 
@@ -903,7 +875,7 @@ static Qo parse_expression(Parser *parser) {
             }
             {
                 Qo *binop_elements = xmalloc(sizeof(Qo) * 3);
-                binop_elements[0] = make_keyword_value(token_type_to_operator(op_type));
+                binop_elements[0] = make_operator_value(op_type);
                 binop_elements[1] = left;
                 binop_elements[2] = right;
                 return qo_make_list_take(binop_elements, 3);
@@ -1016,7 +988,7 @@ Qo parser_parse(Parser *parser) {
 
     {
         Qo *sequence_elements = xmalloc(sizeof(Qo) * ((size_t)count + 1));
-        sequence_elements[0] = make_keyword_value(";");
+        sequence_elements[0] = make_builtin_value(QO_BUILTIN_SEMICOLON);
         for (int i = 0; i < count; i++) {
             sequence_elements[i + 1] = statements[i];
         }

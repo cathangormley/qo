@@ -161,9 +161,18 @@ static void qo_print_internal(Qo q, int depth) {
         case QO_SYMBOL:
             qo_printf("`%s", qo_symbol_name(q));
             break;
-        case QO_KEYWORD:
-            qo_printf("%s", QO_STR(q));
+        case QO_OPERATOR: {
+            const char *name = token_type_to_operator((TokenType)QO_OPERATOR_OP(q));
+            if (name) qo_printf("%s", name);
+            else      qo_printf("<operator %d>", (int)QO_OPERATOR_OP(q));
             break;
+        }
+        case QO_BUILTIN: {
+            const char *name = builtin_id_to_name(QO_BUILTIN_ID(q));
+            if (name) qo_printf("%s", name);
+            else      qo_printf("<builtin %d>", (int)QO_BUILTIN_ID(q));
+            break;
+        }
         case QO_CHAR_VEC: {
             int64_t n = QO_COUNT(q);
             qo_printf("\"");

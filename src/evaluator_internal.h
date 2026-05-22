@@ -28,7 +28,10 @@ typedef struct {
 } BuiltinSpec;
 
 Qo make_symbol_value(const char *text);
-Qo make_keyword_value(const char *text);
+Qo make_operator_value(TokenType op);
+Qo make_builtin_value(uint8_t id);
+int builtin_name_to_id(const char *name);
+const char *builtin_id_to_name(uint8_t id);
 Qo make_null_value(void);
 Qo make_short_value(int16_t value);
 Qo make_int_value(int32_t value);
@@ -78,3 +81,4 @@ Qo eval_multiply(Qo left, Qo right);
 Qo eval_divide(Qo left, Qo right);
 Qo eval_power(Qo left, Qo right);
 int operator_name_to_token(const char *name, TokenType *op);
+const char *token_type_to_operator(TokenType op);

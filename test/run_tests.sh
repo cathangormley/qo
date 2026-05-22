@@ -387,7 +387,7 @@ test_case "type_string" "type \"str\"" "\`CHAR"
 test_case "type_symbol" "type \`hello" "\`symbol"
 test_case "type_symbol_vector" "type (\`a;\`b)" "\`SYMBOL"
 test_case "type_nested_builtin" "type type 1" "\`symbol"
-test_case "type_keyword" "type sum" "\`keyword"
+test_case "type_builtin" "type sum" "\`builtin"
 
 # Float suffix parsing
 test_case "float_suffix_simple" "1f" "1f"
@@ -529,7 +529,7 @@ test_case "find_vector_notfound"    "find[3 4 5;3 6]"         "0 3"
 test_case "find_string_in_list"     "find[(\"cat\";\"dog\");\"dog\"]" "1"
 test_case "find_multi_str_in_list"  "find[(\"cat\";\"dog\";\"bird\");(\"bird\";\"cat\")]" "2 0"
 test_case "find_char_in_str"        "find[\"cat\";first \"a\"]" "1"
-test_case "find_type"               "type find"               "\`keyword"
+test_case "find_type"               "type find"               "\`builtin"
 
 # IPC tests (same-process via localhost)
 IPC_PORT=19101
