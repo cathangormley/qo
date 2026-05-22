@@ -579,6 +579,21 @@ test_case "range_inclusive_single" "5..=5"   "5"
 test_case "range_reverse"        "5..0"      "[]"
 test_case "range_type"           "type 0..5" "\`LONG"
 
+# Parse error tests (verify no crash, just error message)
+test_case "bare_open_paren"               "("       "Error: Failed to parse expression"
+test_case "bare_close_paren"              ")"       "Error: Failed to parse expression"
+test_case "bare_semicolon"                ";"       "Error: Failed to parse expression"
+test_case "bare_tilde"                    "~"       "Error: Failed to parse expression"
+test_case "bare_backslash"                "\\"      "Error: Failed to parse expression"
+test_case "trailing_binary_op"            "1 +"     "Error: Failed to parse expression"
+test_case "paren_semicolon_no_expr"       "(;"      "Error: Failed to parse expression"
+test_case "paren_semicolon_bad_expr"      "(;~)"    "Error: Failed to parse expression"
+test_case "unclosed_bracket_call"         "sum["    "Error: Failed to parse expression"
+test_case "bracket_call_bad_expr"         "sum[~]"  "Error: Failed to parse expression"
+test_case "func_literal_bad_body"         "{~}"     "Error: Failed to parse expression"
+test_case "func_literal_empty_body"       "{;}"     "Error: Failed to parse expression"
+test_case "unclosed_string"               '"abc'    "Error: Failed to parse expression"
+
 echo ""
 echo "Passed: $PASS, Failed: $FAIL"
 exit $FAIL

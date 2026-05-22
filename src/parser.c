@@ -415,15 +415,12 @@ static Qo parse_postfix_calls(Parser *parser, Qo base) {
                 {
                     Qo arg = parse_expression(parser);
                     if (is_parse_error(arg)) {
-                        Token *check = current_token(parser);
-                        if (!check || (check->type != TOKEN_RBRACKET && check->type != TOKEN_SEMICOLON)) {
-                            for (int i = 0; i < count; i++) {
-                                value_free(args[i]);
-                            }
-                            free(args);
-                            value_free(base);
-                            return PARSE_ERROR;
+                        for (int i = 0; i < count; i++) {
+                            value_free(args[i]);
                         }
+                        free(args);
+                        value_free(base);
+                        return PARSE_ERROR;
                     }
 
                     if (count >= capacity) {
@@ -490,11 +487,7 @@ static Qo parse_parenthesized(Parser *parser) {
 
     first = parse_expression(parser);
     if (is_parse_error(first)) {
-        Token *check = current_token(parser);
-        if (!check) {
-            fprintf(stderr, "Error: unexpected end of input after '('\n");
-            return PARSE_ERROR;
-        }
+        return PARSE_ERROR;
     }
 
     token = current_token(parser);
@@ -520,14 +513,11 @@ static Qo parse_parenthesized(Parser *parser) {
             advance(parser);
             elem = parse_expression(parser);
             if (is_parse_error(elem)) {
-                Token *check = current_token(parser);
-                if (!check || (check->type != TOKEN_SEMICOLON && check->type != TOKEN_RPAREN)) {
-                    for (int i = 0; i < count; i++) {
-                        value_free(elements[i]);
-                    }
-                    free(elements);
-                    return PARSE_ERROR;
+                for (int i = 0; i < count; i++) {
+                    value_free(elements[i]);
                 }
+                free(elements);
+                return PARSE_ERROR;
             }
 
             if (count >= capacity) {
@@ -665,15 +655,12 @@ static Qo parse_function_literal(Parser *parser) {
     while (1) {
         Qo statement = parse_expression(parser);
         if (is_parse_error(statement)) {
-            Token *check = current_token(parser);
-            if (!check || (check->type != TOKEN_SEMICOLON && check->type != TOKEN_RBRACE)) {
-                for (int i = 0; i < count; i++) {
-                    value_free(statements[i]);
-                }
-                free(statements);
-                free_param_list(params, param_count);
-                return PARSE_ERROR;
+            for (int i = 0; i < count; i++) {
+                value_free(statements[i]);
             }
+            free(statements);
+            free_param_list(params, param_count);
+            return PARSE_ERROR;
         }
 
         if (count >= capacity) {
@@ -881,10 +868,7 @@ static Qo parse_expression(Parser *parser) {
     Token *op_token;
 
     if (is_parse_error(left)) {
-        Token *check = current_token(parser);
-        if (!check) {
-            return PARSE_ERROR;
-        }
+        return PARSE_ERROR;
     }
 
     op_token = current_token(parser);
@@ -895,12 +879,9 @@ static Qo parse_expression(Parser *parser) {
         {
             Qo right = parse_expression(parser);
             if (is_parse_error(right)) {
-                Token *check = current_token(parser);
-                if (!check) {
-                    value_free(left);
-                    fprintf(stderr, "Error: expected expression after operator\n");
-                    return PARSE_ERROR;
-                }
+                value_free(left);
+                fprintf(stderr, "Error: expected expression after operator\n");
+                return PARSE_ERROR;
             }
             {
                 Qo *binop_elements = xmalloc(sizeof(Qo) * 3);
@@ -915,12 +896,9 @@ static Qo parse_expression(Parser *parser) {
     if (op_token && starts_factor(op_token->type)) {
         Qo right = parse_expression(parser);
         if (is_parse_error(right)) {
-            Token *check = current_token(parser);
-            if (!check) {
-                value_free(left);
-                fprintf(stderr, "Error: expected expression after function application\n");
-                return PARSE_ERROR;
-            }
+            value_free(left);
+            fprintf(stderr, "Error: expected expression after function application\n");
+            return PARSE_ERROR;
         }
         return make_call_value(left, right);
     }
