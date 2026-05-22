@@ -840,6 +840,7 @@ static Qo null_for_vector_type(uint8_t vec_type) {
         case QO_CHAR_VEC:  return make_char_value(0);
         case QO_BOOL_VEC:  return make_bool_value(0);
         case QO_BYTE_VEC:  return make_byte_value(0);
+        case QO_SYM_VEC:   return make_symbol_value("");
         default:           return NULL;
     }
 }
@@ -1103,6 +1104,141 @@ static Qo pack_results(Qo *values, int count) {
     return result;
 }
 
+static Qo eval_apply_multi_index(Qo head, Qo indices, Environment *env) {
+    (void)env;
+    if (head == NULL) EVAL_ERROR("cannot index null");
+    uint8_t ht = qo_type(head);
+    if (!is_vector_type(ht) && ht != QO_DICT) EVAL_ERROR("value is not indexable");
+
+    uint8_t it = qo_type(indices);
+    int64_t n = qo_count(indices);
+    int64_t head_n = (ht == QO_DICT) ? QO_DICT_COUNT(head) : qo_count(head);
+    int is_ptr = (ht == QO_LIST || ht == QO_SYM_VEC || ht == QO_DICT);
+
+    Qo result;
+    if (is_ptr) {
+        result = alloc_ptr_vec(ht == QO_DICT ? QO_LIST : ht, n);
+        memset(qo_ptr_data(result), 0, (size_t)n * sizeof(Qo));
+    } else {
+        result = alloc_data_vec(ht, n);
+    }
+
+    if (it == QO_FLOAT_VEC && ht != QO_DICT) { qo_release(result); EVAL_ERROR("index must be numeric"); }
+    for (int64_t i = 0; i < n; i++) {
+        if (ht == QO_DICT) {
+            Qo key;
+            if (it == QO_SHORT_VEC) key = make_short_value(qo_short_data(indices)[i]);
+            else if (it == QO_INT_VEC) key = make_int_value(qo_int_data(indices)[i]);
+            else if (it == QO_LONG_VEC) key = make_long_value(qo_long_data(indices)[i]);
+            else if (it == QO_FLOAT_VEC) key = make_float_value(qo_float_data(indices)[i]);
+            else if (it == QO_BOOL_VEC) key = make_bool_value(qo_bool_data(indices)[i]);
+            else key = value_copy(qo_ptr_data(indices)[i]);
+
+            int found = 0;
+            for (int64_t j = 0; j < head_n; j++) {
+                if (value_equals(QO_DICT_KEYS(head)[j], key)) {
+                    qo_ptr_data(result)[i] = value_copy(QO_DICT_VALS(head)[j]);
+                    found = 1;
+                    break;
+                }
+            }
+            qo_release(key);
+            if (!found) {
+                qo_release(result);
+                EVAL_ERROR("dictionary key not found");
+            }
+        } else {
+            int64_t idx;
+            if (it == QO_SHORT_VEC) idx = qo_short_data(indices)[i];
+            else if (it == QO_INT_VEC) idx = qo_int_data(indices)[i];
+            else if (it == QO_LONG_VEC) idx = qo_long_data(indices)[i];
+            else if (it == QO_BOOL_VEC) idx = qo_bool_data(indices)[i];
+            else {
+                Qo e = qo_ptr_data(indices)[i];
+                uint8_t et;
+                if (e == NULL || (et = qo_type(e)) == QO_FLOAT || !is_numeric_scalar_type(et)) {
+                    qo_release(result);
+                    EVAL_ERROR("index must be numeric");
+                }
+                if (et == QO_SHORT) idx = qo_short(e);
+                else if (et == QO_INT) idx = qo_int(e);
+                else if (et == QO_LONG) idx = qo_long(e);
+                else idx = qo_bool(e);
+            }
+
+            if (idx < 0 || idx >= head_n) {
+                if (ht == QO_DICT) {
+                    qo_release(result);
+                    EVAL_ERROR("dictionary key not found");
+                }
+                if (is_ptr) qo_ptr_data(result)[i] = NULL;
+                else if (ht == QO_LONG_VEC) qo_long_data(result)[i] = QO_LONG_NULL;
+                else if (ht == QO_INT_VEC) qo_int_data(result)[i] = QO_INT_NULL;
+                else if (ht == QO_SHORT_VEC) qo_short_data(result)[i] = QO_SHORT_NULL;
+                else if (ht == QO_FLOAT_VEC) qo_float_data(result)[i] = QO_FLOAT_NULL;
+                else if (ht == QO_CHAR_VEC) qo_char_data(result)[i] = 0;
+                else if (ht == QO_BOOL_VEC) qo_bool_data(result)[i] = 0;
+                else if (ht == QO_BYTE_VEC) qo_byte_data(result)[i] = 0;
+                continue;
+            }
+
+            if (is_ptr) {
+                qo_ptr_data(result)[i] = dict_elem_copy(head, idx);
+            } else {
+                Qo elem = dict_elem_copy(head, idx);
+                set_vec_elem_from_scalar(result, i, elem);
+                qo_release(elem);
+            }
+        }
+    }
+    return result;
+}
+
+static Qo eval_apply_single_index(Qo head, Qo index, Environment *env) {
+    (void)env;
+    if (index != NULL &&
+        qo_type(index) != QO_SHORT &&
+        qo_type(index) != QO_INT &&
+        qo_type(index) != QO_LONG) {
+        if (head != NULL && qo_type(head) == QO_DICT) {
+            int64_t n = QO_DICT_COUNT(head);
+            for (int64_t i = 0; i < n; i++) {
+                if (value_equals(QO_DICT_KEYS(head)[i], index))
+                    return value_copy(QO_DICT_VALS(head)[i]);
+            }
+            EVAL_ERROR("dictionary key not found");
+        }
+        EVAL_ERROR("index must be an int");
+    }
+
+    if (index == NULL) EVAL_ERROR("index must be an int");
+    long idx;
+    if (qo_type(index) == QO_SHORT) idx = qo_short(index);
+    else if (qo_type(index) == QO_INT) idx = qo_int(index);
+    else idx = (long)qo_long(index);
+    if (idx < 0) return make_long_value(QO_LONG_NULL);
+
+    if (head == NULL) EVAL_ERROR("cannot index null");
+    uint8_t ht = qo_type(head);
+
+    if (is_vector_type(ht)) {
+        int64_t n = qo_count(head);
+        if ((int64_t)idx >= n) return null_for_vector_type(ht);
+        return dict_elem_copy(head, (int64_t)idx);
+    }
+
+    if (ht == QO_DICT) {
+        int64_t n = QO_DICT_COUNT(head);
+        for (int64_t i = 0; i < n; i++) {
+            if (value_equals(QO_DICT_KEYS(head)[i], index))
+                return value_copy(QO_DICT_VALS(head)[i]);
+        }
+        EVAL_ERROR("dictionary key not found");
+    }
+
+    EVAL_ERROR("value is not callable/indexable");
+}
+
 static Qo eval_apply_value(Qo head, Qo *args, int arg_count, Environment *env) {
     if (head == NULL) EVAL_ERROR("cannot apply null value");
 
@@ -1214,7 +1350,7 @@ static Qo eval_apply_value(Qo head, Qo *args, int arg_count, Environment *env) {
     if (arg_count != 1) EVAL_ERROR("application expects exactly one argument");
 
     /* Handle apply: QO_INT as IPC file descriptor */
-    if (head != NULL && qo_type(head) == QO_INT && arg_count == 1) {
+    if (head != NULL && qo_type(head) == QO_INT) {
         return ipc_handle_apply(qo_int(head), args[0]);
     }
 
@@ -1222,136 +1358,12 @@ static Qo eval_apply_value(Qo head, Qo *args, int arg_count, Environment *env) {
     if (args[0] != NULL) {
         uint8_t it = qo_type(args[0]);
         if (is_numeric_vector_type(it) || it == QO_LIST) {
-            if (head == NULL) EVAL_ERROR("cannot index null");
-            uint8_t ht = qo_type(head);
-            if (!is_vector_type(ht) && ht != QO_DICT) EVAL_ERROR("value is not indexable");
-
-            int64_t n = qo_count(args[0]);
-            int64_t head_n = (ht == QO_DICT) ? QO_DICT_COUNT(head) : qo_count(head);
-            Qo result;
-            int is_ptr = (ht == QO_LIST || ht == QO_SYM_VEC || ht == QO_DICT);
-
-            if (is_ptr) {
-                result = alloc_ptr_vec(ht == QO_DICT ? QO_LIST : ht, n);
-                memset(qo_ptr_data(result), 0, (size_t)n * sizeof(Qo));
-            } else {
-                result = alloc_data_vec(ht, n);
-            }
-
-            if (it == QO_FLOAT_VEC && ht != QO_DICT) { qo_release(result); EVAL_ERROR("index must be numeric"); }
-            for (int64_t i = 0; i < n; i++) {
-                if (ht == QO_DICT) {
-                    Qo key;
-                    if (it == QO_SHORT_VEC) key = make_short_value(qo_short_data(args[0])[i]);
-                    else if (it == QO_INT_VEC) key = make_int_value(qo_int_data(args[0])[i]);
-                    else if (it == QO_LONG_VEC) key = make_long_value(qo_long_data(args[0])[i]);
-                    else if (it == QO_FLOAT_VEC) key = make_float_value(qo_float_data(args[0])[i]);
-                    else if (it == QO_BOOL_VEC) key = make_bool_value(qo_bool_data(args[0])[i]);
-                    else key = value_copy(qo_ptr_data(args[0])[i]);
-
-                    int found = 0;
-                    for (int64_t j = 0; j < head_n; j++) {
-                        if (value_equals(QO_DICT_KEYS(head)[j], key)) {
-                            qo_ptr_data(result)[i] = value_copy(QO_DICT_VALS(head)[j]);
-                            found = 1;
-                            break;
-                        }
-                    }
-                    qo_release(key);
-                    if (!found) {
-                        qo_release(result);
-                        EVAL_ERROR("dictionary key not found");
-                    }
-                } else {
-                    int64_t idx;
-                    if (it == QO_SHORT_VEC) idx = qo_short_data(args[0])[i];
-                    else if (it == QO_INT_VEC) idx = qo_int_data(args[0])[i];
-                    else if (it == QO_LONG_VEC) idx = qo_long_data(args[0])[i];
-                    else if (it == QO_BOOL_VEC) idx = qo_bool_data(args[0])[i];
-                    else {
-                        Qo e = qo_ptr_data(args[0])[i];
-                        uint8_t et;
-                        if (e == NULL || (et = qo_type(e)) == QO_FLOAT || !is_numeric_scalar_type(et)) {
-                            qo_release(result);
-                            EVAL_ERROR("index must be numeric");
-                        }
-                        if (et == QO_SHORT) idx = qo_short(e);
-                        else if (et == QO_INT) idx = qo_int(e);
-                        else if (et == QO_LONG) idx = qo_long(e);
-                        else idx = qo_bool(e);
-                    }
-
-                    if (idx < 0 || idx >= head_n) {
-                        if (ht == QO_DICT) {
-                            qo_release(result);
-                            EVAL_ERROR("dictionary key not found");
-                        }
-                        if (is_ptr) qo_ptr_data(result)[i] = NULL;
-                        else if (ht == QO_LONG_VEC) qo_long_data(result)[i] = QO_LONG_NULL;
-                        else if (ht == QO_INT_VEC) qo_int_data(result)[i] = QO_INT_NULL;
-                        else if (ht == QO_SHORT_VEC) qo_short_data(result)[i] = QO_SHORT_NULL;
-                        else if (ht == QO_FLOAT_VEC) qo_float_data(result)[i] = QO_FLOAT_NULL;
-                        else if (ht == QO_CHAR_VEC) qo_char_data(result)[i] = 0;
-                        else if (ht == QO_BOOL_VEC) qo_bool_data(result)[i] = 0;
-                        else if (ht == QO_BYTE_VEC) qo_byte_data(result)[i] = 0;
-                        continue;
-                    }
-
-                    if (is_ptr) {
-                        qo_ptr_data(result)[i] = dict_elem_copy(head, idx);
-                    } else {
-                        Qo elem = dict_elem_copy(head, idx);
-                        set_vec_elem_from_scalar(result, i, elem);
-                        qo_release(elem);
-                    }
-                }
-            }
-            return result;
+            return eval_apply_multi_index(head, args[0], env);
         }
     }
 
-    /* Dictionary key lookup (non-integer index) */
-    if (args[0] != NULL &&
-        qo_type(args[0]) != QO_SHORT &&
-        qo_type(args[0]) != QO_INT &&
-        qo_type(args[0]) != QO_LONG) {
-        if (head != NULL && qo_type(head) == QO_DICT) {
-            int64_t n = QO_DICT_COUNT(head);
-            for (int64_t i = 0; i < n; i++) {
-                if (value_equals(QO_DICT_KEYS(head)[i], args[0]))
-                    return value_copy(QO_DICT_VALS(head)[i]);
-            }
-            EVAL_ERROR("dictionary key not found");
-        }
-        EVAL_ERROR("index must be an int");
-    }
-
-    if (args[0] == NULL) EVAL_ERROR("index must be an int");
-    long index;
-    if (qo_type(args[0]) == QO_SHORT) index = qo_short(args[0]);
-    else if (qo_type(args[0]) == QO_INT) index = qo_int(args[0]);
-    else index = (long)qo_long(args[0]);
-    if (index < 0) { return make_long_value(QO_LONG_NULL); }
-
-    if (head == NULL) EVAL_ERROR("cannot index null");
-    uint8_t ht = qo_type(head);
-
-    if (is_vector_type(ht)) {
-        int64_t n = qo_count(head);
-        if ((int64_t)index >= n) return null_for_vector_type(ht);
-        return dict_elem_copy(head, (int64_t)index);
-    }
-
-    if (ht == QO_DICT) {
-        int64_t n = QO_DICT_COUNT(head);
-        for (int64_t i = 0; i < n; i++) {
-            if (value_equals(QO_DICT_KEYS(head)[i], args[0]))
-                return value_copy(QO_DICT_VALS(head)[i]);
-        }
-        EVAL_ERROR("dictionary key not found");
-    }
-
-    EVAL_ERROR("value is not callable/indexable");
+    /* Single index (scalar int or dict key lookup) */
+    return eval_apply_single_index(head, args[0], env);
 }
 
 /* ── eval_value ──────────────────────────────────────────────────────────── */

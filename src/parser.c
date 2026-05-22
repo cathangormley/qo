@@ -329,6 +329,9 @@ static Qo make_call_value(Qo base, Qo arg) {
 
 static Qo parse_postfix_calls(Parser *parser, Qo base) {
     Token *token = current_token(parser);
+    int capacity = 4;
+    int count = 0;
+    Qo *args = NULL;
 
     while (token && (token->type == TOKEN_LBRACKET || token->type == TOKEN_EACH)) {
         if (token->type == TOKEN_EACH) {
@@ -340,18 +343,17 @@ static Qo parse_postfix_calls(Parser *parser, Qo base) {
             token = current_token(parser);
             continue;
         }
-        int capacity = 4;
-        int count = 0;
-        Qo *args;
+
+        capacity = 4;
+        count = 0;
+        args = NULL;
 
         advance(parser);
         args = xmalloc(sizeof(Qo) * capacity);
         token = current_token(parser);
         if (!token) {
-            free(args);
-            value_free(base);
             fprintf(stderr, "Error: unexpected end of input in function call\n");
-            return PARSE_ERROR;
+            goto bracket_cleanup;
         }
 
         if (token->type == TOKEN_RBRACKET) {
@@ -360,6 +362,7 @@ static Qo parse_postfix_calls(Parser *parser, Qo base) {
             call_elements[0] = base;
             call_elements[1] = make_null_value();
             free(args);
+            args = NULL;
             base = qo_make_list_take(call_elements, 2);
             token = current_token(parser);
             continue;
@@ -370,13 +373,8 @@ static Qo parse_postfix_calls(Parser *parser, Qo base) {
             while (1) {
                 token = current_token(parser);
                 if (!token) {
-                    for (int i = 0; i < count; i++) {
-                        value_free(args[i]);
-                    }
-                    free(args);
-                    value_free(base);
                     fprintf(stderr, "Error: unexpected end of input in function call\n");
-                    return PARSE_ERROR;
+                    goto bracket_cleanup;
                 }
 
                 if (token->type == TOKEN_RBRACKET) {
@@ -396,6 +394,7 @@ static Qo parse_postfix_calls(Parser *parser, Qo base) {
                             call_elements[i + 1] = args[i];
                         }
                         free(args);
+                        args = NULL;
                         base = qo_make_list_take(call_elements, count + 1);
                         break;
                     }
@@ -415,12 +414,7 @@ static Qo parse_postfix_calls(Parser *parser, Qo base) {
                 {
                     Qo arg = parse_expression(parser);
                     if (is_parse_error(arg)) {
-                        for (int i = 0; i < count; i++) {
-                            value_free(args[i]);
-                        }
-                        free(args);
-                        value_free(base);
-                        return PARSE_ERROR;
+                        goto bracket_cleanup;
                     }
 
                     if (count >= capacity) {
@@ -432,13 +426,8 @@ static Qo parse_postfix_calls(Parser *parser, Qo base) {
 
                     token = current_token(parser);
                     if (!token) {
-                        for (int i = 0; i < count; i++) {
-                            value_free(args[i]);
-                        }
-                        free(args);
-                        value_free(base);
                         fprintf(stderr, "Error: unexpected end of input in function call\n");
-                        return PARSE_ERROR;
+                        goto bracket_cleanup;
                     }
 
                     if (token->type == TOKEN_SEMICOLON) {
@@ -451,18 +440,20 @@ static Qo parse_postfix_calls(Parser *parser, Qo base) {
                         continue;
                     }
 
-                    for (int i = 0; i < count; i++) {
-                        value_free(args[i]);
-                    }
-                    free(args);
-                    value_free(base);
                     fprintf(stderr, "Error: expected ';' or ']' in function call\n");
-                    return PARSE_ERROR;
+                    goto bracket_cleanup;
                 }
             }
         }
 
         token = current_token(parser);
+        continue;
+
+bracket_cleanup:
+        for (int i = 0; i < count; i++) value_free(args[i]);
+        free(args);
+        value_free(base);
+        return PARSE_ERROR;
     }
 
     return base;
@@ -558,7 +549,7 @@ static Qo parse_function_literal(Parser *parser) {
     Token *token;
     int capacity = 8;
     int count = 0;
-    Qo *statements;
+    Qo *statements = NULL;
     Token *opening_brace;
     char **params = NULL;
     int param_count = 0;
@@ -655,12 +646,7 @@ static Qo parse_function_literal(Parser *parser) {
     while (1) {
         Qo statement = parse_expression(parser);
         if (is_parse_error(statement)) {
-            for (int i = 0; i < count; i++) {
-                value_free(statements[i]);
-            }
-            free(statements);
-            free_param_list(params, param_count);
-            return PARSE_ERROR;
+            goto func_cleanup;
         }
 
         if (count >= capacity) {
@@ -671,13 +657,8 @@ static Qo parse_function_literal(Parser *parser) {
 
         token = current_token(parser);
         if (!token) {
-            for (int i = 0; i < count; i++) {
-                value_free(statements[i]);
-            }
-            free(statements);
-            free_param_list(params, param_count);
             fprintf(stderr, "Error: expected '}' to close function literal\n");
-            return PARSE_ERROR;
+            goto func_cleanup;
         }
 
         if (token->type == TOKEN_RBRACE) {
@@ -695,25 +676,15 @@ static Qo parse_function_literal(Parser *parser) {
         }
 
         if (token->type != TOKEN_SEMICOLON) {
-            for (int i = 0; i < count; i++) {
-                value_free(statements[i]);
-            }
-            free(statements);
-            free_param_list(params, param_count);
             fprintf(stderr, "Error: expected ';' or '}' in function literal\n");
-            return PARSE_ERROR;
+            goto func_cleanup;
         }
 
         advance(parser);
         token = current_token(parser);
         if (!token) {
-            for (int i = 0; i < count; i++) {
-                value_free(statements[i]);
-            }
-            free(statements);
-            free_param_list(params, param_count);
             fprintf(stderr, "Error: expected expression or '}' after ';' in function literal\n");
-            return PARSE_ERROR;
+            goto func_cleanup;
         }
 
         if (token->type == TOKEN_RBRACE) {
@@ -730,6 +701,12 @@ static Qo parse_function_literal(Parser *parser) {
                                            5);
         }
     }
+
+func_cleanup:
+    for (int i = 0; i < count; i++) value_free(statements[i]);
+    free(statements);
+    free_param_list(params, param_count);
+    return PARSE_ERROR;
 }
 
 static Qo parse_factor(Parser *parser) {

@@ -823,7 +823,7 @@ Qo eval_add(Qo left, Qo right) {
         (rt == QO_DICT && is_numeric_scalar_type(lt))) {
         return eval_dict_scalar_binop(left, right, TOKEN_PLUS);
     }
-    if (is_non_numeric_operand(left) || is_non_numeric_operand(right)) {
+    if (!is_numeric_operand(left) || !is_numeric_operand(right)) {
         EVAL_ERROR("arithmetic operations require numeric operands");
     }
     if (lt == QO_LIST || rt == QO_LIST) {
@@ -848,7 +848,7 @@ Qo eval_subtract(Qo left, Qo right) {
         (rt == QO_DICT && is_numeric_scalar_type(lt))) {
         return eval_dict_scalar_binop(left, right, TOKEN_MINUS);
     }
-    if (is_non_numeric_operand(left) || is_non_numeric_operand(right)) {
+    if (!is_numeric_operand(left) || !is_numeric_operand(right)) {
         EVAL_ERROR("arithmetic operations require numeric operands");
     }
     if (lt == QO_LIST || rt == QO_LIST) {
@@ -873,7 +873,7 @@ Qo eval_multiply(Qo left, Qo right) {
         (rt == QO_DICT && is_numeric_scalar_type(lt))) {
         return eval_dict_scalar_binop(left, right, TOKEN_STAR);
     }
-    if (is_non_numeric_operand(left) || is_non_numeric_operand(right)) {
+    if (!is_numeric_operand(left) || !is_numeric_operand(right)) {
         EVAL_ERROR("arithmetic operations require numeric operands");
     }
     if (lt == QO_LIST || rt == QO_LIST) {
@@ -898,7 +898,7 @@ Qo eval_divide(Qo left, Qo right) {
         (rt == QO_DICT && is_numeric_scalar_type(lt))) {
         return eval_dict_scalar_binop(left, right, TOKEN_DIVIDE);
     }
-    if (is_non_numeric_operand(left) || is_non_numeric_operand(right)) {
+    if (!is_numeric_operand(left) || !is_numeric_operand(right)) {
         EVAL_ERROR("arithmetic operations require numeric operands");
     }
     if (lt == QO_LIST || rt == QO_LIST) {
@@ -920,7 +920,7 @@ Qo eval_power(Qo left, Qo right) {
         (rt == QO_DICT && is_numeric_scalar_type(lt))) {
         return eval_dict_scalar_binop(left, right, TOKEN_STAR_STAR);
     }
-    if (is_non_numeric_operand(left) || is_non_numeric_operand(right)) {
+    if (!is_numeric_operand(left) || !is_numeric_operand(right)) {
         EVAL_ERROR("arithmetic operations require numeric operands");
     }
     if (lt == QO_LIST || rt == QO_LIST) {

@@ -85,12 +85,11 @@ int is_charish_type(uint8_t t) {
     return t == QO_CHAR || t == QO_CHAR_VEC;
 }
 
-int is_non_numeric_operand(Qo q) {
-    if (q == NULL) return 1;
+int is_numeric_operand(Qo q) {
+    if (q == NULL) return 0;
     uint8_t t = qo_type(q);
-    return t == QO_SYMBOL || t == QO_SYM_VEC || t == QO_DICT || t == QO_OPERATOR || t == QO_BUILTIN ||
-           t == QO_CHAR_VEC || t == QO_CHAR || t == QO_BYTE || t == QO_BYTE_VEC || t == QO_FUNCTION ||
-           t == QO_PROJECTOR || t == QO_PROJECTION;
+    return t == QO_SHORT || t == QO_INT || t == QO_LONG || t == QO_FLOAT || t == QO_BOOL ||
+           t == QO_SHORT_VEC || t == QO_INT_VEC || t == QO_LONG_VEC || t == QO_FLOAT_VEC || t == QO_BOOL_VEC;
 }
 
 double value_as_double(Qo q) {
