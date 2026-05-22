@@ -799,10 +799,8 @@ static Qo eval_dict_scalar_binop(Qo left, Qo right, TokenType op) {
         if (dict_value == NULL || !is_numeric_scalar_type(QO_TYPE(dict_value))) {
             fprintf(stderr, "Error: dictionary arithmetic requires numeric scalar values\n");
             evaluator_request_error();
-            for (int64_t j = 0; j < i; j++) {
-                value_free(QO_DICT_KEYS(result)[j]);
-                value_free(QO_DICT_VALS(result)[j]);
-            }
+            for (int64_t j = i; j < n; j++) QO_DICT_KEYS(result)[j] = NULL;
+            for (int64_t j = i; j < n; j++) QO_DICT_VALS(result)[j] = NULL;
             qo_release(result);
             return NULL;
         }
@@ -821,8 +819,8 @@ static Qo eval_dict_scalar_binop(Qo left, Qo right, TokenType op) {
         }
 
         if (value_result == NULL) {
-            for (int64_t j = 0; j <= i; j++) value_free(QO_DICT_KEYS(result)[j]);
-            for (int64_t j = 0; j < i; j++) value_free(QO_DICT_VALS(result)[j]);
+            for (int64_t j = i + 1; j < n; j++) QO_DICT_KEYS(result)[j] = NULL;
+            for (int64_t j = i; j < n; j++) QO_DICT_VALS(result)[j] = NULL;
             qo_release(result);
             return NULL;
         }

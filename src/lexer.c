@@ -119,7 +119,9 @@ Token* lexer_next_token(Lexer *lexer) {
             value[len++] = lexer->input[lexer->pos++];
         }
         value[len] = '\0';
-        return token_new(TOKEN_IDENTIFIER, value, false, '\0', start_pos);
+        Token *t = token_new(TOKEN_IDENTIFIER, value, false, '\0', start_pos);
+        free(value);
+        return t;
     }
 
     // Symbols (`name)
@@ -137,7 +139,9 @@ Token* lexer_next_token(Lexer *lexer) {
             value[len++] = lexer->input[lexer->pos++];
         }
         value[len] = '\0';
-        return token_new(TOKEN_SYMBOL, value, false, '\0', start_pos);
+        Token *t = token_new(TOKEN_SYMBOL, value, false, '\0', start_pos);
+        free(value);
+        return t;
     }
 
     // String literals (double-quoted)
@@ -171,7 +175,9 @@ Token* lexer_next_token(Lexer *lexer) {
         }
         
         value[len] = '\0';
-        return token_new(TOKEN_STRING, value, false, '\0', start_pos);
+        Token *t = token_new(TOKEN_STRING, value, false, '\0', start_pos);
+        free(value);
+        return t;
     }
 
     // Booleans (0b, 1b, or bit patterns like 1010011b)
@@ -210,7 +216,9 @@ Token* lexer_next_token(Lexer *lexer) {
             
             value[len++] = lexer->input[lexer->pos++];  // consume 'b'
             value[len] = '\0';
-            return token_new(TOKEN_BOOLEAN, value, false, '\0', start_pos);
+            Token *t = token_new(TOKEN_BOOLEAN, value, false, '\0', start_pos);
+            free(value);
+            return t;
         }
     }
 
@@ -231,7 +239,9 @@ Token* lexer_next_token(Lexer *lexer) {
                 value[len++] = lexer->input[lexer->pos++];
             }
             value[len] = '\0';
-            return token_new(TOKEN_HEX, value, false, '\0', start_pos);
+            Token *t = token_new(TOKEN_HEX, value, false, '\0', start_pos);
+            free(value);
+            return t;
         }
     }
 
@@ -283,7 +293,9 @@ Token* lexer_next_token(Lexer *lexer) {
         }
         
         value[len] = '\0';
-        return token_new(TOKEN_NUMBER, value, is_float, type_suffix, start_pos);
+        Token *t = token_new(TOKEN_NUMBER, value, is_float, type_suffix, start_pos);
+        free(value);
+        return t;
     }
 
     lexer->pos++;
