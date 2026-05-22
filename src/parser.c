@@ -134,7 +134,7 @@ static Qo parse_number_sequence(Parser *parser, Token *first_token) {
         if (is_special_int_literal(t)) {
             values[i] = make_special_int_value(t, final_suffix);
             if (values[i] == PARSE_ERROR) {
-                for (int j = 0; j < i; j++) value_free(values[j]);
+                for (int j = 0; j < i; j++) qo_release(values[j]);
                 free(values);
                 free(tokens);
                 return PARSE_ERROR;
@@ -189,17 +189,17 @@ static Qo parse_number_sequence(Parser *parser, Token *first_token) {
         if (vec_type == QO_SHORT_VEC) {
             for (int i = 0; i < count; i++) {
                 qo_short_data(result)[i] = qo_short(values[i]);
-                value_free(values[i]);
+                qo_release(values[i]);
             }
         } else if (vec_type == QO_INT_VEC) {
             for (int i = 0; i < count; i++) {
                 qo_int_data(result)[i] = qo_int(values[i]);
-                value_free(values[i]);
+                qo_release(values[i]);
             }
         } else if (vec_type == QO_LONG_VEC) {
             for (int i = 0; i < count; i++) {
                 qo_long_data(result)[i] = qo_long(values[i]);
-                value_free(values[i]);
+                qo_release(values[i]);
             }
         } else {  /* Float vector */
             for (int i = 0; i < count; i++) {
@@ -212,7 +212,7 @@ static Qo parse_number_sequence(Parser *parser, Token *first_token) {
                 } else {
                     qo_float_data(result)[i] = (double)qo_long(values[i]);
                 }
-                value_free(values[i]);
+                qo_release(values[i]);
             }
         }
         free(values);
@@ -450,9 +450,9 @@ static Qo parse_postfix_calls(Parser *parser, Qo base) {
         continue;
 
 bracket_cleanup:
-        for (int i = 0; i < count; i++) value_free(args[i]);
+        for (int i = 0; i < count; i++) qo_release(args[i]);
         free(args);
-        value_free(base);
+        qo_release(base);
         return PARSE_ERROR;
     }
 
@@ -483,7 +483,7 @@ static Qo parse_parenthesized(Parser *parser) {
 
     token = current_token(parser);
     if (!token) {
-        value_free(first);
+        qo_release(first);
         fprintf(stderr, "Error: unexpected end of input after '('\n");
         return PARSE_ERROR;
     }
@@ -505,7 +505,7 @@ static Qo parse_parenthesized(Parser *parser) {
             elem = parse_expression(parser);
             if (is_parse_error(elem)) {
                 for (int i = 0; i < count; i++) {
-                    value_free(elements[i]);
+                    qo_release(elements[i]);
                 }
                 free(elements);
                 return PARSE_ERROR;
@@ -521,7 +521,7 @@ static Qo parse_parenthesized(Parser *parser) {
 
         if (!token || token->type != TOKEN_RPAREN) {
             for (int i = 0; i < count; i++) {
-                value_free(elements[i]);
+                qo_release(elements[i]);
             }
             free(elements);
             fprintf(stderr, "Error: expected ')' to close list literal\n");
@@ -540,7 +540,7 @@ static Qo parse_parenthesized(Parser *parser) {
         }
     }
 
-    value_free(first);
+    qo_release(first);
     fprintf(stderr, "Error: expected ')' or ';' after expression in parentheses\n");
     return PARSE_ERROR;
 }
@@ -703,7 +703,7 @@ static Qo parse_function_literal(Parser *parser) {
     }
 
 func_cleanup:
-    for (int i = 0; i < count; i++) value_free(statements[i]);
+    for (int i = 0; i < count; i++) qo_release(statements[i]);
     free(statements);
     free_param_list(params, param_count);
     return PARSE_ERROR;
@@ -762,7 +762,7 @@ static Qo parse_factor(Parser *parser) {
             if ((digits % 2) != 0) {
                 int lo = hex_digit_value(lexeme[src]);
                 if (lo < 0) {
-                    value_free(result);
+                    qo_release(result);
                     fprintf(stderr, "Error: invalid hex literal\n");
                     return PARSE_ERROR;
                 }
@@ -774,7 +774,7 @@ static Qo parse_factor(Parser *parser) {
                 int hi = hex_digit_value(lexeme[src]);
                 int lo = hex_digit_value(lexeme[src + 1]);
                 if (hi < 0 || lo < 0) {
-                    value_free(result);
+                    qo_release(result);
                     fprintf(stderr, "Error: invalid hex literal\n");
                     return PARSE_ERROR;
                 }
@@ -784,7 +784,7 @@ static Qo parse_factor(Parser *parser) {
 
             if (n == 1) {
                 Qo scalar = make_byte_value(qo_byte_data(result)[0]);
-                value_free(result);
+                qo_release(result);
                 return parse_postfix_calls(parser, scalar);
             }
 
@@ -856,7 +856,7 @@ static Qo parse_expression(Parser *parser) {
         {
             Qo right = parse_expression(parser);
             if (is_parse_error(right)) {
-                value_free(left);
+                qo_release(left);
                 fprintf(stderr, "Error: expected expression after operator\n");
                 return PARSE_ERROR;
             }
@@ -873,7 +873,7 @@ static Qo parse_expression(Parser *parser) {
     if (op_token && starts_factor(op_token->type)) {
         Qo right = parse_expression(parser);
         if (is_parse_error(right)) {
-            value_free(left);
+            qo_release(left);
             fprintf(stderr, "Error: expected expression after function application\n");
             return PARSE_ERROR;
         }
@@ -921,7 +921,7 @@ Qo parser_parse(Parser *parser) {
             }
 
             for (int i = 0; i < count; i++) {
-                value_free(statements[i]);
+                qo_release(statements[i]);
             }
             free(statements);
             return PARSE_ERROR;
@@ -940,7 +940,7 @@ Qo parser_parse(Parser *parser) {
 
         if (token->type != TOKEN_SEMICOLON) {
             for (int i = 0; i < count; i++) {
-                value_free(statements[i]);
+                qo_release(statements[i]);
             }
             free(statements);
             fprintf(stderr, "Error: expected ';' between statements\n");

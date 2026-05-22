@@ -88,7 +88,7 @@ const char *builtin_id_to_name(uint8_t id) {
    the parser already resolves non-builtin identifiers to symbols. */
 static Qo normalize_parsed_tree(Qo tree) {
     if (tree == NULL) return NULL;
-    if (qo_type(tree) != QO_LIST) return value_copy(tree);
+    if (qo_type(tree) != QO_LIST) return qo_clone(tree);
     int64_t n = qo_count(tree);
     Qo result = alloc_ptr_vec(QO_LIST, n);
     for (int64_t i = 0; i < n; i++) {
@@ -122,7 +122,7 @@ static Qo eval_builtin_sum(Qo arg, Environment *env) {
     (void)env;
     if (arg == NULL) EVAL_ERROR("sum expects a number or numeric vector");
     uint8_t t = qo_type(arg);
-    if (t == QO_SHORT || t == QO_INT || t == QO_LONG || t == QO_FLOAT) return value_copy(arg);
+    if (t == QO_SHORT || t == QO_INT || t == QO_LONG || t == QO_FLOAT) return qo_clone(arg);
     if (t == QO_SHORT_VEC) {
         int64_t total = 0;
         int64_t n = qo_count(arg);
@@ -174,7 +174,7 @@ static Qo eval_builtin_parse(Qo arg, Environment *env) {
     free(input);
     if (result != NULL && !is_parse_error(result)) {
         Qo normalized = normalize_parsed_tree(result);
-        value_free(result);
+        qo_release(result);
         result = normalized;
     }
     return result;
@@ -340,7 +340,7 @@ static Qo eval_builtin_min(Qo arg, Environment *env) {
         case QO_INT:
         case QO_LONG:
         case QO_FLOAT:
-            return value_copy(arg);
+            return qo_clone(arg);
         case QO_SHORT_VEC: {
             int16_t m;
             n = qo_count(arg);
@@ -406,7 +406,7 @@ static Qo eval_builtin_max(Qo arg, Environment *env) {
         case QO_INT:
         case QO_LONG:
         case QO_FLOAT:
-            return value_copy(arg);
+            return qo_clone(arg);
         case QO_SHORT_VEC: {
             int16_t m;
             n = qo_count(arg);
@@ -480,29 +480,21 @@ static Qo eval_builtin_til(Qo arg, Environment *env) {
     return out;
 }
 
-static Qo eval_builtin_range(Qo a, Qo b, Environment *env) {
+static Qo eval_builtin_range_impl(Qo a, Qo b, Environment *env, int inclusive) {
     (void)env;
-    if (a == NULL || b == NULL) EVAL_ERROR(".. expects two arguments");
+    const char *op = inclusive ? "..=" : "..";
+    if (a == NULL || b == NULL) EVAL_ERROR_FMT("%s expects two arguments", op);
     int64_t start = (int64_t)value_as_double(a);
     int64_t end = (int64_t)value_as_double(b);
-    if (end <= start) return alloc_data_vec(QO_LONG_VEC, 0);
-    int64_t n = end - start;
+    if (inclusive ? (end < start) : (end <= start)) return alloc_data_vec(QO_LONG_VEC, 0);
+    int64_t n = inclusive ? (end - start + 1) : (end - start);
     Qo out = alloc_data_vec(QO_LONG_VEC, n);
     for (int64_t i = 0; i < n; i++) qo_long_data(out)[i] = start + i;
     return out;
 }
 
-static Qo eval_builtin_range_inclusive(Qo a, Qo b, Environment *env) {
-    (void)env;
-    if (a == NULL || b == NULL) EVAL_ERROR("..= expects two arguments");
-    int64_t start = (int64_t)value_as_double(a);
-    int64_t end = (int64_t)value_as_double(b);
-    if (end < start) return alloc_data_vec(QO_LONG_VEC, 0);
-    int64_t n = end - start + 1;
-    Qo out = alloc_data_vec(QO_LONG_VEC, n);
-    for (int64_t i = 0; i < n; i++) qo_long_data(out)[i] = start + i;
-    return out;
-}
+static Qo eval_builtin_range(Qo a, Qo b, Environment *env) { return eval_builtin_range_impl(a, b, env, 0); }
+static Qo eval_builtin_range_inclusive(Qo a, Qo b, Environment *env) { return eval_builtin_range_impl(a, b, env, 1); }
 
 static Qo eval_builtin_refcount(Qo arg, Environment *env) {
     uint32_t rc;
@@ -565,10 +557,10 @@ static Qo eval_builtin_exit(Qo arg, Environment *env) {
     (void)env;
     Qo a = arg;
     if (a == NULL) EVAL_ERROR("exit expects a numeric argument");
-    if (qo_type(a) == QO_SHORT) { evaluator_request_exit(qo_short(a));       return value_copy(a); }
-    if (qo_type(a) == QO_INT)   { evaluator_request_exit(qo_int(a));         return value_copy(a); }
-    if (qo_type(a) == QO_LONG)  { evaluator_request_exit((long)qo_long(a));  return value_copy(a); }
-    if (qo_type(a) == QO_FLOAT) { evaluator_request_exit((long)qo_float(a)); return value_copy(a); }
+    if (qo_type(a) == QO_SHORT) { evaluator_request_exit(qo_short(a));       return qo_clone(a); }
+    if (qo_type(a) == QO_INT)   { evaluator_request_exit(qo_int(a));         return qo_clone(a); }
+    if (qo_type(a) == QO_LONG)  { evaluator_request_exit((long)qo_long(a));  return qo_clone(a); }
+    if (qo_type(a) == QO_FLOAT) { evaluator_request_exit((long)qo_float(a)); return qo_clone(a); }
     EVAL_ERROR("exit expects a numeric argument");
 }
 
@@ -631,7 +623,7 @@ static Qo eval_builtin_enlist(Qo *args, int arg_count, Environment *env) {
 
             if (vec_type == QO_SYM_VEC) {
                 Qo result = alloc_ptr_vec(QO_SYM_VEC, (int64_t)arg_count);
-                for (int i = 0; i < arg_count; i++) QO_LIST_DATA(result)[i] = value_copy(args[i]);
+                for (int i = 0; i < arg_count; i++) QO_LIST_DATA(result)[i] = qo_clone(args[i]);
                 return result;
             }
 
@@ -647,7 +639,7 @@ static Qo eval_builtin_enlist(Qo *args, int arg_count, Environment *env) {
 
     {
         Qo result = alloc_ptr_vec(QO_LIST, (int64_t)arg_count);
-        for (int i = 0; i < arg_count; i++) QO_LIST_DATA(result)[i] = value_copy(args[i]);
+        for (int i = 0; i < arg_count; i++) QO_LIST_DATA(result)[i] = qo_clone(args[i]);
         return result;
     }
 }
@@ -680,7 +672,7 @@ static Qo eval_builtin_first(Qo arg, Environment *env) {
         if (qo_count(arg) == 0) EVAL_ERROR("first on empty vector");
         return dict_elem_copy(arg, 0);
     }
-    return value_copy(arg);
+    return qo_clone(arg);
 }
 
 static Qo eval_builtin_last(Qo arg, Environment *env) {
@@ -691,7 +683,7 @@ static Qo eval_builtin_last(Qo arg, Environment *env) {
         if (n == 0) EVAL_ERROR("last on empty vector");
         return dict_elem_copy(arg, n - 1);
     }
-    return value_copy(arg);
+    return qo_clone(arg);
 }
 
 static Qo eval_builtin_now(Qo arg, Environment *env) {
@@ -825,7 +817,7 @@ static Qo eval_builtin_find(Qo haystack, Qo needles, Environment *env) {
 
     if (result_is_scalar) {
         int64_t val = qo_long_data(result)[0];
-        value_free(result);
+        qo_release(result);
         return make_long_value(val);
     }
     return result;
@@ -884,7 +876,7 @@ static Qo eval_apply_keyword(Qo head, Qo *arg_values, int arg_count, Environment
                     }
                     result = eval_apply_value(func, spread, (int)n, env);
                     if (owns_spread_values) {
-                        for (int64_t i = 0; i < n; i++) value_free(spread[i]);
+                        for (int64_t i = 0; i < n; i++) qo_release(spread[i]);
                     }
                     free(spread);
                     return result;
@@ -996,7 +988,7 @@ static Qo make_projection_value(Qo function, Qo *slots, int64_t slot_count) {
     p->type_tag = QO_PROJECTION;
     p->attribute = 0;
     QO_PROJ_AC(p) = slot_count;
-    QO_PROJ_FUNC(p) = value_copy(function);
+    QO_PROJ_FUNC(p) = qo_clone(function);
     for (int64_t i = 0; i < slot_count; i++) QO_PROJ_ARGS(p)[i] = slots[i];
     free(slots);  /* "take" ownership of slots array */
     return p;
@@ -1018,7 +1010,7 @@ static Qo eval_call_function(Qo function, Qo *arg_vals, int arg_count, Environme
     Qo last = NULL;
     for (int64_t i = 0; i < bc; i++) {
         Qo cur = eval_value(QO_FN_BODY(function)[i], call_env);
-        if (i > 0) value_free(last);
+        if (i > 0) qo_release(last);
         last = cur;
         if (evaluator_exit_requested() || evaluator_error_requested()) break;
     }
@@ -1027,7 +1019,7 @@ static Qo eval_call_function(Qo function, Qo *arg_vals, int arg_count, Environme
 }
 
 static void free_evaluated_args(Qo *args, int count) {
-    for (int i = 0; i < count; i++) value_free(args[i]);
+    for (int i = 0; i < count; i++) qo_release(args[i]);
     free(args);
 }
 
@@ -1035,7 +1027,7 @@ static int eval_args_or_stop(Qo tree, int start_index, int arg_count, Environmen
     for (int i = 0; i < arg_count; i++) {
         args[i] = eval_value(QO_LIST_DATA(tree)[start_index + i], env);
         if (evaluator_error_requested() || evaluator_exit_requested()) {
-            for (int j = 0; j <= i; j++) value_free(args[j]);
+            for (int j = 0; j <= i; j++) qo_release(args[j]);
             return 0;
         }
     }
@@ -1132,12 +1124,12 @@ static Qo eval_apply_multi_index(Qo head, Qo indices, Environment *env) {
             else if (it == QO_LONG_VEC) key = make_long_value(qo_long_data(indices)[i]);
             else if (it == QO_FLOAT_VEC) key = make_float_value(qo_float_data(indices)[i]);
             else if (it == QO_BOOL_VEC) key = make_bool_value(qo_bool_data(indices)[i]);
-            else key = value_copy(qo_ptr_data(indices)[i]);
+            else key = qo_clone(qo_ptr_data(indices)[i]);
 
             int found = 0;
             for (int64_t j = 0; j < head_n; j++) {
                 if (value_equals(QO_DICT_KEYS(head)[j], key)) {
-                    qo_ptr_data(result)[i] = value_copy(QO_DICT_VALS(head)[j]);
+                    qo_ptr_data(result)[i] = qo_clone(QO_DICT_VALS(head)[j]);
                     found = 1;
                     break;
                 }
@@ -1204,7 +1196,7 @@ static Qo eval_apply_single_index(Qo head, Qo index, Environment *env) {
             int64_t n = QO_DICT_COUNT(head);
             for (int64_t i = 0; i < n; i++) {
                 if (value_equals(QO_DICT_KEYS(head)[i], index))
-                    return value_copy(QO_DICT_VALS(head)[i]);
+                    return qo_clone(QO_DICT_VALS(head)[i]);
             }
             EVAL_ERROR("dictionary key not found");
         }
@@ -1231,7 +1223,7 @@ static Qo eval_apply_single_index(Qo head, Qo index, Environment *env) {
         int64_t n = QO_DICT_COUNT(head);
         for (int64_t i = 0; i < n; i++) {
             if (value_equals(QO_DICT_KEYS(head)[i], index))
-                return value_copy(QO_DICT_VALS(head)[i]);
+                return qo_clone(QO_DICT_VALS(head)[i]);
         }
         EVAL_ERROR("dictionary key not found");
     }
@@ -1314,9 +1306,9 @@ static Qo eval_apply_value(Qo head, Qo *args, int arg_count, Environment *env) {
         for (int64_t i = 0; i < slot_count; i++) {
             Qo slot = QO_PROJ_ARGS(head)[i];
             if (slot != NULL && qo_type(slot) == QO_PROJECTOR && fill_idx < arg_count) {
-                merged[i] = value_copy(args[fill_idx++]);
+                merged[i] = qo_clone(args[fill_idx++]);
             } else {
-                merged[i] = value_copy(slot);
+                merged[i] = qo_clone(slot);
             }
         }
         for (int64_t i = 0; i < slot_count; i++) {
@@ -1325,7 +1317,7 @@ static Qo eval_apply_value(Qo head, Qo *args, int arg_count, Environment *env) {
             }
         }
         Qo result = eval_call_function(QO_PROJ_FUNC(head), merged, (int)slot_count, env);
-        for (int64_t i = 0; i < slot_count; i++) value_free(merged[i]);
+        for (int64_t i = 0; i < slot_count; i++) qo_release(merged[i]);
         free(merged);
         return result;
     }
@@ -1341,7 +1333,7 @@ static Qo eval_apply_value(Qo head, Qo *args, int arg_count, Environment *env) {
         if ((int64_t)arg_count < pc || has_projector) {
             Qo *slots = xmalloc(sizeof(Qo) * (pc > 0 ? pc : 1));
             for (int64_t i = 0; i < pc; i++) slots[i] = make_projector_value();
-            for (int i = 0; i < arg_count; i++) { value_free(slots[i]); slots[i] = value_copy(args[i]); }
+            for (int i = 0; i < arg_count; i++) { qo_release(slots[i]); slots[i] = qo_clone(args[i]); }
             return make_projection_value(head, slots, pc);
         }
         return eval_call_function(head, args, arg_count, env);
@@ -1374,7 +1366,7 @@ Qo eval_value(Qo tree, Environment *env) {
 
     /* Data vectors return as-is; lists are executable AST nodes and must continue. */
     if (is_vector_type(qo_type(tree)) && qo_type(tree) != QO_LIST) {
-        return value_copy(tree);
+        return qo_clone(tree);
     }
 
     /* Symbol: variable lookup */
@@ -1386,13 +1378,13 @@ Qo eval_value(Qo tree, Environment *env) {
     }
 
     /* Non-list: return as-is */
-    if (qo_type(tree) != QO_LIST) return value_copy(tree);
+    if (qo_type(tree) != QO_LIST) return qo_clone(tree);
 
     int64_t n = qo_count(tree);
-    if (n == 0) return value_copy(tree);
+    if (n == 0) return qo_clone(tree);
 
     /* Single-element list: return its contents */
-    if (n == 1) return value_copy(QO_LIST_DATA(tree)[0]);
+    if (n == 1) return qo_clone(QO_LIST_DATA(tree)[0]);
 
     Qo verb_val = QO_LIST_DATA(tree)[0];
     int64_t arg_count_64 = n - 1;
@@ -1406,13 +1398,13 @@ Qo eval_value(Qo tree, Environment *env) {
         Qo head = eval_value(verb_val, env);
         Qo *args = xmalloc(sizeof(Qo) * arg_count);
         if (evaluator_error_requested() || evaluator_exit_requested()) {
-            value_free(head); free(args); return NULL;
+            qo_release(head); free(args); return NULL;
         }
         if (!eval_args_or_stop(tree, 1, arg_count, env, args)) {
-            value_free(head); free(args); return NULL;
+            qo_release(head); free(args); return NULL;
         }
         result = eval_apply_value(head, args, arg_count, env);
-        value_free(head);
+        qo_release(head);
         free_evaluated_args(args, arg_count);
         return result;
     }
@@ -1441,7 +1433,7 @@ Qo eval_value(Qo tree, Environment *env) {
             Qo last = NULL;
             for (int i = 0; i < arg_count; i++) {
                 Qo cur = eval_value(QO_LIST_DATA(tree)[i + 1], env);
-                if (i > 0) value_free(last);
+                if (i > 0) qo_release(last);
                 last = cur;
                 if (evaluator_exit_requested() || evaluator_error_requested()) break;
             }
@@ -1454,6 +1446,6 @@ Qo eval_value(Qo tree, Environment *env) {
         return result;
     }
 
-    return value_copy(verb_val);
+    return qo_clone(verb_val);
 }
 

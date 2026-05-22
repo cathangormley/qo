@@ -104,12 +104,15 @@ Qo alloc_ptr_vec(uint8_t type, int64_t count) {
     return q;
 }
 
+size_t elem_size_for_type(uint8_t type) {
+    if (type == QO_SHORT_VEC) return 2;
+    if (type == QO_INT_VEC) return 4;
+    if (type == QO_BOOL_VEC || type == QO_BYTE_VEC) return 1;
+    return 8;
+}
+
 Qo alloc_data_vec(uint8_t type, int64_t count) {
-    size_t elem_size;
-    if (type == QO_SHORT_VEC) elem_size = 2;
-    else if (type == QO_INT_VEC) elem_size = 4;
-    else if (type == QO_BOOL_VEC || type == QO_BYTE_VEC) elem_size = 1;
-    else elem_size = 8;
+    size_t elem_size = elem_size_for_type(type);
     {
         size_t size = (count > 0 ? (size_t)count : 1) * elem_size;
         Qo q = alloc_block(size);
@@ -281,11 +284,7 @@ Qo qo_clone(Qo q) {
         case QO_BYTE_VEC: {
             n = QO_COUNT(q);
             {
-                size_t elem_size;
-                if (QO_TYPE(q) == QO_SHORT_VEC) elem_size = 2;
-                else if (QO_TYPE(q) == QO_INT_VEC) elem_size = 4;
-                else if (QO_TYPE(q) == QO_BOOL_VEC || QO_TYPE(q) == QO_BYTE_VEC) elem_size = 1;
-                else elem_size = 8;
+                size_t elem_size = elem_size_for_type(QO_TYPE(q));
                 {
                     size_t sz = (size_t)n * elem_size;
                     Qo c = alloc_block(sz);
@@ -351,10 +350,6 @@ Qo qo_clone(Qo q) {
     }
 }
 
-Qo value_copy(Qo q) {
-    return qo_clone(q);
-}
-
 static void qo_destroy(Qo q) {
     if (q == NULL) return;
 
@@ -417,10 +412,6 @@ static void qo_destroy(Qo q) {
     }
 
     free(q);
-}
-
-void value_free(Qo q) {
-    qo_release(q);
 }
 
 int value_equals(Qo a, Qo b) {
@@ -549,7 +540,7 @@ Qo dict_elem_copy(Qo v, int64_t i) {
     uint8_t t;
     if (v == NULL) return NULL;
     t = QO_TYPE(v);
-    if (t == QO_LIST || t == QO_SYM_VEC) return value_copy(QO_LIST_DATA(v)[i]);
+    if (t == QO_LIST || t == QO_SYM_VEC) return qo_clone(QO_LIST_DATA(v)[i]);
     if (t == QO_SHORT_VEC) return make_short_value(QO_SHORT_DATA(v)[i]);
     if (t == QO_INT_VEC) return make_int_value(QO_INT_DATA(v)[i]);
     if (t == QO_LONG_VEC) return make_long_value(QO_LONG_DATA(v)[i]);
@@ -557,7 +548,7 @@ Qo dict_elem_copy(Qo v, int64_t i) {
     if (t == QO_CHAR_VEC) return make_char_value(QO_CHAR_DATA(v)[i]);
     if (t == QO_BOOL_VEC) return make_bool_value((int)QO_BOOL_DATA(v)[i]);
     if (t == QO_BYTE_VEC) return make_byte_value(QO_BYTE_DATA(v)[i]);
-    return value_copy(v);
+    return qo_clone(v);
 }
 
 Qo extract_dict_side(Qo dict, int want_keys) {
@@ -584,7 +575,7 @@ Qo extract_dict_side(Qo dict, int want_keys) {
 
     {
         Qo result = alloc_ptr_vec(side_type, n);
-        for (int64_t i = 0; i < n; i++) QO_LIST_DATA(result)[i] = value_copy(elems[i]);
+        for (int64_t i = 0; i < n; i++) QO_LIST_DATA(result)[i] = qo_clone(elems[i]);
         return result;
     }
 }

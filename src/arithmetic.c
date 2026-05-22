@@ -118,7 +118,7 @@ static void copy_vec_elem_to(Qo dest, int64_t di, Qo src, int64_t si) {
     else if (t == QO_BOOL_VEC) qo_bool_data(dest)[di] = qo_bool_data(src)[si];
     else if (t == QO_BYTE_VEC) qo_byte_data(dest)[di] = qo_byte_data(src)[si];
     else if (t == QO_CHAR_VEC) qo_char_data(dest)[di] = qo_char_data(src)[si];
-    else qo_ptr_data(dest)[di] = value_copy(qo_ptr_data(src)[si]);
+    else qo_ptr_data(dest)[di] = qo_clone(qo_ptr_data(src)[si]);
 }
 
 static Qo alloc_same_type(uint8_t t, int64_t count) {
@@ -176,7 +176,7 @@ Qo eval_take(Qo lhs, Qo rhs) {
             if (out_type == QO_LONG_VEC) qo_long_data(result)[i] = get_integer_value(rhs);
             else if (out_type == QO_FLOAT_VEC) qo_float_data(result)[i] = qo_float(rhs);
             else if (out_type == QO_CHAR_VEC) qo_char_data(result)[i] = qo_char(rhs);
-            else qo_ptr_data(result)[i] = value_copy(rhs);
+            else qo_ptr_data(result)[i] = qo_clone(rhs);
         }
         if (out_type == QO_CHAR_VEC) qo_char_data(result)[output_count] = '\0';
         return result;
@@ -220,7 +220,7 @@ Qo eval_drop(Qo lhs, Qo rhs) {
         return result;
     }
 
-    if (drop_count == 0) return value_copy(rhs);
+    if (drop_count == 0) return qo_clone(rhs);
 
     {
         uint8_t out_type;
@@ -251,11 +251,11 @@ Qo eval_equals(Qo left, Qo right) {
     count = lv ? qo_count(left) : qo_count(right);
     result = alloc_data_vec(QO_BOOL_VEC, count);
     for (int64_t i = 0; i < count; i++) {
-        Qo l = lv ? dict_elem_copy(left, i) : value_copy(left);
-        Qo r = rv ? dict_elem_copy(right, i) : value_copy(right);
+        Qo l = lv ? dict_elem_copy(left, i) : qo_clone(left);
+        Qo r = rv ? dict_elem_copy(right, i) : qo_clone(right);
         qo_bool_data(result)[i] = value_equals(l, r) ? 1 : 0;
-        value_free(l);
-        value_free(r);
+        qo_release(l);
+        qo_release(r);
     }
     return result;
 }
@@ -420,8 +420,8 @@ static Qo eval_order_extrema(Qo left, Qo right, int want_greater) {
             EVAL_ERROR("operator requires int/float/bool/char operands");
         }
         /* Scalar/scalar: return the original winning operand to preserve scalar type. */
-        if (want_greater) return value_copy((l >= r) ? left : right);
-        return value_copy((l <= r) ? left : right);
+        if (want_greater) return qo_clone((l >= r) ? left : right);
+        return qo_clone((l <= r) ? left : right);
     }
 
     if (lv && rv && qo_count(left) != qo_count(right)) {
@@ -558,15 +558,15 @@ static Qo join_ptr_values(uint8_t out_type, Qo left, Qo right) {
     Qo *d = QO_LIST_DATA(result);
 
     if (is_vector_type(QO_TYPE(left))) {
-        for (int64_t i = 0; i < ln; i++) d[i] = value_copy(QO_LIST_DATA(left)[i]);
+        for (int64_t i = 0; i < ln; i++) d[i] = qo_clone(QO_LIST_DATA(left)[i]);
     } else {
-        d[0] = value_copy(left);
+        d[0] = qo_clone(left);
     }
 
     if (is_vector_type(QO_TYPE(right))) {
-        for (int64_t i = 0; i < rn; i++) d[ln + i] = value_copy(QO_LIST_DATA(right)[i]);
+        for (int64_t i = 0; i < rn; i++) d[ln + i] = qo_clone(QO_LIST_DATA(right)[i]);
     } else {
-        d[ln] = value_copy(right);
+        d[ln] = qo_clone(right);
     }
 
     return result;
@@ -805,7 +805,7 @@ static Qo eval_dict_scalar_binop(Qo left, Qo right, TokenType op) {
             return NULL;
         }
 
-        QO_DICT_KEYS(result)[i] = value_copy(QO_DICT_KEYS(dict)[i]);
+        QO_DICT_KEYS(result)[i] = qo_clone(QO_DICT_KEYS(dict)[i]);
         value_is_float = (QO_TYPE(dict_value) == QO_FLOAT || QO_TYPE(scalar) == QO_FLOAT);
 
         if (!value_is_float && (op == TOKEN_PLUS || op == TOKEN_MINUS || op == TOKEN_STAR)) {

@@ -23,8 +23,8 @@ static int eval_string(const char *input, Environment *env, int print_result) {
             }
             printf("\n");
         }
-        value_free(result);
-        value_free(tree);
+        qo_release(result);
+        qo_release(tree);
         ok = 1;
     } else {
         fprintf(stderr, "Error: Failed to parse expression\n");

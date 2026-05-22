@@ -195,8 +195,6 @@ void qo_release(Qo q);
 uint32_t qo_refcount(Qo q);
 Qo qo_clone(Qo q);
 
-void value_free(Qo q);
-Qo value_copy(Qo q);
 void qo_print(Qo q);
 void qo_print_with_limits(Qo q, int max_lines, int max_chars_per_line);
 int value_equals(Qo a, Qo b);

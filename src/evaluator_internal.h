@@ -49,6 +49,7 @@ Qo alloc_charlike(uint8_t type, int64_t count);
 Qo alloc_dict_block(int64_t count);
 int64_t dict_collection_count(Qo v);
 Qo dict_elem_copy(Qo v, int64_t i);
+size_t elem_size_for_type(uint8_t type);
 int is_vector_type(uint8_t type);
 int is_numeric_scalar_type(uint8_t type);
 int is_numeric_vector_type(uint8_t type);

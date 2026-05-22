@@ -365,7 +365,7 @@ Qo ipc_handle_apply(int fd, Qo arg) {
     if (g_conn_fd >= 0) {
         close(g_conn_fd);
         g_conn_fd = -1;
-        return value_copy(arg);
+        return qo_clone(arg);
     }
 
     Qo payload = ipc_serialize(arg);

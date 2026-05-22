@@ -43,7 +43,7 @@ Lexer* lexer_new(const char *input) {
     return lexer;
 }
 
-Token* token_new(TokenType type, char *lexeme, bool is_float, char type_suffix, int start_pos) {
+static Token* token_new(TokenType type, char *lexeme, bool is_float, char type_suffix, int start_pos) {
     Token *token = malloc(sizeof(Token));
     token->type = type;
     token->lexeme = lexeme ? strdup(lexeme) : NULL;
