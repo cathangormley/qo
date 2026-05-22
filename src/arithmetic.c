@@ -9,11 +9,6 @@ static int is_numeric_int_type(uint8_t t) {
     return t == QO_SHORT || t == QO_INT || t == QO_LONG;
 }
 
-static int is_integer_scalar_or_vec_type(uint8_t t) {
-    return t == QO_SHORT || t == QO_INT || t == QO_LONG ||
-           t == QO_SHORT_VEC || t == QO_INT_VEC || t == QO_LONG_VEC;
-}
-
 static int64_t get_integer_value(Qo q) {
     uint8_t t = qo_type(q);
     if (t == QO_SHORT) return (int64_t)qo_short(q);
@@ -577,33 +572,61 @@ static Qo join_ptr_values(uint8_t out_type, Qo left, Qo right) {
     return result;
 }
 
+static Qo join_mixed_values(Qo left, Qo right) {
+    int64_t ln = is_vector_type(QO_TYPE(left)) ? QO_COUNT(left) : 1;
+    int64_t rn = is_vector_type(QO_TYPE(right)) ? QO_COUNT(right) : 1;
+    Qo result = alloc_ptr_vec(QO_LIST, ln + rn);
+    Qo *d = QO_LIST_DATA(result);
+
+    for (int64_t i = 0; i < ln; i++) d[i] = dict_elem_copy(left, i);
+    for (int64_t i = 0; i < rn; i++) d[ln + i] = dict_elem_copy(right, i);
+
+    return result;
+}
+
+typedef enum {
+    JF_INT,
+    JF_FLOAT,
+    JF_CHAR,
+    JF_SYMBOL,
+    JF_LIST,
+    JF_OTHER,
+} JoinFamily;
+
+static JoinFamily join_family(uint8_t t) {
+    if (t == QO_SHORT || t == QO_INT || t == QO_LONG ||
+        t == QO_SHORT_VEC || t == QO_INT_VEC || t == QO_LONG_VEC)
+        return JF_INT;
+    if (t == QO_FLOAT || t == QO_FLOAT_VEC)
+        return JF_FLOAT;
+    if (t == QO_CHAR || t == QO_CHAR_VEC)
+        return JF_CHAR;
+    if (t == QO_SYMBOL || t == QO_SYM_VEC)
+        return JF_SYMBOL;
+    if (t == QO_LIST)
+        return JF_LIST;
+    return JF_OTHER;
+}
+
 Qo eval_comma_binop(Qo left, Qo right) {
     if (left == NULL || right == NULL) EVAL_ERROR("comma operator requires non-null operands");
     uint8_t lt = QO_TYPE(left);
     uint8_t rt = QO_TYPE(right);
+    JoinFamily lf = join_family(lt);
+    JoinFamily rf = join_family(rt);
 
-    if (is_symbolish_type(lt) || is_symbolish_type(rt)) {
-        if (!(is_symbolish_type(lt) && is_symbolish_type(rt))) {
-            EVAL_ERROR("cannot join symbol and non-symbol values");
+    if (lf == rf) {
+        switch (lf) {
+            case JF_INT:    return join_int_values(left, right);
+            case JF_FLOAT:  return join_float_values(left, right);
+            case JF_CHAR:   return join_char_values(left, right);
+            case JF_SYMBOL: return join_ptr_values(QO_SYM_VEC, left, right);
+            case JF_LIST:   return join_ptr_values(QO_LIST, left, right);
+            default:        break;
         }
-        return join_ptr_values(QO_SYM_VEC, left, right);
     }
 
-    if (lt == QO_LIST || rt == QO_LIST) return join_ptr_values(QO_LIST, left, right);
-
-    if (is_charish_type(lt) || is_charish_type(rt)) {
-        if (!(is_charish_type(lt) && is_charish_type(rt))) {
-            EVAL_ERROR("cannot join CHAR and non-CHAR values");
-        }
-        return join_char_values(left, right);
-    }
-
-    int left_is_int = is_integer_scalar_or_vec_type(lt);
-    int right_is_int = is_integer_scalar_or_vec_type(rt);
-    if (left_is_int != right_is_int) EVAL_ERROR("cannot join int and float vectors");
-
-    if (left_is_int) return join_int_values(left, right);
-    return join_float_values(left, right);
+    return join_mixed_values(left, right);
 }
 
 typedef int64_t (*IntBinaryScalarKernel)(int64_t left, int64_t right);

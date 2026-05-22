@@ -79,14 +79,6 @@ int is_numeric_vector_type(uint8_t t) {
     return t == QO_SHORT_VEC || t == QO_INT_VEC || t == QO_LONG_VEC || t == QO_FLOAT_VEC || t == QO_BOOL_VEC;
 }
 
-int is_symbolish_type(uint8_t t) {
-    return t == QO_SYMBOL || t == QO_SYM_VEC;
-}
-
-int is_charish_type(uint8_t t) {
-    return t == QO_CHAR || t == QO_CHAR_VEC;
-}
-
 int is_numeric_operand(Qo q) {
     if (q == NULL) return 0;
     uint8_t t = qo_type(q);

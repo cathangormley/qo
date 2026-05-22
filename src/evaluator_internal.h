@@ -52,8 +52,6 @@ Qo dict_elem_copy(Qo v, int64_t i);
 int is_vector_type(uint8_t type);
 int is_numeric_scalar_type(uint8_t type);
 int is_numeric_vector_type(uint8_t type);
-int is_symbolish_type(uint8_t type);
-int is_charish_type(uint8_t type);
 int is_numeric_operand(Qo value);
 double value_as_double(Qo value);
 void set_vec_elem_from_scalar(Qo vec, int64_t i, Qo scalar);

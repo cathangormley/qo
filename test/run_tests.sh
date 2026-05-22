@@ -162,6 +162,15 @@ test_case "dict_multi_index_missing" "d:(1;2;3)!(10;20;30); d[1 9]" "Error: dict
 test_case "empty_list_literal" "()" ""
 test_case "list_literal" "(1;2;3)" "1 2 3"
 test_case "list_index_bracket" "(3;2)[0]" "3"
+test_case_multiline "join_longvec_symvec" "1 2, \`a\`b" $'1\n2\n\x60a\n\x60b'
+test_case_multiline "join_long_scalar_symvec" "1, \`a\`b" $'1\n\x60a\n\x60b'
+test_case_multiline "join_long_sym_scalars" "1, \`a" $'1\n\x60a'
+test_case "join_list_longvec_type" "type ((1;2), 3 4)" "\`LONG"
+test_case "join_longvec_symvec_type" "type (1 2, \`a\`b)" "\`list"
+test_case_multiline "join_three_ways" "1 2, \`a\`b, 3 4f" $'1\n2\n\x60a\n\x60b\n3f\n4f'
+test_case_multiline "join_scalar_mixed_list" "1, (3;\`a)" $'1\n3\n\x60a'
+test_case_multiline "join_intvec_floatvec" "1 2, 3.5 4.5f" $'1\n2\n3.5f\n4.5f'
+test_case "join_intvec_floatvec_type" "type (1 2, 3.5 4.5f)" "\`list"
 
 # Element-wise operations
 test_case "vector_plus_atom" "(10, 20) + 5" "15 25"
