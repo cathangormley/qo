@@ -18,7 +18,7 @@ typedef struct QoObject {
     uint8_t type_tag;
     uint32_t reference_count;
     int64_t count;
-    uint8_t storage[];
+    _Alignas(int64_t) uint8_t storage[];
 } QoObject;
 
 typedef QoObject *Qo;

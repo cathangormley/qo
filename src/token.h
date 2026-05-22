@@ -16,7 +16,7 @@ typedef enum {
     TOKEN_STAR,
     TOKEN_STAR_STAR,
     TOKEN_SLASH,
-    TOKEN_PERCENT,
+    TOKEN_DIVIDE,
     TOKEN_BANG,
     TOKEN_COMMA,
     TOKEN_HASH,
@@ -44,7 +44,7 @@ typedef enum {
 } TokenType;
 
 /* A token with source text and minimal numeric metadata for parser decisions. */
-typedef struct {
+typedef struct Token {
     TokenType type;
     char *lexeme;
     /* True when the number token contains a decimal point. */

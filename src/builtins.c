@@ -262,7 +262,7 @@ static Qo eval_builtin_not(Qo arg, Environment *env) {
 
 static Qo eval_builtin_count(Qo arg, Environment *env) {
     (void)env;
-    if (arg != NULL && is_vector_type(qo_type(arg))) return make_int_value((int32_t)qo_count(arg));
+    if (arg != NULL && is_vector_type(qo_type(arg))) return make_long_value(qo_count(arg));
     EVAL_ERROR("count expects a list or vector argument");
 }
 
@@ -491,7 +491,7 @@ static Qo eval_builtin_key(Qo arg, Environment *env) {
     return extract_dict_side(arg, 1);
 }
 
-static Qo eval_builtin_value_fn(Qo arg, Environment *env) {
+static Qo eval_builtin_value(Qo arg, Environment *env) {
     (void)env;
     if (arg == NULL || qo_type(arg) != QO_DICT) EVAL_ERROR("value expects a dictionary");
     return extract_dict_side(arg, 0);
@@ -574,12 +574,7 @@ static Qo eval_builtin_enlist(Qo *args, int arg_count, Environment *env) {
             {
                 Qo result = alloc_data_vec(vec_type, (int64_t)arg_count);
                 for (int i = 0; i < arg_count; i++) {
-                    if (vec_type == QO_SHORT_VEC) qo_short_data(result)[i] = qo_short(args[i]);
-                    else if (vec_type == QO_INT_VEC) qo_int_data(result)[i] = qo_int(args[i]);
-                    else if (vec_type == QO_LONG_VEC) qo_long_data(result)[i] = qo_long(args[i]);
-                    else if (vec_type == QO_FLOAT_VEC) qo_float_data(result)[i] = qo_float(args[i]);
-                    else if (vec_type == QO_BOOL_VEC) qo_bool_data(result)[i] = qo_bool(args[i]);
-                    else qo_byte_data(result)[i] = qo_byte(args[i]);
+                    set_vec_elem_from_scalar(result, i, args[i]);
                 }
                 return result;
             }
@@ -723,7 +718,7 @@ static Qo eval_builtin_find(Qo haystack, Qo needles, Environment *env) {
        Iterate if it's a list or numeric vector (SHORT/INT/LONG/FLOAT).
        Treat CHAR/BYTE/BOOL vectors and scalar atoms as a single needle. */
     uint8_t nt = needles ? qo_type(needles) : 0;
-    int needle_count;
+    int64_t needle_count;
     int result_is_scalar;
     int iter_needles = (nt == QO_LIST || nt == QO_SHORT_VEC || nt == QO_INT_VEC ||
                         nt == QO_LONG_VEC || nt == QO_FLOAT_VEC || nt == QO_SYM_VEC);
@@ -731,13 +726,13 @@ static Qo eval_builtin_find(Qo haystack, Qo needles, Environment *env) {
         needle_count = 1;
         result_is_scalar = 1;
     } else {
-        needle_count = (int)qo_count(needles);
+        needle_count = qo_count(needles);
         result_is_scalar = 0;
     }
 
     Qo result = alloc_data_vec(QO_LONG_VEC, needle_count);
 
-    for (int i = 0; i < needle_count; i++) {
+    for (int64_t i = 0; i < needle_count; i++) {
         Qo needle;
         int own_needle = 0;
         if (needles == NULL) {
@@ -808,7 +803,7 @@ static Qo eval_apply_keyword(Qo head, Qo *arg_values, int arg_count, Environment
             case TOKEN_PLUS:       return eval_add(arg_values[0], arg_values[1]);
             case TOKEN_MINUS:      return eval_subtract(arg_values[0], arg_values[1]);
             case TOKEN_STAR:       return eval_multiply(arg_values[0], arg_values[1]);
-            case TOKEN_PERCENT:    return eval_divide(arg_values[0], arg_values[1]);
+            case TOKEN_DIVIDE:    return eval_divide(arg_values[0], arg_values[1]);
             case TOKEN_STAR_STAR:  return eval_power(arg_values[0], arg_values[1]);
             case TOKEN_AT:
                 return eval_apply_value(arg_values[0], &arg_values[1], 1, env);
@@ -835,8 +830,6 @@ static Qo eval_apply_keyword(Qo head, Qo *arg_values, int arg_count, Environment
                 return eval_builtin_range(arg_values[0], arg_values[1], env);
             case TOKEN_DOT_DOT_EQ:
                 return eval_builtin_range_inclusive(arg_values[0], arg_values[1], env);
-            case TOKEN_COLON:
-                EVAL_ERROR("unexpected assignment in apply");
             case TOKEN_SLASH:
                 EVAL_ERROR("operator '/' is undefined");
             default:
@@ -896,7 +889,7 @@ static Qo eval_apply_keyword(Qo head, Qo *arg_values, int arg_count, Environment
                     case QO_BUILTIN_NOT:      return eval_builtin_not(arg_values[0], env);
                     case QO_BUILTIN_TYPE:     return eval_builtin_type(arg_values[0], env);
                     case QO_BUILTIN_KEY:      return eval_builtin_key(arg_values[0], env);
-                    case QO_BUILTIN_VALUE:    return eval_builtin_value_fn(arg_values[0], env);
+                    case QO_BUILTIN_VALUE:    return eval_builtin_value(arg_values[0], env);
                     case QO_BUILTIN_PRINT:    return eval_builtin_print(arg_values[0], env);
                     case QO_BUILTIN_EXIT:     return eval_builtin_exit(arg_values[0], env);
                     case QO_BUILTIN_EVAL:     return eval_builtin_eval(arg_values[0], env);
@@ -925,7 +918,7 @@ static Qo eval_builtin_assign(Qo *args, int arg_count, Environment *env) {
     if (target == NULL || qo_type(target) != QO_SYMBOL) EVAL_ERROR("assignment target must be a symbol");
     Qo result = eval_value(args[1], env);
     if (evaluator_error_requested() || evaluator_exit_requested()) return result;
-        env_set(env, qo_symbol_id(target), result);
+    env_set(env, qo_symbol_id(target), result);
     return result;
 }
 
@@ -1030,12 +1023,7 @@ static Qo pack_results(Qo *values, int count) {
             {
                 Qo result = alloc_data_vec(vec_type, count);
                 for (int i = 0; i < count; i++) {
-                    if (vec_type == QO_SHORT_VEC) qo_short_data(result)[i] = qo_short(values[i]);
-                    else if (vec_type == QO_INT_VEC) qo_int_data(result)[i] = qo_int(values[i]);
-                    else if (vec_type == QO_LONG_VEC) qo_long_data(result)[i] = qo_long(values[i]);
-                    else if (vec_type == QO_FLOAT_VEC) qo_float_data(result)[i] = qo_float(values[i]);
-                    else if (vec_type == QO_BOOL_VEC) qo_bool_data(result)[i] = qo_bool(values[i]);
-                    else qo_byte_data(result)[i] = qo_byte(values[i]);
+                    set_vec_elem_from_scalar(result, i, values[i]);
                     qo_release(values[i]);
                 }
                 free(values);
@@ -1248,14 +1236,7 @@ static Qo eval_apply_value(Qo head, Qo *args, int arg_count, Environment *env) {
                         qo_ptr_data(result)[i] = dict_elem_copy(head, idx);
                     } else {
                         Qo elem = dict_elem_copy(head, idx);
-                        uint8_t et = qo_type(elem);
-                        if (et == QO_SHORT) qo_short_data(result)[i] = qo_short(elem);
-                        else if (et == QO_INT) qo_int_data(result)[i] = qo_int(elem);
-                        else if (et == QO_LONG) qo_long_data(result)[i] = qo_long(elem);
-                        else if (et == QO_FLOAT) qo_float_data(result)[i] = qo_float(elem);
-                        else if (et == QO_BOOL) qo_bool_data(result)[i] = qo_bool(elem);
-                        else if (et == QO_CHAR) qo_char_data(result)[i] = qo_char(elem);
-                        else if (et == QO_BYTE) qo_byte_data(result)[i] = qo_byte(elem);
+                        set_vec_elem_from_scalar(result, i, elem);
                         qo_release(elem);
                     }
                 }
@@ -1337,7 +1318,9 @@ Qo eval_value(Qo tree, Environment *env) {
     if (n == 1) return value_copy(QO_LIST_DATA(tree)[0]);
 
     Qo verb_val = QO_LIST_DATA(tree)[0];
-    int arg_count = (int)(n - 1);
+    int64_t arg_count_64 = n - 1;
+    if (arg_count_64 > INT32_MAX) EVAL_ERROR("too many arguments");
+    int arg_count = (int)arg_count_64;
     Qo result;
 
     uint8_t vt = verb_val ? qo_type(verb_val) : 0;

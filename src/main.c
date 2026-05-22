@@ -15,7 +15,7 @@ static int eval_string(const char *input, Environment *env, int print_result) {
     Qo tree = parser_parse(parser);
     int ok = 0;
     
-    if (tree != NULL) {
+    if (!is_parse_error(tree)) {
         Qo result = eval_value(tree, env);
         if (print_result && !evaluator_exit_requested() && !evaluator_error_requested()) {
             if (result != NULL) {

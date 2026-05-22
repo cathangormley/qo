@@ -82,7 +82,7 @@ static int apply_numeric_op(double left, double right, TokenType op,
         case TOKEN_STAR:
             *out = left * right;
             return 1;
-        case TOKEN_PERCENT:
+        case TOKEN_DIVIDE:
             *out = left / right;
             *is_div_or_mod = 1;
             return 1;
@@ -295,17 +295,23 @@ static int scalar_order_value(Qo v, double *out) {
     return 0;
 }
 
+static int is_order_scalar_type(uint8_t t);
+static int is_order_vector_type(uint8_t t);
+
 static Qo eval_order_compare(Qo left, Qo right, int want_less) {
-    int lv = (left != NULL) && is_vector_type(qo_type(left));
-    int rv = (right != NULL) && is_vector_type(qo_type(right));
+    uint8_t lt = qo_type(left);
+    uint8_t rt = qo_type(right);
+    int lv = (left != NULL) && is_vector_type(lt);
+    int rv = (right != NULL) && is_vector_type(rt);
+
+    if ((lv && !is_order_vector_type(lt)) || (!lv && !is_order_scalar_type(lt)) ||
+        (rv && !is_order_vector_type(rt)) || (!rv && !is_order_scalar_type(rt))) {
+        EVAL_ERROR("comparison requires int/float/bool/char operands");
+    }
 
     if (!lv && !rv) {
-        double l;
-        double r;
-        if (!scalar_order_value(left, &l) || !scalar_order_value(right, &r)) {
-            EVAL_ERROR("comparison requires int/float/bool/char operands");
-        }
-        return make_bool_value(want_less ? (l < r) : (l > r));
+        return make_bool_value(want_less ? (value_as_double(left) < value_as_double(right))
+                                        : (value_as_double(left) > value_as_double(right)));
     }
 
     if (lv && rv && qo_count(left) != qo_count(right)) {
@@ -316,19 +322,9 @@ static Qo eval_order_compare(Qo left, Qo right, int want_less) {
         int64_t count = lv ? qo_count(left) : qo_count(right);
         Qo result = alloc_data_vec(QO_BOOL_VEC, count);
         for (int64_t i = 0; i < count; i++) {
-            Qo lq = lv ? dict_elem_copy(left, i) : value_copy(left);
-            Qo rq = rv ? dict_elem_copy(right, i) : value_copy(right);
-            double l;
-            double r;
-            if (!scalar_order_value(lq, &l) || !scalar_order_value(rq, &r)) {
-                value_free(lq);
-                value_free(rq);
-                qo_release(result);
-                EVAL_ERROR("comparison requires int/float/bool/char operands");
-            }
+            double l = lv ? vec_elem_double(left, i) : value_as_double(left);
+            double r = rv ? vec_elem_double(right, i) : value_as_double(right);
             qo_bool_data(result)[i] = want_less ? (l < r) : (l > r);
-            value_free(lq);
-            value_free(rq);
         }
         return result;
     }
@@ -728,7 +724,7 @@ static uint8_t scalar_to_vector_type(uint8_t scalar_type) {
 static Qo eval_numeric_vector_binop(Qo left, Qo right, TokenType op) {
     uint8_t lt = QO_TYPE(left);
     uint8_t rt = QO_TYPE(right);
-    int use_float = lt == QO_FLOAT || lt == QO_FLOAT_VEC || rt == QO_FLOAT || rt == QO_FLOAT_VEC || op == TOKEN_PERCENT || op == TOKEN_STAR_STAR;
+    int use_float = lt == QO_FLOAT || lt == QO_FLOAT_VEC || rt == QO_FLOAT || rt == QO_FLOAT_VEC || op == TOKEN_DIVIDE || op == TOKEN_STAR_STAR;
 
     if (use_float) {
         int left_is_vec = is_numeric_vector_type(lt);
@@ -900,7 +896,7 @@ Qo eval_divide(Qo left, Qo right) {
 
     if ((lt == QO_DICT && is_numeric_scalar_type(rt)) ||
         (rt == QO_DICT && is_numeric_scalar_type(lt))) {
-        return eval_dict_scalar_binop(left, right, TOKEN_PERCENT);
+        return eval_dict_scalar_binop(left, right, TOKEN_DIVIDE);
     }
     if (is_non_numeric_operand(left) || is_non_numeric_operand(right)) {
         EVAL_ERROR("arithmetic operations require numeric operands");
@@ -909,10 +905,10 @@ Qo eval_divide(Qo left, Qo right) {
         EVAL_ERROR("list arithmetic is not supported");
     }
     if (is_numeric_vector_type(lt) || is_numeric_vector_type(rt)) {
-        return eval_numeric_vector_binop(left, right, TOKEN_PERCENT);
+        return eval_numeric_vector_binop(left, right, TOKEN_DIVIDE);
     }
 
-    return execute_float_scalar_binop(left, right, TOKEN_PERCENT);
+    return execute_float_scalar_binop(left, right, TOKEN_DIVIDE);
 }
 
 Qo eval_power(Qo left, Qo right) {

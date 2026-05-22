@@ -20,13 +20,6 @@
         return make_null_value(); \
     } while (0)
 
-typedef Qo (*BuiltinFn)(Qo arg, Environment *env);
-
-typedef struct {
-    const char *name;
-    BuiltinFn fn;
-} BuiltinSpec;
-
 Qo make_symbol_value(const char *text);
 Qo make_operator_value(TokenType op);
 Qo make_builtin_value(uint8_t id);
@@ -62,7 +55,7 @@ int is_symbolish_type(uint8_t type);
 int is_charish_type(uint8_t type);
 int is_non_numeric_operand(Qo value);
 double value_as_double(Qo value);
-Qo build_collection_from_copies(Qo *elements, int count, uint8_t collection_type);
+void set_vec_elem_from_scalar(Qo vec, int64_t i, Qo scalar);
 Qo extract_dict_side(Qo dict, int want_keys);
 Qo eval_dict_creation(Qo left, Qo right);
 Qo eval_comma_binop(Qo left, Qo right);

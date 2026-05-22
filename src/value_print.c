@@ -300,9 +300,9 @@ void qo_print(Qo q) {
 }
 
 /* Emits one line with max width handling and '..' truncation marker when needed. */
-static void qo_print_emit_trimmed_line(const char *line, size_t len, int max_chars, int force_ellipsis) {
+static void qo_print_emit_trimmed_line(const char *line, size_t len, int max_chars) {
     if (max_chars <= 0) return;
-    if ((int)len <= max_chars && !force_ellipsis) {
+    if ((int)len <= max_chars) {
         if (len > 0) fwrite(line, 1, len, stdout);
         return;
     }
@@ -310,14 +310,7 @@ static void qo_print_emit_trimmed_line(const char *line, size_t len, int max_cha
         for (int i = 0; i < max_chars; i++) fputc('.', stdout);
         return;
     }
-
-    if ((int)len >= max_chars) {
-        fwrite(line, 1, (size_t)(max_chars - 2), stdout);
-        fwrite("..", 1, 2, stdout);
-        return;
-    }
-
-    if (len > 0) fwrite(line, 1, len, stdout);
+    fwrite(line, 1, (size_t)(max_chars - 2), stdout);
     fwrite("..", 1, 2, stdout);
 }
 
@@ -350,14 +343,13 @@ void qo_print_with_limits(Qo q, int max_lines, int max_chars_per_line) {
         line_count += 1;
 
         if (line_count == max_lines && (has_more_lines || end < qo_print_buffer_len)) {
-            qo_print_emit_trimmed_line("..", 2, max_chars_per_line, 0);
+            qo_print_emit_trimmed_line("..", 2, max_chars_per_line);
             break;
         }
 
         qo_print_emit_trimmed_line(qo_print_buffer + start,
                                    end - start,
-                                   max_chars_per_line,
-                                   0);
+                                   max_chars_per_line);
         if (has_more_lines && line_count < max_lines) fputc('\n', stdout);
         start = end + (has_more_lines ? 1 : 0);
     }

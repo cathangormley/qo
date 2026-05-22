@@ -25,7 +25,7 @@ const char *token_type_to_operator(TokenType op) {
         case TOKEN_STAR: return "*";
         case TOKEN_STAR_STAR: return "**";
         case TOKEN_SLASH: return "/";
-        case TOKEN_PERCENT: return "%";
+        case TOKEN_DIVIDE: return "%";
         case TOKEN_BANG: return "!";
         case TOKEN_COMMA: return ",";
         case TOKEN_HASH: return "#";
@@ -46,9 +46,6 @@ const char *token_type_to_operator(TokenType op) {
     }
 }
 
-static int is_parse_error(Qo v) {
-    return v == NULL;
-}
 
 static int hex_digit_value(char c) {
     if (c >= '0' && c <= '9') return c - '0';
@@ -69,7 +66,7 @@ static Qo make_special_int_value(const Token *token, char final_suffix) {
     int use_float = (final_suffix == 'f');
     if (!use_int && !use_float && final_suffix != '\0' && final_suffix != 'j') {
         fprintf(stderr, "Error: special literal requires i, j, or f suffix\n");
-        return NULL;
+        return PARSE_ERROR;
     }
 
     if (use_float) {
@@ -89,7 +86,7 @@ static Qo make_special_int_value(const Token *token, char final_suffix) {
     }
 
     fprintf(stderr, "Error: invalid special literal\n");
-    return NULL;
+    return PARSE_ERROR;
 }
 
 /* Helper: Parse a sequence of numbers into a vector or single scalar */
@@ -124,7 +121,7 @@ static Qo parse_number_sequence(Parser *parser, Token *first_token) {
                     tokens[i]->type_suffix, i + 1);
             free(values);
             free(tokens);
-            return NULL;
+            return PARSE_ERROR;
         }
     }
     
@@ -136,11 +133,11 @@ static Qo parse_number_sequence(Parser *parser, Token *first_token) {
         Token *t = tokens[i];
         if (is_special_int_literal(t)) {
             values[i] = make_special_int_value(t, final_suffix);
-            if (values[i] == NULL) {
+            if (values[i] == PARSE_ERROR) {
                 for (int j = 0; j < i; j++) value_free(values[j]);
                 free(values);
                 free(tokens);
-                return NULL;
+                return PARSE_ERROR;
             }
             continue;
         }
@@ -230,17 +227,13 @@ static Qo parse_postfix_calls(Parser *parser, Qo base);
 
 static int is_expression_operator(TokenType type) {
     return type == TOKEN_PLUS || type == TOKEN_MINUS || type == TOKEN_STAR ||
-           type == TOKEN_STAR_STAR || type == TOKEN_SLASH || type == TOKEN_PERCENT || type == TOKEN_BANG ||
+           type == TOKEN_STAR_STAR || type == TOKEN_SLASH || type == TOKEN_DIVIDE || type == TOKEN_BANG ||
            type == TOKEN_COMMA || type == TOKEN_HASH || type == TOKEN_UNDERSCORE ||
            type == TOKEN_EQUAL || type == TOKEN_LESS || type == TOKEN_GREATER ||
            type == TOKEN_LE || type == TOKEN_GE ||
            type == TOKEN_PIPE || type == TOKEN_AMP ||
            type == TOKEN_COLON || type == TOKEN_AT || type == TOKEN_DOT ||
            type == TOKEN_DOT_DOT || type == TOKEN_DOT_DOT_EQ;
-}
-
-static int is_callable_operator(TokenType type) {
-    return is_expression_operator(type);
 }
 
 static int starts_factor(TokenType type) {
@@ -324,7 +317,7 @@ static Qo parse_postfix_calls(Parser *parser, Qo base) {
             free(args);
             value_free(base);
             fprintf(stderr, "Error: unexpected end of input in function call\n");
-            return NULL;
+            return PARSE_ERROR;
         }
 
         if (token->type == TOKEN_RBRACKET) {
@@ -349,7 +342,7 @@ static Qo parse_postfix_calls(Parser *parser, Qo base) {
                     free(args);
                     value_free(base);
                     fprintf(stderr, "Error: unexpected end of input in function call\n");
-                    return NULL;
+                    return PARSE_ERROR;
                 }
 
                 if (token->type == TOKEN_RBRACKET) {
@@ -395,7 +388,7 @@ static Qo parse_postfix_calls(Parser *parser, Qo base) {
                             }
                             free(args);
                             value_free(base);
-                            return NULL;
+                            return PARSE_ERROR;
                         }
                     }
 
@@ -414,7 +407,7 @@ static Qo parse_postfix_calls(Parser *parser, Qo base) {
                         free(args);
                         value_free(base);
                         fprintf(stderr, "Error: unexpected end of input in function call\n");
-                        return NULL;
+                        return PARSE_ERROR;
                     }
 
                     if (token->type == TOKEN_SEMICOLON) {
@@ -433,7 +426,7 @@ static Qo parse_postfix_calls(Parser *parser, Qo base) {
                     free(args);
                     value_free(base);
                     fprintf(stderr, "Error: expected ';' or ']' in function call\n");
-                    return NULL;
+                    return PARSE_ERROR;
                 }
             }
         }
@@ -452,7 +445,7 @@ static Qo parse_parenthesized(Parser *parser) {
     token = current_token(parser);
     if (!token) {
         fprintf(stderr, "Error: unexpected end of input after '('\n");
-        return NULL;
+        return PARSE_ERROR;
     }
 
     if (token->type == TOKEN_RPAREN) {
@@ -466,7 +459,7 @@ static Qo parse_parenthesized(Parser *parser) {
         Token *check = current_token(parser);
         if (!check) {
             fprintf(stderr, "Error: unexpected end of input after '('\n");
-            return NULL;
+            return PARSE_ERROR;
         }
     }
 
@@ -474,7 +467,7 @@ static Qo parse_parenthesized(Parser *parser) {
     if (!token) {
         value_free(first);
         fprintf(stderr, "Error: unexpected end of input after '('\n");
-        return NULL;
+        return PARSE_ERROR;
     }
 
     if (token->type == TOKEN_RPAREN) {
@@ -499,7 +492,7 @@ static Qo parse_parenthesized(Parser *parser) {
                         value_free(elements[i]);
                     }
                     free(elements);
-                    return NULL;
+                    return PARSE_ERROR;
                 }
             }
 
@@ -517,7 +510,7 @@ static Qo parse_parenthesized(Parser *parser) {
             }
             free(elements);
             fprintf(stderr, "Error: expected ')' to close list literal\n");
-            return NULL;
+            return PARSE_ERROR;
         }
 
         advance(parser);
@@ -534,7 +527,7 @@ static Qo parse_parenthesized(Parser *parser) {
 
     value_free(first);
     fprintf(stderr, "Error: expected ')' or ';' after expression in parentheses\n");
-    return NULL;
+    return PARSE_ERROR;
 }
 
 static Qo parse_function_literal(Parser *parser) {
@@ -551,7 +544,7 @@ static Qo parse_function_literal(Parser *parser) {
     token = current_token(parser);
     if (!token) {
         fprintf(stderr, "Error: unexpected end of input in function literal\n");
-        return NULL;
+        return PARSE_ERROR;
     }
 
     if (token->type == TOKEN_LBRACKET) {
@@ -563,7 +556,7 @@ static Qo parse_function_literal(Parser *parser) {
         if (!token) {
             fprintf(stderr, "Error: unexpected end of input in parameter list\n");
             free(params);
-            return NULL;
+            return PARSE_ERROR;
         }
 
         if (token->type != TOKEN_RBRACKET) {
@@ -572,13 +565,13 @@ static Qo parse_function_literal(Parser *parser) {
                 if (!token) {
                     fprintf(stderr, "Error: unexpected end of input in parameter list\n");
                     free_param_list(params, param_count);
-                    return NULL;
+                    return PARSE_ERROR;
                 }
 
                 if (token->type != TOKEN_IDENTIFIER) {
                     fprintf(stderr, "Error: expected identifier in parameter list\n");
                     free_param_list(params, param_count);
-                    return NULL;
+                    return PARSE_ERROR;
                 }
 
                 if (param_count >= param_capacity) {
@@ -592,7 +585,7 @@ static Qo parse_function_literal(Parser *parser) {
                 if (!token) {
                     fprintf(stderr, "Error: unexpected end of input in parameter list\n");
                     free_param_list(params, param_count);
-                    return NULL;
+                    return PARSE_ERROR;
                 }
 
                 if (token->type == TOKEN_RBRACKET) {
@@ -606,7 +599,7 @@ static Qo parse_function_literal(Parser *parser) {
 
                 fprintf(stderr, "Error: expected ';' or ']' in parameter list\n");
                 free_param_list(params, param_count);
-                return NULL;
+                return PARSE_ERROR;
             }
         } else {
             advance(parser);
@@ -617,7 +610,7 @@ static Qo parse_function_literal(Parser *parser) {
     if (!token) {
         fprintf(stderr, "Error: unexpected end of input in function literal\n");
         free_param_list(params, param_count);
-        return NULL;
+        return PARSE_ERROR;
     }
 
     if (token->type == TOKEN_RBRACE) {
@@ -645,7 +638,7 @@ static Qo parse_function_literal(Parser *parser) {
                 }
                 free(statements);
                 free_param_list(params, param_count);
-                return NULL;
+                return PARSE_ERROR;
             }
         }
 
@@ -663,7 +656,7 @@ static Qo parse_function_literal(Parser *parser) {
             free(statements);
             free_param_list(params, param_count);
             fprintf(stderr, "Error: expected '}' to close function literal\n");
-            return NULL;
+            return PARSE_ERROR;
         }
 
         if (token->type == TOKEN_RBRACE) {
@@ -687,7 +680,7 @@ static Qo parse_function_literal(Parser *parser) {
             free(statements);
             free_param_list(params, param_count);
             fprintf(stderr, "Error: expected ';' or '}' in function literal\n");
-            return NULL;
+            return PARSE_ERROR;
         }
 
         advance(parser);
@@ -699,7 +692,7 @@ static Qo parse_function_literal(Parser *parser) {
             free(statements);
             free_param_list(params, param_count);
             fprintf(stderr, "Error: expected expression or '}' after ';' in function literal\n");
-            return NULL;
+            return PARSE_ERROR;
         }
 
         if (token->type == TOKEN_RBRACE) {
@@ -724,12 +717,12 @@ static Qo parse_factor(Parser *parser) {
 
     if (!token) {
         fprintf(stderr, "Error: unexpected end of input\n");
-        return NULL;
+        return PARSE_ERROR;
     }
 
     if (token->type == TOKEN_NUMBER) {
         Qo node = parse_number_sequence(parser, token);
-        if (is_parse_error(node)) return NULL;
+        if (is_parse_error(node)) return PARSE_ERROR;
         return parse_postfix_calls(parser, node);
     }
 
@@ -758,7 +751,7 @@ static Qo parse_factor(Parser *parser) {
 
         if (digits == 0) {
             fprintf(stderr, "Error: hex literal must contain at least one hex digit\n");
-            return NULL;
+            return PARSE_ERROR;
         }
 
         {
@@ -773,7 +766,7 @@ static Qo parse_factor(Parser *parser) {
                 if (lo < 0) {
                     value_free(result);
                     fprintf(stderr, "Error: invalid hex literal\n");
-                    return NULL;
+                    return PARSE_ERROR;
                 }
                 qo_byte_data(result)[dst++] = (uint8_t)lo;
                 src++;
@@ -785,7 +778,7 @@ static Qo parse_factor(Parser *parser) {
                 if (hi < 0 || lo < 0) {
                     value_free(result);
                     fprintf(stderr, "Error: invalid hex literal\n");
-                    return NULL;
+                    return PARSE_ERROR;
                 }
                 qo_byte_data(result)[dst++] = (uint8_t)((hi << 4) | lo);
                 src += 2;
@@ -809,7 +802,7 @@ static Qo parse_factor(Parser *parser) {
         return parse_postfix_calls(parser, node);
     }
 
-    if (is_callable_operator(token->type)) {
+    if (is_expression_operator(token->type)) {
         TokenType op_type = token->type;
         advance(parser);
         node = make_operator_value(op_type);
@@ -847,7 +840,7 @@ static Qo parse_factor(Parser *parser) {
     }
 
     fprintf(stderr, "Error: unexpected token '%s'\n", token->lexeme ? token->lexeme : "EOF");
-    return NULL;
+    return PARSE_ERROR;
 }
 
 static Qo parse_expression(Parser *parser) {
@@ -857,7 +850,7 @@ static Qo parse_expression(Parser *parser) {
     if (is_parse_error(left)) {
         Token *check = current_token(parser);
         if (!check) {
-            return NULL;
+            return PARSE_ERROR;
         }
     }
 
@@ -873,7 +866,7 @@ static Qo parse_expression(Parser *parser) {
                 if (!check) {
                     value_free(left);
                     fprintf(stderr, "Error: expected expression after operator\n");
-                    return NULL;
+                    return PARSE_ERROR;
                 }
             }
             {
@@ -893,7 +886,7 @@ static Qo parse_expression(Parser *parser) {
             if (!check) {
                 value_free(left);
                 fprintf(stderr, "Error: expected expression after function application\n");
-                return NULL;
+                return PARSE_ERROR;
             }
         }
         return make_call_value(left, right);
@@ -934,7 +927,7 @@ Qo parser_parse(Parser *parser) {
             if (!check || check->type == TOKEN_EOF) {
                 if (count == 0) {
                     free(statements);
-                    return NULL;
+                    return PARSE_ERROR;
                 }
                 break;
             }
@@ -943,7 +936,7 @@ Qo parser_parse(Parser *parser) {
                 value_free(statements[i]);
             }
             free(statements);
-            return NULL;
+            return PARSE_ERROR;
         }
 
         if (count >= capacity) {
@@ -963,7 +956,7 @@ Qo parser_parse(Parser *parser) {
             }
             free(statements);
             fprintf(stderr, "Error: expected ';' between statements\n");
-            return NULL;
+            return PARSE_ERROR;
         }
 
         advance(parser);
@@ -980,7 +973,7 @@ Qo parser_parse(Parser *parser) {
 
     if (count == 0) {
         free(statements);
-        return make_null_value();
+        return alloc_ptr_vec(QO_LIST, 0);
     }
 
     if (count == 1) {

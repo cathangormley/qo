@@ -196,12 +196,6 @@ Qo make_null_value(void) {
     return NULL;
 }
 
-static Qo make_strlike(uint8_t type, const char *text, int64_t len) {
-    Qo q = alloc_charlike(type, len);
-    memcpy(QO_STR(q), text, (size_t)len);
-    return q;
-}
-
 Qo make_symbol_value(const char *text) {
     return qo_symbol_intern(text);
 }
@@ -557,6 +551,17 @@ int64_t dict_collection_count(Qo v) {
     return is_vector_type(QO_TYPE(v)) ? QO_COUNT(v) : 1;
 }
 
+void set_vec_elem_from_scalar(Qo vec, int64_t i, Qo scalar) {
+    uint8_t vt = QO_TYPE(vec);
+    if (vt == QO_SHORT_VEC) qo_short_data(vec)[i] = qo_short(scalar);
+    else if (vt == QO_INT_VEC) qo_int_data(vec)[i] = qo_int(scalar);
+    else if (vt == QO_LONG_VEC) qo_long_data(vec)[i] = qo_long(scalar);
+    else if (vt == QO_FLOAT_VEC) qo_float_data(vec)[i] = qo_float(scalar);
+    else if (vt == QO_BOOL_VEC) qo_bool_data(vec)[i] = qo_bool(scalar);
+    else if (vt == QO_BYTE_VEC) qo_byte_data(vec)[i] = qo_byte(scalar);
+    else if (vt == QO_CHAR_VEC) qo_char_data(vec)[i] = qo_char(scalar);
+}
+
 Qo dict_elem_copy(Qo v, int64_t i) {
     uint8_t t;
     if (v == NULL) return NULL;
@@ -589,12 +594,7 @@ Qo extract_dict_side(Qo dict, int want_keys) {
         side_type == QO_FLOAT_VEC || side_type == QO_BOOL_VEC || side_type == QO_BYTE_VEC) {
         Qo result = alloc_data_vec(side_type, n);
         for (int64_t i = 0; i < n; i++) {
-            if (side_type == QO_SHORT_VEC) QO_SHORT_DATA(result)[i] = QO_SHORT_VAL(elems[i]);
-            else if (side_type == QO_INT_VEC) QO_INT_DATA(result)[i] = QO_INT_VAL(elems[i]);
-            else if (side_type == QO_LONG_VEC) QO_LONG_DATA(result)[i] = QO_LONG_VAL(elems[i]);
-            else if (side_type == QO_FLOAT_VEC) QO_FLOAT_DATA(result)[i] = QO_FLOAT_VAL(elems[i]);
-            else if (side_type == QO_BOOL_VEC) QO_BOOL_DATA(result)[i] = QO_BOOL_VAL(elems[i]);
-            else QO_BYTE_DATA(result)[i] = QO_BYTE_VAL(elems[i]);
+            set_vec_elem_from_scalar(result, i, elems[i]);
         }
         return result;
     }
@@ -606,10 +606,4 @@ Qo extract_dict_side(Qo dict, int want_keys) {
     }
 }
 
-Qo build_collection_from_copies(Qo *elements, int count, uint8_t type) {
-    Qo result = alloc_ptr_vec(type, (int64_t)count);
-    if (count > 0) {
-        memcpy(QO_LIST_DATA(result), elements, (size_t)count * sizeof(Qo));
-    }
-    return result;
-}
+

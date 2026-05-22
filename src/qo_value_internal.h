@@ -34,7 +34,6 @@
 #define QO_CHAR_DATA(q)     ((char *)((q)->storage))
 #define QO_LIST_DATA(q)     ((Qo *)((q)->storage))
 #define QO_STR(q)           ((char *)((q)->storage))
-#define QO_STR_LEN(q)       QO_COUNT(q)
 
 /* dict payload: [0] ktype [1] vtype [2..] keys then vals */
 #define QO_DICT_COUNT(q)    QO_COUNT(q)

@@ -299,7 +299,7 @@ Token* lexer_next_token(Lexer *lexer) {
             }
             return token_new(TOKEN_STAR, "*", false, '\0', start_pos);
         case '/': return token_new(TOKEN_SLASH, "/", false, '\0', start_pos);
-        case '%': return token_new(TOKEN_PERCENT, "%", false, '\0', start_pos);
+        case '%': return token_new(TOKEN_DIVIDE, "%", false, '\0', start_pos);
         case '!': return token_new(TOKEN_BANG, "!", false, '\0', start_pos);
         case ',': return token_new(TOKEN_COMMA, ",", false, '\0', start_pos);
         case '#': return token_new(TOKEN_HASH, "#", false, '\0', start_pos);
