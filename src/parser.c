@@ -225,6 +225,40 @@ static Qo parse_expression(Parser *parser);
 static Qo parse_factor(Parser *parser);
 static Qo parse_postfix_calls(Parser *parser, Qo base);
 
+static Qo parse_symbol_sequence(Parser *parser, Token *first_token) {
+    int capacity = 64;
+    Qo *values = xmalloc(sizeof(Qo) * (size_t)capacity);
+    int count = 0;
+
+    values[count++] = make_symbol_value(first_token->lexeme);
+    advance(parser);
+
+    while (1) {
+        if (count >= capacity) {
+            capacity *= 2;
+            values = xrealloc(values, sizeof(Qo) * (size_t)capacity);
+        }
+        Token *next = current_token(parser);
+        if (!next || next->type != TOKEN_SYMBOL) break;
+        values[count++] = make_symbol_value(next->lexeme);
+        advance(parser);
+    }
+
+    if (count == 1) {
+        Qo result = qo_make_list_take(values, 1);
+        return parse_postfix_calls(parser, result);
+    }
+
+    {
+        Qo result = alloc_ptr_vec(QO_SYM_VEC, count);
+        for (int i = 0; i < count; i++) {
+            QO_LIST_DATA(result)[i] = values[i];
+        }
+        free(values);
+        return parse_postfix_calls(parser, result);
+    }
+}
+
 static int is_expression_operator(TokenType type) {
     return type == TOKEN_PLUS || type == TOKEN_MINUS || type == TOKEN_STAR ||
            type == TOKEN_STAR_STAR || type == TOKEN_SLASH || type == TOKEN_DIVIDE || type == TOKEN_BANG ||
@@ -810,10 +844,9 @@ static Qo parse_factor(Parser *parser) {
     }
 
     if (token->type == TOKEN_SYMBOL) {
-        Qo *literal_elements = xmalloc(sizeof(Qo));
-        advance(parser);
-        literal_elements[0] = make_symbol_value(token->lexeme);
-        return parse_postfix_calls(parser, qo_make_list_take(literal_elements, 1));
+        Qo node = parse_symbol_sequence(parser, token);
+        if (is_parse_error(node)) return PARSE_ERROR;
+        return node;
     }
 
     if (token->type == TOKEN_STRING) {

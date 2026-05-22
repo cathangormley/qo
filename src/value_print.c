@@ -258,12 +258,10 @@ static void qo_print_internal(Qo q, int depth) {
         }
         case QO_SYM_VEC: {
             int64_t n = QO_COUNT(q);
-            qo_printf("[");
+            if (n == 0) { qo_printf("[]"); break; }
             for (int64_t i = 0; i < n; i++) {
-                if (i > 0) qo_printf(";");
-                qo_print_internal(QO_LIST_DATA(q)[i], depth + 1);
+                qo_printf("`%s", qo_symbol_name(QO_LIST_DATA(q)[i]));
             }
-            qo_printf("]");
             break;
         }
         case QO_LIST:
