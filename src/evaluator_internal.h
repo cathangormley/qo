@@ -37,6 +37,7 @@ Qo make_projector_value(void);
 Qo make_eached_value(Qo func);
 Qo make_adverb_value(uint8_t kind);
 Qo qo_alloc_raw(size_t size);
+Qo alloc_atom(uint8_t type);
 Qo qo_make_list_take(Qo *elements, int64_t count);
 Qo make_function_value(char **params, int param_count,
                        Qo *body, int body_count,

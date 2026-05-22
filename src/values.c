@@ -12,30 +12,32 @@ static Qo alloc_block(size_t payload_size) {
     q->attribute = 0;
     q->type_tag = 0;
     q->reference_count = 1;
-    q->count = 0;
     return q;
 }
 
-static Qo alloc_scalar(uint8_t type, size_t scalar_size) {
-    Qo q = alloc_block(scalar_size);
+Qo alloc_atom(uint8_t type) {
+    Qo q = (Qo)xmalloc(sizeof(QoObject));
+    q->attribute = 0;
     q->type_tag = type;
+    q->reference_count = 1;
     return q;
-}
-
-static size_t scalar_payload_size(uint8_t type) {
-    if (type == QO_SHORT) return sizeof(int16_t);
-    if (type == QO_INT) return sizeof(int32_t);
-    if (type == QO_LONG || type == QO_SYMBOL || type == QO_PROJECTOR || type == QO_EACHED) return sizeof(int64_t);
-    if (type == QO_FLOAT) return sizeof(double);
-    if (type == QO_CHAR) return sizeof(char);
-    if (type == QO_BOOL || type == QO_BYTE || type == QO_ADVERB || type == QO_OPERATOR || type == QO_BUILTIN) return sizeof(uint8_t);
-    return 0;
 }
 
 static Qo make_scalar_value(uint8_t type, const void *value) {
-    size_t sz = scalar_payload_size(type);
-    Qo q = alloc_scalar(type, sz);
-    memcpy(q->storage, value, sz);
+    Qo q = alloc_atom(type);
+    switch (type) {
+        case QO_SHORT:  q->short_val  = *(const int16_t *)value; break;
+        case QO_INT:    q->int_val    = *(const int32_t *)value; break;
+        case QO_LONG:   q->long_val   = *(const int64_t *)value; break;
+        case QO_FLOAT:  q->double_val = *(const double  *)value; break;
+        case QO_CHAR:   q->char_val   = *(const char    *)value; break;
+        case QO_BOOL:   q->bool_val   = *(const uint8_t *)value; break;
+        case QO_BYTE:   q->byte_val   = *(const uint8_t *)value; break;
+        case QO_ADVERB:
+        case QO_OPERATOR:
+        case QO_BUILTIN: q->byte_val  = *(const uint8_t *)value; break;
+        default: break;
+    }
     return q;
 }
 
@@ -130,7 +132,7 @@ Qo alloc_charlike(uint8_t type, int64_t count) {
     Qo q = alloc_block(size);
     q->type_tag = type;
     QO_SET_COUNT(q, count);
-    q->storage[count] = '\0';
+    q->data[count] = '\0';
     return q;
 }
 
@@ -172,10 +174,7 @@ Qo make_byte_value(uint8_t v) {
 }
 
 Qo make_projector_value(void) {
-    Qo q = alloc_block(0);
-    q->type_tag = QO_PROJECTOR;
-    QO_SET_COUNT(q, 0);
-    return q;
+    return alloc_atom(QO_PROJECTOR);
 }
 
 Qo make_eached_value(Qo func) {
@@ -186,8 +185,8 @@ Qo make_eached_value(Qo func) {
 }
 
 Qo make_adverb_value(uint8_t kind) {
-    Qo q = alloc_scalar(QO_ADVERB, sizeof(uint8_t));
-    QO_ADVERB_KIND(q) = kind;
+    Qo q = alloc_atom(QO_ADVERB);
+    q->byte_val = kind;
     return q;
 }
 
@@ -200,14 +199,14 @@ Qo make_symbol_value(const char *text) {
 }
 
 Qo make_operator_value(TokenType op) {
-    Qo q = alloc_scalar(QO_OPERATOR, sizeof(uint8_t));
-    QO_OPERATOR_OP(q) = (uint8_t)op;
+    Qo q = alloc_atom(QO_OPERATOR);
+    q->byte_val = (uint8_t)op;
     return q;
 }
 
 Qo make_builtin_value(uint8_t id) {
-    Qo q = alloc_scalar(QO_BUILTIN, sizeof(uint8_t));
-    QO_BUILTIN_ID(q) = id;
+    Qo q = alloc_atom(QO_BUILTIN);
+    q->byte_val = id;
     return q;
 }
 
@@ -252,21 +251,14 @@ Qo qo_clone(Qo q) {
         case QO_FLOAT:
         case QO_CHAR:
         case QO_BOOL:
-        case QO_BYTE: {
-            size_t sz = scalar_payload_size(QO_TYPE(q));
-            Qo c = alloc_scalar(QO_TYPE(q), sz);
-            c->attribute = q->attribute;
-            memcpy(c->storage, q->storage, sz);
-            return c;
-        }
+        case QO_BYTE:
         case QO_PROJECTOR:
         case QO_ADVERB:
         case QO_OPERATOR:
         case QO_BUILTIN: {
-            size_t sz = scalar_payload_size(QO_TYPE(q));
-            Qo c = alloc_scalar(QO_TYPE(q), sz);
+            Qo c = alloc_atom(QO_TYPE(q));
             c->attribute = q->attribute;
-            memcpy(c->storage, q->storage, sz);
+            memcpy(&c->long_val, &q->long_val, sizeof(q->long_val));
             return c;
         }
         case QO_EACHED: {
@@ -285,7 +277,7 @@ Qo qo_clone(Qo q) {
                 c->type_tag = q->type_tag;
                 c->attribute = q->attribute;
                 QO_SET_COUNT(c, QO_COUNT(q));
-                    memcpy(c->storage, q->storage, (size_t)n + 1);
+                    memcpy(c->data, q->data, (size_t)n + 1);
                 return c;
             }
         }
@@ -308,7 +300,7 @@ Qo qo_clone(Qo q) {
                     c->type_tag = q->type_tag;
                     c->attribute = q->attribute;
                     QO_SET_COUNT(c, QO_COUNT(q));
-                        memcpy(c->storage, q->storage, sz);
+                        memcpy(c->data, q->data, sz);
                     return c;
                 }
             }

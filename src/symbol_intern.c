@@ -49,9 +49,7 @@ static void ensure_symbol_entry_capacity(void) {
 }
 
 static Qo make_symbol_object(int64_t id) {
-    Qo symbol = qo_alloc_raw(sizeof(int64_t));
-    symbol->type_tag = QO_SYMBOL;
-    symbol->attribute = 0;
+    Qo symbol = alloc_atom(QO_SYMBOL);
     QO_SET_SYMBOL_ID(symbol, id);
     return symbol;
 }

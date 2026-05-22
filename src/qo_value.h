@@ -10,15 +10,26 @@
  * - attribute: reserved metadata byte (currently unused by runtime)
  * - type_tag: runtime type discriminator
  * - reference_count: in-object reference count
- * - count: collection count / metadata count field
- * - storage[]: payload area for atoms and variable-sized/object data
+ * - union: atoms store their value inline; collections have count + data[]
  */
 typedef struct QoObject {
     uint8_t attribute;
     uint8_t type_tag;
     uint32_t reference_count;
-    int64_t count;
-    _Alignas(int64_t) uint8_t storage[];
+    union {
+        int16_t short_val;
+        int32_t int_val;
+        int64_t long_val;
+        double double_val;
+        char char_val;
+        uint8_t byte_val;
+        uint8_t bool_val;
+        int64_t symbol_id;
+        struct {
+            int64_t count;
+            _Alignas(int64_t) uint8_t data[];
+        };
+    };
 } QoObject;
 
 typedef QoObject *Qo;
@@ -79,51 +90,35 @@ static inline int64_t qo_count(Qo q) {
 }
 
 static inline int16_t qo_short(Qo q) {
-    int16_t out;
-    memcpy(&out, q->storage, sizeof(out));
-    return out;
+    return q->short_val;
 }
 
 static inline int32_t qo_int(Qo q) {
-    int32_t out;
-    memcpy(&out, q->storage, sizeof(out));
-    return out;
+    return q->int_val;
 }
 
 static inline int64_t qo_long(Qo q) {
-    int64_t out;
-    memcpy(&out, q->storage, sizeof(out));
-    return out;
+    return q->long_val;
 }
 
 static inline int64_t qo_symbol_id(Qo q) {
-    int64_t out;
-    memcpy(&out, q->storage, sizeof(out));
-    return out;
+    return q->symbol_id;
 }
 
 static inline double qo_float(Qo q) {
-    double out;
-    memcpy(&out, q->storage, sizeof(out));
-    return out;
+    return q->double_val;
 }
 
 static inline char qo_char(Qo q) {
-    char out;
-    memcpy(&out, q->storage, sizeof(out));
-    return out;
+    return q->char_val;
 }
 
 static inline uint8_t qo_bool(Qo q) {
-    uint8_t out;
-    memcpy(&out, q->storage, sizeof(out));
-    return out;
+    return q->bool_val;
 }
 
 static inline uint8_t qo_byte(Qo q) {
-    uint8_t out;
-    memcpy(&out, q->storage, sizeof(out));
-    return out;
+    return q->byte_val;
 }
 
 static inline void qo_set_count(Qo q, int64_t value) {
@@ -131,67 +126,67 @@ static inline void qo_set_count(Qo q, int64_t value) {
 }
 
 static inline void qo_set_short(Qo q, int16_t value) {
-    memcpy(q->storage, &value, sizeof(value));
+    q->short_val = value;
 }
 
 static inline void qo_set_int(Qo q, int32_t value) {
-    memcpy(q->storage, &value, sizeof(value));
+    q->int_val = value;
 }
 
 static inline void qo_set_long(Qo q, int64_t value) {
-    memcpy(q->storage, &value, sizeof(value));
+    q->long_val = value;
 }
 
 static inline void qo_set_symbol_id(Qo q, int64_t value) {
-    memcpy(q->storage, &value, sizeof(value));
+    q->symbol_id = value;
 }
 
 static inline void qo_set_float(Qo q, double value) {
-    memcpy(q->storage, &value, sizeof(value));
+    q->double_val = value;
 }
 
 static inline void qo_set_char(Qo q, char value) {
-    memcpy(q->storage, &value, sizeof(value));
+    q->char_val = value;
 }
 
 static inline void qo_set_bool(Qo q, uint8_t value) {
-    memcpy(q->storage, &value, sizeof(value));
+    q->bool_val = value;
 }
 
 static inline void qo_set_byte(Qo q, uint8_t value) {
-    memcpy(q->storage, &value, sizeof(value));
+    q->byte_val = value;
 }
 
 static inline int16_t *qo_short_data(Qo q) {
-    return (int16_t *)q->storage;
+    return (int16_t *)q->data;
 }
 
 static inline int32_t *qo_int_data(Qo q) {
-    return (int32_t *)q->storage;
+    return (int32_t *)q->data;
 }
 
 static inline int64_t *qo_long_data(Qo q) {
-    return (int64_t *)q->storage;
+    return (int64_t *)q->data;
 }
 
 static inline double *qo_float_data(Qo q) {
-    return (double *)q->storage;
+    return (double *)q->data;
 }
 
 static inline uint8_t *qo_bool_data(Qo q) {
-    return (uint8_t *)q->storage;
+    return (uint8_t *)q->data;
 }
 
 static inline uint8_t *qo_byte_data(Qo q) {
-    return (uint8_t *)q->storage;
+    return (uint8_t *)q->data;
 }
 
 static inline char *qo_char_data(Qo q) {
-    return (char *)q->storage;
+    return (char *)q->data;
 }
 
 static inline Qo *qo_ptr_data(Qo q) {
-    return (Qo *)q->storage;
+    return (Qo *)q->data;
 }
 
 const char *qo_symbol_name(Qo q);
