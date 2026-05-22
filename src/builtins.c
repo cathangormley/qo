@@ -408,6 +408,7 @@ static Qo eval_builtin_type(Qo arg, Environment *env) {
         case QO_LIST:       tag = "list";      break;
         case QO_FUNCTION:   tag = "function";  break;
         case QO_EACHED:     tag = "each";      break;
+        case QO_ADVERB:     tag = "adverb";    break;
         default: break;
     }
     return make_symbol_value(tag);
@@ -980,6 +981,13 @@ static Qo eval_apply_value(Qo head, Qo *args, int arg_count, Environment *env) {
         return eval_apply_keyword(head, args, arg_count, env);
     }
 
+    if (qo_type(head) == QO_ADVERB) {
+        if (arg_count != 1) EVAL_ERROR("adverb expects 1 argument");
+        uint8_t kind = QO_ADVERB_KIND(head);
+        if (kind == QO_ADVERB_EACH) return make_eached_value(args[0]);
+        EVAL_ERROR("unknown adverb");
+    }
+
     if (qo_type(head) == QO_EACHED) {
         if (arg_count != 1) EVAL_ERROR("each expects 1 argument");
         Qo func = QO_EACHED_FUNC(head);
@@ -1297,16 +1305,6 @@ Qo eval_value(Qo tree, Environment *env) {
             if (evaluator_exit_requested() || evaluator_error_requested()) break;
         }
         return last;
-    }
-
-    /* Each: wrap the evaluated func in eached (from ' postfix) */
-    if (strcmp(verb, "each") == 0) {
-        if (arg_count != 1) EVAL_ERROR("each expects exactly 1 argument");
-        Qo arg = eval_value(QO_LIST_DATA(tree)[1], env);
-        if (evaluator_error_requested() || evaluator_exit_requested()) { qo_release(arg); return NULL; }
-        Qo r = make_eached_value(arg);
-        qo_release(arg);
-        return r;
     }
 
     /* All other keywords: evaluate args first */

@@ -152,6 +152,12 @@ static void qo_print_internal(Qo q, int depth) {
         case QO_PROJECTOR:
             qo_printf("P");
             break;
+        case QO_ADVERB: {
+            uint8_t kind = QO_ADVERB_KIND(q);
+            if (kind == QO_ADVERB_EACH) qo_printf("'");
+            else qo_printf("<adverb %d>", (int)kind);
+            break;
+        }
         case QO_SYMBOL:
             qo_printf("`%s", qo_symbol_name(q));
             break;

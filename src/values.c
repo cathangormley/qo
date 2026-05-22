@@ -28,7 +28,7 @@ static size_t scalar_payload_size(uint8_t type) {
     if (type == QO_LONG || type == QO_SYMBOL || type == QO_PROJECTOR || type == QO_EACHED) return sizeof(int64_t);
     if (type == QO_FLOAT) return sizeof(double);
     if (type == QO_CHAR) return sizeof(char);
-    if (type == QO_BOOL || type == QO_BYTE) return sizeof(uint8_t);
+    if (type == QO_BOOL || type == QO_BYTE || type == QO_ADVERB) return sizeof(uint8_t);
     return 0;
 }
 
@@ -186,6 +186,12 @@ Qo make_eached_value(Qo func) {
     return q;
 }
 
+Qo make_adverb_value(uint8_t kind) {
+    Qo q = alloc_scalar(QO_ADVERB, sizeof(uint8_t));
+    QO_ADVERB_KIND(q) = kind;
+    return q;
+}
+
 Qo make_null_value(void) {
     return NULL;
 }
@@ -252,11 +258,12 @@ Qo qo_clone(Qo q) {
             memcpy(c->storage, q->storage, sz);
             return c;
         }
-        case QO_PROJECTOR: {
-            Qo c = alloc_block(0);
-            c->type_tag = QO_PROJECTOR;
+        case QO_PROJECTOR:
+        case QO_ADVERB: {
+            size_t sz = scalar_payload_size(QO_TYPE(q));
+            Qo c = alloc_scalar(QO_TYPE(q), sz);
             c->attribute = q->attribute;
-            QO_SET_COUNT(c, QO_COUNT(q));
+            memcpy(c->storage, q->storage, sz);
             return c;
         }
         case QO_EACHED: {
@@ -374,6 +381,7 @@ static void qo_destroy(Qo q) {
         case QO_BOOL:
         case QO_BYTE:
         case QO_PROJECTOR:
+        case QO_ADVERB:
             break;
         case QO_EACHED:
             qo_release(QO_EACHED_FUNC(q));
@@ -450,6 +458,8 @@ int value_equals(Qo a, Qo b) {
             return QO_BYTE_VAL(a) == QO_BYTE_VAL(b);
         case QO_PROJECTOR:
             return 1;
+        case QO_ADVERB:
+            return QO_ADVERB_KIND(a) == QO_ADVERB_KIND(b);
         case QO_SYMBOL:
             return QO_SYMBOL_ID(a) == QO_SYMBOL_ID(b);
         case QO_KEYWORD:

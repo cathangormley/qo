@@ -347,6 +347,19 @@ test_case_multiline "each_til_on_multi" "til' 3 4 5" $'0 1 2\n0 1 2 3\n0 1 2 3 4
 test_case "each_func_alias" "f:first'; f (\"cat\";\"dog\")" "\"cd\""
 test_case "each_type" "type first'" "\`each"
 
+# Adverb (') as first-class value
+test_case "adverb_standalone" "'" "'"
+test_case "adverb_type_bracket" "type[']" "\`adverb"
+test_case "adverb_type_at" "type@'" "\`adverb"
+test_case "adverb_equality" "'='" "1b"
+test_case "adverb_assignment" "x:';x" "'"
+test_case "adverb_assignment_type" "x:';type x" "\`adverb"
+test_case "adverb_apply_to_func" "x:';x first" "first'"
+test_case "adverb_apply_and_call" "x:'; (x first) (\"cat\";\"dog\")" "\"cd\""
+test_case "adverb_parse_roundtrip" "eval[parse[\"'\"]]" "'"
+test_case "adverb_greedy_postfix" "(type) '" "type'"
+test_case "adverb_func_alias" "f:first'; f (1 2 3;4 5 6)" "1 4"
+
 # Type builtin
 test_case "type_int" "type 2" "\`long"
 test_case "type_default_long_literal" "type 5" "\`long"

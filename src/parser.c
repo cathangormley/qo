@@ -248,7 +248,8 @@ static int starts_factor(TokenType type) {
            type == TOKEN_SYMBOL ||
            type == TOKEN_STRING ||
            type == TOKEN_LPAREN ||
-           type == TOKEN_LBRACE;
+           type == TOKEN_LBRACE ||
+           type == TOKEN_EACH;
 }
 
 static int is_keyword_identifier(Token *token) {
@@ -332,7 +333,7 @@ static Qo parse_postfix_calls(Parser *parser, Qo base) {
         if (token->type == TOKEN_EACH) {
             advance(parser);
             Qo *elements = xmalloc(sizeof(Qo) * 2);
-            elements[0] = make_keyword_value("each");
+            elements[0] = make_adverb_value(QO_ADVERB_EACH);
             elements[1] = base;
             base = qo_make_list_take(elements, 2);
             token = current_token(parser);
@@ -863,6 +864,11 @@ static Qo parse_factor(Parser *parser) {
 
     if (token->type == TOKEN_LBRACE) {
         return parse_function_literal(parser);
+    }
+
+    if (token->type == TOKEN_EACH) {
+        advance(parser);
+        return parse_postfix_calls(parser, make_adverb_value(QO_ADVERB_EACH));
     }
 
     fprintf(stderr, "Error: unexpected token '%s'\n", token->lexeme ? token->lexeme : "EOF");

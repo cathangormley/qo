@@ -48,6 +48,7 @@ typedef QoObject *Qo;
 #define QO_FUNCTION    0x22
 #define QO_PROJECTION  0x23
 #define QO_EACHED      0x24
+#define QO_ADVERB      0x25
 
 /* ── Sentinel values for null and infinity ──────────────────────────── */
 #define QO_SHORT_NULL    INT16_MIN

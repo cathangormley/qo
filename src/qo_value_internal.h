@@ -58,3 +58,7 @@
 
 /* eached payload: [0..7] wrapped function */
 #define QO_EACHED_FUNC(q)   (*(Qo *)((q)->storage))
+
+/* adverb payload: [0] kind byte */
+#define QO_ADVERB_KIND(q)   (*(uint8_t *)((q)->storage))
+#define QO_ADVERB_EACH      0
