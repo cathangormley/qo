@@ -122,30 +122,33 @@ static Qo eval_builtin_sum(Qo arg, Environment *env) {
     (void)env;
     if (arg == NULL) EVAL_ERROR("sum expects a number or numeric vector");
     uint8_t t = qo_type(arg);
-    if (t == QO_SHORT || t == QO_INT || t == QO_LONG || t == QO_FLOAT) return qo_clone(arg);
-    if (t == QO_SHORT_VEC) {
-        int64_t total = 0;
-        int64_t n = qo_count(arg);
-        for (int64_t i = 0; i < n; i++) total += (int64_t)qo_short_data(arg)[i];
-        return make_long_value(total);
-    }
-    if (t == QO_INT_VEC) {
-        int64_t total = 0;
-        int64_t n = qo_count(arg);
-        for (int64_t i = 0; i < n; i++) total += (int64_t)qo_int_data(arg)[i];
-        return make_long_value(total);
-    }
-    if (t == QO_LONG_VEC) {
-        int64_t total = 0;
-        int64_t n = qo_count(arg);
-        for (int64_t i = 0; i < n; i++) total += qo_long_data(arg)[i];
-        return make_long_value(total);
-    }
-    if (t == QO_FLOAT_VEC) {
-        double total = 0.0;
-        int64_t n = qo_count(arg);
-        for (int64_t i = 0; i < n; i++) total += qo_float_data(arg)[i];
-        return make_float_value(total);
+    if (type_has_flag(t, TF_SCALAR)) return qo_clone(arg);
+    switch (type_storage(t)) {
+        case SC_I16: {
+            int64_t total = 0;
+            int64_t n = qo_count(arg);
+            for (int64_t i = 0; i < n; i++) total += (int64_t)qo_short_data(arg)[i];
+            return make_long_value(total);
+        }
+        case SC_I32: {
+            int64_t total = 0;
+            int64_t n = qo_count(arg);
+            for (int64_t i = 0; i < n; i++) total += (int64_t)qo_int_data(arg)[i];
+            return make_long_value(total);
+        }
+        case SC_I64: {
+            int64_t total = 0;
+            int64_t n = qo_count(arg);
+            for (int64_t i = 0; i < n; i++) total += qo_long_data(arg)[i];
+            return make_long_value(total);
+        }
+        case SC_F64: {
+            double total = 0.0;
+            int64_t n = qo_count(arg);
+            for (int64_t i = 0; i < n; i++) total += qo_float_data(arg)[i];
+            return make_float_value(total);
+        }
+        default: break;
     }
     if (t == QO_LIST) {
         int use_float = 0;
@@ -234,11 +237,13 @@ static Qo eval_builtin_not(Qo arg, Environment *env) {
         Qo result = alloc_data_vec(QO_BOOL_VEC, n);
         for (int64_t i = 0; i < n; i++) {
             int zero;
-            if (t == QO_SHORT_VEC) zero = (qo_short_data(arg)[i] == 0);
-            else if (t == QO_INT_VEC) zero = (qo_int_data(arg)[i] == 0);
-            else if (t == QO_LONG_VEC) zero = (qo_long_data(arg)[i] == 0);
-            else if (t == QO_FLOAT_VEC) zero = (qo_float_data(arg)[i] == 0.0);
-            else zero = (qo_bool_data(arg)[i] == 0);
+            switch (type_storage(t)) {
+                case SC_I16: zero = (qo_short_data(arg)[i] == 0); break;
+                case SC_I32: zero = (qo_int_data(arg)[i] == 0); break;
+                case SC_I64: zero = (qo_long_data(arg)[i] == 0); break;
+                case SC_F64: zero = (qo_float_data(arg)[i] == 0.0); break;
+                default:     zero = (qo_bool_data(arg)[i] == 0); break;
+            }
             qo_bool_data(result)[i] = zero ? 1 : 0;
         }
         return result;
@@ -290,10 +295,13 @@ static Qo eval_builtin_null(Qo arg, Environment *env) {
             Qo result = alloc_data_vec(QO_BOOL_VEC, n);
             for (int64_t i = 0; i < n; i++) {
                 int is_null = 0;
-                if (t == QO_SHORT_VEC) is_null = (qo_short_data(arg)[i] == QO_SHORT_NULL);
-                else if (t == QO_INT_VEC) is_null = (qo_int_data(arg)[i] == QO_INT_NULL);
-                else if (t == QO_LONG_VEC) is_null = (qo_long_data(arg)[i] == QO_LONG_NULL);
-                else if (t == QO_FLOAT_VEC) is_null = isnan(qo_float_data(arg)[i]);
+                switch (type_storage(t)) {
+                    case SC_I16: is_null = (qo_short_data(arg)[i] == QO_SHORT_NULL); break;
+                    case SC_I32: is_null = (qo_int_data(arg)[i] == QO_INT_NULL); break;
+                    case SC_I64: is_null = (qo_long_data(arg)[i] == QO_LONG_NULL); break;
+                    case SC_F64: is_null = isnan(qo_float_data(arg)[i]); break;
+                    default: break;
+                }
                 qo_bool_data(result)[i] = is_null ? 1 : 0;
             }
             return result;
@@ -331,134 +339,110 @@ static Qo eval_builtin_count(Qo arg, Environment *env) {
 }
 
 static Qo eval_builtin_min(Qo arg, Environment *env) {
-    int64_t n;
     (void)env;
     if (arg == NULL) EVAL_ERROR("min expects a number or numeric vector");
-
-    switch (qo_type(arg)) {
-        case QO_SHORT:
-        case QO_INT:
-        case QO_LONG:
-        case QO_FLOAT:
-            return qo_clone(arg);
-        case QO_SHORT_VEC: {
-            int16_t m;
-            n = qo_count(arg);
-            if (n == 0) EVAL_ERROR("min on empty vector");
-            m = qo_short_data(arg)[0];
-            for (int64_t i = 1; i < n; i++) if (qo_short_data(arg)[i] < m) m = qo_short_data(arg)[i];
-            return make_short_value(m);
+    uint8_t t = qo_type(arg);
+    if (type_has_flag(t, TF_SCALAR)) return qo_clone(arg);
+    if (t == QO_LIST) {
+        int use_float = 0;
+        double m = 0.0;
+        int64_t n = qo_count(arg);
+        if (n == 0) EVAL_ERROR("min on empty list");
+        for (int64_t i = 0; i < n; i++) {
+            Qo e = qo_ptr_data(arg)[i];
+            double v;
+            if (e == NULL) EVAL_ERROR("min expects a number or numeric vector");
+            if (qo_type(e) == QO_SHORT) v = (double)qo_short(e);
+            else if (qo_type(e) == QO_INT) v = (double)qo_int(e);
+            else if (qo_type(e) == QO_LONG) v = (double)qo_long(e);
+            else if (qo_type(e) == QO_FLOAT) { v = qo_float(e); use_float = 1; }
+            else EVAL_ERROR("min expects a number or numeric vector");
+            if (i == 0 || v < m) m = v;
         }
-        case QO_INT_VEC: {
-            int32_t m;
-            n = qo_count(arg);
-            if (n == 0) EVAL_ERROR("min on empty vector");
-            m = qo_int_data(arg)[0];
-            for (int64_t i = 1; i < n; i++) if (qo_int_data(arg)[i] < m) m = qo_int_data(arg)[i];
-            return make_int_value(m);
-        }
-        case QO_LONG_VEC: {
-            int64_t m;
-            n = qo_count(arg);
-            if (n == 0) EVAL_ERROR("min on empty vector");
-            m = qo_long_data(arg)[0];
-            for (int64_t i = 1; i < n; i++) if (qo_long_data(arg)[i] < m) m = qo_long_data(arg)[i];
-            return make_long_value(m);
-        }
-        case QO_FLOAT_VEC: {
-            double m;
-            n = qo_count(arg);
-            if (n == 0) EVAL_ERROR("min on empty vector");
-            m = qo_float_data(arg)[0];
-            for (int64_t i = 1; i < n; i++) if (qo_float_data(arg)[i] < m) m = qo_float_data(arg)[i];
-            return make_float_value(m);
-        }
-        case QO_LIST: {
-            int use_float = 0;
-            double m = 0.0;
-            n = qo_count(arg);
-            if (n == 0) EVAL_ERROR("min on empty list");
-            for (int64_t i = 0; i < n; i++) {
-                Qo e = qo_ptr_data(arg)[i];
-                double v;
-                if (e == NULL) EVAL_ERROR("min expects a number or numeric vector");
-                if (qo_type(e) == QO_SHORT) v = (double)qo_short(e);
-                else if (qo_type(e) == QO_INT) v = (double)qo_int(e);
-                else if (qo_type(e) == QO_LONG) v = (double)qo_long(e);
-                else if (qo_type(e) == QO_FLOAT) { v = qo_float(e); use_float = 1; }
-                else EVAL_ERROR("min expects a number or numeric vector");
-                if (i == 0 || v < m) m = v;
+        return use_float ? make_float_value(m) : make_long_value((int64_t)m);
+    }
+    if (!is_vector_type(t)) EVAL_ERROR("min expects a number or numeric vector");
+    {
+        int64_t n = qo_count(arg);
+        if (n == 0) EVAL_ERROR("min on empty vector");
+        switch (type_storage(t)) {
+            case SC_I16: {
+                int16_t m = qo_short_data(arg)[0];
+                for (int64_t i = 1; i < n; i++) if (qo_short_data(arg)[i] < m) m = qo_short_data(arg)[i];
+                return make_short_value(m);
             }
-            return use_float ? make_float_value(m) : make_long_value((int64_t)m);
+            case SC_I32: {
+                int32_t m = qo_int_data(arg)[0];
+                for (int64_t i = 1; i < n; i++) if (qo_int_data(arg)[i] < m) m = qo_int_data(arg)[i];
+                return make_int_value(m);
+            }
+            case SC_I64: {
+                int64_t m = qo_long_data(arg)[0];
+                for (int64_t i = 1; i < n; i++) if (qo_long_data(arg)[i] < m) m = qo_long_data(arg)[i];
+                return make_long_value(m);
+            }
+            case SC_F64: {
+                double m = qo_float_data(arg)[0];
+                for (int64_t i = 1; i < n; i++) if (qo_float_data(arg)[i] < m) m = qo_float_data(arg)[i];
+                return make_float_value(m);
+            }
+            default:
+                EVAL_ERROR("min expects a number or numeric vector");
         }
-        default:
-            EVAL_ERROR("min expects a number or numeric vector");
     }
 }
 
 static Qo eval_builtin_max(Qo arg, Environment *env) {
-    int64_t n;
     (void)env;
     if (arg == NULL) EVAL_ERROR("max expects a number or numeric vector");
-
-    switch (qo_type(arg)) {
-        case QO_SHORT:
-        case QO_INT:
-        case QO_LONG:
-        case QO_FLOAT:
-            return qo_clone(arg);
-        case QO_SHORT_VEC: {
-            int16_t m;
-            n = qo_count(arg);
-            if (n == 0) EVAL_ERROR("max on empty vector");
-            m = qo_short_data(arg)[0];
-            for (int64_t i = 1; i < n; i++) if (qo_short_data(arg)[i] > m) m = qo_short_data(arg)[i];
-            return make_short_value(m);
+    uint8_t t = qo_type(arg);
+    if (type_has_flag(t, TF_SCALAR)) return qo_clone(arg);
+    if (t == QO_LIST) {
+        int use_float = 0;
+        double m = 0.0;
+        int64_t n = qo_count(arg);
+        if (n == 0) EVAL_ERROR("max on empty list");
+        for (int64_t i = 0; i < n; i++) {
+            Qo e = qo_ptr_data(arg)[i];
+            double v;
+            if (e == NULL) EVAL_ERROR("max expects a number or numeric vector");
+            if (qo_type(e) == QO_SHORT) v = (double)qo_short(e);
+            else if (qo_type(e) == QO_INT) v = (double)qo_int(e);
+            else if (qo_type(e) == QO_LONG) v = (double)qo_long(e);
+            else if (qo_type(e) == QO_FLOAT) { v = qo_float(e); use_float = 1; }
+            else EVAL_ERROR("max expects a number or numeric vector");
+            if (i == 0 || v > m) m = v;
         }
-        case QO_INT_VEC: {
-            int32_t m;
-            n = qo_count(arg);
-            if (n == 0) EVAL_ERROR("max on empty vector");
-            m = qo_int_data(arg)[0];
-            for (int64_t i = 1; i < n; i++) if (qo_int_data(arg)[i] > m) m = qo_int_data(arg)[i];
-            return make_int_value(m);
-        }
-        case QO_LONG_VEC: {
-            int64_t m;
-            n = qo_count(arg);
-            if (n == 0) EVAL_ERROR("max on empty vector");
-            m = qo_long_data(arg)[0];
-            for (int64_t i = 1; i < n; i++) if (qo_long_data(arg)[i] > m) m = qo_long_data(arg)[i];
-            return make_long_value(m);
-        }
-        case QO_FLOAT_VEC: {
-            double m;
-            n = qo_count(arg);
-            if (n == 0) EVAL_ERROR("max on empty vector");
-            m = qo_float_data(arg)[0];
-            for (int64_t i = 1; i < n; i++) if (qo_float_data(arg)[i] > m) m = qo_float_data(arg)[i];
-            return make_float_value(m);
-        }
-        case QO_LIST: {
-            int use_float = 0;
-            double m = 0.0;
-            n = qo_count(arg);
-            if (n == 0) EVAL_ERROR("max on empty list");
-            for (int64_t i = 0; i < n; i++) {
-                Qo e = qo_ptr_data(arg)[i];
-                double v;
-                if (e == NULL) EVAL_ERROR("max expects a number or numeric vector");
-                if (qo_type(e) == QO_SHORT) v = (double)qo_short(e);
-                else if (qo_type(e) == QO_INT) v = (double)qo_int(e);
-                else if (qo_type(e) == QO_LONG) v = (double)qo_long(e);
-                else if (qo_type(e) == QO_FLOAT) { v = qo_float(e); use_float = 1; }
-                else EVAL_ERROR("max expects a number or numeric vector");
-                if (i == 0 || v > m) m = v;
+        return use_float ? make_float_value(m) : make_long_value((int64_t)m);
+    }
+    if (!is_vector_type(t)) EVAL_ERROR("max expects a number or numeric vector");
+    {
+        int64_t n = qo_count(arg);
+        if (n == 0) EVAL_ERROR("max on empty vector");
+        switch (type_storage(t)) {
+            case SC_I16: {
+                int16_t m = qo_short_data(arg)[0];
+                for (int64_t i = 1; i < n; i++) if (qo_short_data(arg)[i] > m) m = qo_short_data(arg)[i];
+                return make_short_value(m);
             }
-            return use_float ? make_float_value(m) : make_long_value((int64_t)m);
+            case SC_I32: {
+                int32_t m = qo_int_data(arg)[0];
+                for (int64_t i = 1; i < n; i++) if (qo_int_data(arg)[i] > m) m = qo_int_data(arg)[i];
+                return make_int_value(m);
+            }
+            case SC_I64: {
+                int64_t m = qo_long_data(arg)[0];
+                for (int64_t i = 1; i < n; i++) if (qo_long_data(arg)[i] > m) m = qo_long_data(arg)[i];
+                return make_long_value(m);
+            }
+            case SC_F64: {
+                double m = qo_float_data(arg)[0];
+                for (int64_t i = 1; i < n; i++) if (qo_float_data(arg)[i] > m) m = qo_float_data(arg)[i];
+                return make_float_value(m);
+            }
+            default:
+                EVAL_ERROR("max expects a number or numeric vector");
         }
-        default:
-            EVAL_ERROR("max expects a number or numeric vector");
     }
 }
 
@@ -565,39 +549,9 @@ static Qo eval_builtin_exit(Qo arg, Environment *env) {
 }
 
 static int enlist_scalar_vec_type(uint8_t scalar_type, uint8_t *out_vec_type) {
-    if (scalar_type == QO_SHORT) {
-        *out_vec_type = QO_SHORT_VEC;
-        return 1;
-    }
-    if (scalar_type == QO_INT) {
-        *out_vec_type = QO_INT_VEC;
-        return 1;
-    }
-    if (scalar_type == QO_LONG) {
-        *out_vec_type = QO_LONG_VEC;
-        return 1;
-    }
-    if (scalar_type == QO_FLOAT) {
-        *out_vec_type = QO_FLOAT_VEC;
-        return 1;
-    }
-    if (scalar_type == QO_CHAR) {
-        *out_vec_type = QO_CHAR_VEC;
-        return 1;
-    }
-    if (scalar_type == QO_BOOL) {
-        *out_vec_type = QO_BOOL_VEC;
-        return 1;
-    }
-    if (scalar_type == QO_BYTE) {
-        *out_vec_type = QO_BYTE_VEC;
-        return 1;
-    }
-    if (scalar_type == QO_SYMBOL) {
-        *out_vec_type = QO_SYM_VEC;
-        return 1;
-    }
-    return 0;
+    if (!type_has_flag(scalar_type, TF_SCALAR)) return 0;
+    *out_vec_type = type_base_type(scalar_type);
+    return *out_vec_type != 0;
 }
 
 static Qo eval_builtin_enlist(Qo *args, int arg_count, Environment *env) {
@@ -824,16 +778,15 @@ static Qo eval_builtin_find(Qo haystack, Qo needles, Environment *env) {
 }
 
 static Qo null_for_vector_type(uint8_t vec_type) {
-    switch (vec_type) {
-        case QO_LONG_VEC:  return make_long_value(QO_LONG_NULL);
-        case QO_INT_VEC:   return make_int_value(QO_INT_NULL);
-        case QO_SHORT_VEC: return make_short_value(QO_SHORT_NULL);
-        case QO_FLOAT_VEC: return make_float_value(QO_FLOAT_NULL);
-        case QO_CHAR_VEC:  return make_char_value(0);
-        case QO_BOOL_VEC:  return make_bool_value(0);
-        case QO_BYTE_VEC:  return make_byte_value(0);
-        case QO_SYM_VEC:   return make_symbol_value("");
-        default:           return NULL;
+    switch (type_storage(vec_type)) {
+        case SC_I64: return make_long_value(QO_LONG_NULL);
+        case SC_I32: return make_int_value(QO_INT_NULL);
+        case SC_I16: return make_short_value(QO_SHORT_NULL);
+        case SC_F64: return make_float_value(QO_FLOAT_NULL);
+        case SC_U8:
+            if (vec_type == QO_SYM_VEC) return make_symbol_value("");
+            return make_bool_value(0);
+        default:     return NULL;
     }
 }
 
@@ -889,15 +842,16 @@ static uint8_t vec_type_for_scalar(uint8_t st) {
 }
 
 static Qo make_scalar_from_int64(uint8_t tt, int64_t i) {
-    switch (tt) {
-        case QO_SHORT: return make_short_value((int16_t)i);
-        case QO_INT:   return make_int_value((int32_t)i);
-        case QO_LONG:  return make_long_value(i);
-        case QO_FLOAT: return make_float_value((double)i);
-        case QO_BOOL:  return make_bool_value(i != 0);
-        case QO_BYTE:  return make_byte_value((uint8_t)i);
-        case QO_CHAR:  return make_char_value((char)i);
-        default:       return NULL;
+    switch (type_storage(tt)) {
+        case SC_I16: return make_short_value((int16_t)i);
+        case SC_I32: return make_int_value((int32_t)i);
+        case SC_I64: return make_long_value(i);
+        case SC_F64: return make_float_value((double)i);
+        case SC_U8:
+            if (tt == QO_CHAR) return make_char_value((char)i);
+            if (tt == QO_BOOL) return make_bool_value(i != 0);
+            return make_byte_value((uint8_t)i);
+        default:     return NULL;
     }
 }
 
@@ -1294,13 +1248,15 @@ static Qo eval_apply_multi_index(Qo head, Qo indices, Environment *env) {
                     EVAL_ERROR("dictionary key not found");
                 }
                 if (is_ptr) qo_ptr_data(result)[i] = NULL;
-                else if (ht == QO_LONG_VEC) qo_long_data(result)[i] = QO_LONG_NULL;
-                else if (ht == QO_INT_VEC) qo_int_data(result)[i] = QO_INT_NULL;
-                else if (ht == QO_SHORT_VEC) qo_short_data(result)[i] = QO_SHORT_NULL;
-                else if (ht == QO_FLOAT_VEC) qo_float_data(result)[i] = QO_FLOAT_NULL;
-                else if (ht == QO_CHAR_VEC) qo_char_data(result)[i] = 0;
-                else if (ht == QO_BOOL_VEC) qo_bool_data(result)[i] = 0;
-                else if (ht == QO_BYTE_VEC) qo_byte_data(result)[i] = 0;
+                else {
+                    switch (type_storage(ht)) {
+                        case SC_I64: qo_long_data(result)[i] = QO_LONG_NULL; break;
+                        case SC_I32: qo_int_data(result)[i] = QO_INT_NULL; break;
+                        case SC_I16: qo_short_data(result)[i] = QO_SHORT_NULL; break;
+                        case SC_F64: qo_float_data(result)[i] = QO_FLOAT_NULL; break;
+                        default:     qo_bool_data(result)[i] = 0; break;
+                    }
+                }
                 continue;
             }
 

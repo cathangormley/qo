@@ -97,39 +97,15 @@ Qo ipc_serialize(Qo arg) {
             out[2] = QO_BUILTIN_ID(arg);
             break;
         case QO_CHAR_VEC:
-            n = qo_count(arg);
-            memcpy(out + 2, &n, 8);
-            memcpy(out + 10, qo_char_data(arg), (size_t)n);
-            break;
         case QO_SHORT_VEC:
-            n = qo_count(arg);
-            memcpy(out + 2, &n, 8);
-            memcpy(out + 10, qo_short_data(arg), (size_t)n * 2);
-            break;
         case QO_INT_VEC:
-            n = qo_count(arg);
-            memcpy(out + 2, &n, 8);
-            memcpy(out + 10, qo_int_data(arg), (size_t)n * 4);
-            break;
         case QO_LONG_VEC:
-            n = qo_count(arg);
-            memcpy(out + 2, &n, 8);
-            memcpy(out + 10, qo_long_data(arg), (size_t)n * 8);
-            break;
         case QO_FLOAT_VEC:
-            n = qo_count(arg);
-            memcpy(out + 2, &n, 8);
-            memcpy(out + 10, qo_float_data(arg), (size_t)n * 8);
-            break;
         case QO_BOOL_VEC:
-            n = qo_count(arg);
-            memcpy(out + 2, &n, 8);
-            memcpy(out + 10, qo_bool_data(arg), (size_t)n);
-            break;
         case QO_BYTE_VEC:
             n = qo_count(arg);
             memcpy(out + 2, &n, 8);
-            memcpy(out + 10, qo_byte_data(arg), (size_t)n);
+            memcpy(out + 10, qo_byte_data(arg), (size_t)n * type_elem_size(t));
             break;
         default:
             qo_release(result);
@@ -157,39 +133,13 @@ static Qo deserialize_vector(uint8_t t, const uint8_t *data, size_t len) {
     int64_t n;
     if (len < 8) return NULL;
     memcpy(&n, data, 8);
-    Qo result;
-    switch (t) {
-        case QO_CHAR_VEC:
-            result = alloc_charlike(QO_CHAR_VEC, n);
-            memcpy(qo_char_data(result), data + 8, (size_t)n);
-            break;
-        case QO_SHORT_VEC:
-            result = alloc_data_vec(QO_SHORT_VEC, n);
-            memcpy(qo_short_data(result), data + 8, (size_t)n * 2);
-            break;
-        case QO_INT_VEC:
-            result = alloc_data_vec(QO_INT_VEC, n);
-            memcpy(qo_int_data(result), data + 8, (size_t)n * 4);
-            break;
-        case QO_LONG_VEC:
-            result = alloc_data_vec(QO_LONG_VEC, n);
-            memcpy(qo_long_data(result), data + 8, (size_t)n * 8);
-            break;
-        case QO_FLOAT_VEC:
-            result = alloc_data_vec(QO_FLOAT_VEC, n);
-            memcpy(qo_float_data(result), data + 8, (size_t)n * 8);
-            break;
-        case QO_BOOL_VEC:
-            result = alloc_data_vec(QO_BOOL_VEC, n);
-            memcpy(qo_bool_data(result), data + 8, (size_t)n);
-            break;
-        case QO_BYTE_VEC:
-            result = alloc_data_vec(QO_BYTE_VEC, n);
-            memcpy(qo_byte_data(result), data + 8, (size_t)n);
-            break;
-        default:
-            return NULL;
+    if (t == QO_CHAR_VEC) {
+        Qo result = alloc_charlike(QO_CHAR_VEC, n);
+        memcpy(qo_char_data(result), data + 8, (size_t)n);
+        return result;
     }
+    Qo result = alloc_data_vec(t, n);
+    memcpy(qo_byte_data(result), data + 8, (size_t)n * type_elem_size(t));
     return result;
 }
 

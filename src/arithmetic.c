@@ -6,54 +6,60 @@
 #include "internal.h"
 
 static int64_t get_integer_value(Qo q) {
-    uint8_t t = qo_type(q);
-    if (t == QO_SHORT) return (int64_t)qo_short(q);
-    if (t == QO_INT) return (int64_t)qo_int(q);
-    if (t == QO_LONG) return qo_long(q);
-    return 0;
+    switch (type_storage(qo_type(q))) {
+        case SC_I64: return qo_long(q);
+        case SC_I32: return (int64_t)qo_int(q);
+        case SC_I16: return (int64_t)qo_short(q);
+        default: return 0;
+    }
 }
 
 static int64_t int_elem_value(Qo q, int64_t i) {
-    uint8_t t = qo_type(q);
-    if (t == QO_SHORT) return (int64_t)qo_short(q);
-    if (t == QO_INT) return (int64_t)qo_int(q);
-    if (t == QO_LONG) return qo_long(q);
-    if (t == QO_SHORT_VEC) return (int64_t)qo_short_data(q)[i];
-    if (t == QO_INT_VEC) return (int64_t)qo_int_data(q)[i];
-    if (t == QO_LONG_VEC) return qo_long_data(q)[i];
-    return 0;
+    int is_vec = is_vector_type(qo_type(q));
+    switch (type_storage(qo_type(q))) {
+        case SC_I64: return is_vec ? qo_long_data(q)[i] : qo_long(q);
+        case SC_I32: return is_vec ? (int64_t)qo_int_data(q)[i] : (int64_t)qo_int(q);
+        case SC_I16: return is_vec ? (int64_t)qo_short_data(q)[i] : (int64_t)qo_short(q);
+        default: return 0;
+    }
 }
 
 static int int_rank_from_type(uint8_t t) {
-    if (t == QO_SHORT || t == QO_SHORT_VEC) return 0;
-    if (t == QO_INT || t == QO_INT_VEC) return 1;
-    if (t == QO_LONG || t == QO_LONG_VEC) return 2;
-    return -1;
+    switch (type_storage(t)) {
+        case SC_I16: return 0;
+        case SC_I32: return 1;
+        case SC_I64: return 2;
+        default: return -1;
+    }
 }
 
+static const uint8_t scalar_by_rank[] = {QO_SHORT, QO_INT, QO_LONG};
+static const uint8_t vector_by_rank[] = {QO_SHORT_VEC, QO_INT_VEC, QO_LONG_VEC};
+
 static uint8_t scalar_type_from_int_rank(int rank) {
-    if (rank <= 0) return QO_SHORT;
-    if (rank == 1) return QO_INT;
-    return QO_LONG;
+    if (rank < 0 || rank > 2) return QO_LONG;
+    return scalar_by_rank[rank];
 }
 
 static uint8_t vector_type_from_int_rank(int rank) {
-    if (rank <= 0) return QO_SHORT_VEC;
-    if (rank == 1) return QO_INT_VEC;
-    return QO_LONG_VEC;
+    if (rank < 0 || rank > 2) return QO_LONG_VEC;
+    return vector_by_rank[rank];
 }
 
 static void store_int_vec_elem(Qo v, int64_t i, int64_t value) {
-    uint8_t t = qo_type(v);
-    if (t == QO_SHORT_VEC) qo_short_data(v)[i] = (int16_t)value;
-    else if (t == QO_INT_VEC) qo_int_data(v)[i] = (int32_t)value;
-    else qo_long_data(v)[i] = value;
+    switch (type_storage(qo_type(v))) {
+        case SC_I16: qo_short_data(v)[i] = (int16_t)value; break;
+        case SC_I32: qo_int_data(v)[i] = (int32_t)value;  break;
+        default:     qo_long_data(v)[i] = value;           break;
+    }
 }
 
 static Qo make_int_scalar_of_type(uint8_t t, int64_t value) {
-    if (t == QO_SHORT) return make_short_value((int16_t)value);
-    if (t == QO_INT) return make_int_value((int32_t)value);
-    return make_long_value(value);
+    switch (type_storage(t)) {
+        case SC_I16: return make_short_value((int16_t)value);
+        case SC_I32: return make_int_value((int32_t)value);
+        default:     return make_long_value(value);
+    }
 }
 
 static Qo make_numeric_result(double value, int use_float) {
@@ -94,37 +100,35 @@ static int apply_numeric_op(double left, double right, TokenType op,
 
 static double vec_elem_double(Qo v, int64_t i) {
     if (v == NULL) return 0.0;
-    uint8_t t = qo_type(v);
-    if (t == QO_SHORT_VEC) return (double)qo_short_data(v)[i];
-    if (t == QO_INT_VEC) return (double)qo_int_data(v)[i];
-    if (t == QO_LONG_VEC) return (double)qo_long_data(v)[i];
-    if (t == QO_FLOAT_VEC) return qo_float_data(v)[i];
-    if (t == QO_BOOL_VEC) return (double)qo_bool_data(v)[i];
-    if (t == QO_CHAR_VEC) return (double)(unsigned char)qo_char_data(v)[i];
-    if (t == QO_LIST) return value_as_double(qo_ptr_data(v)[i]);
+    switch (type_storage(qo_type(v))) {
+        case SC_F64: return qo_float_data(v)[i];
+        case SC_I64: return (double)qo_long_data(v)[i];
+        case SC_I32: return (double)qo_int_data(v)[i];
+        case SC_I16: return (double)qo_short_data(v)[i];
+        case SC_U8:
+            if (qo_type(v) == QO_CHAR_VEC) return (double)(unsigned char)qo_char_data(v)[i];
+            return (double)qo_bool_data(v)[i];
+        default:
+            break;
+    }
+    if (qo_type(v) == QO_LIST) return value_as_double(qo_ptr_data(v)[i]);
     return value_as_double(v);
 }
 
 static void copy_vec_elem_to(Qo dest, int64_t di, Qo src, int64_t si) {
-    uint8_t t = qo_type(src);
-    if (t == QO_SHORT_VEC) qo_short_data(dest)[di] = qo_short_data(src)[si];
-    else if (t == QO_INT_VEC) qo_int_data(dest)[di] = qo_int_data(src)[si];
-    else if (t == QO_LONG_VEC) qo_long_data(dest)[di] = qo_long_data(src)[si];
-    else if (t == QO_FLOAT_VEC) qo_float_data(dest)[di] = qo_float_data(src)[si];
-    else if (t == QO_BOOL_VEC) qo_bool_data(dest)[di] = qo_bool_data(src)[si];
-    else if (t == QO_BYTE_VEC) qo_byte_data(dest)[di] = qo_byte_data(src)[si];
-    else if (t == QO_CHAR_VEC) qo_char_data(dest)[di] = qo_char_data(src)[si];
-    else qo_ptr_data(dest)[di] = qo_clone(qo_ptr_data(src)[si]);
+    switch (type_storage(qo_type(src))) {
+        case SC_I64: qo_long_data(dest)[di]  = qo_long_data(src)[si];  break;
+        case SC_I32: qo_int_data(dest)[di]   = qo_int_data(src)[si];   break;
+        case SC_I16: qo_short_data(dest)[di] = qo_short_data(src)[si]; break;
+        case SC_F64: qo_float_data(dest)[di] = qo_float_data(src)[si]; break;
+        case SC_U8:  qo_bool_data(dest)[di]  = qo_bool_data(src)[si];  break;
+        default:     qo_ptr_data(dest)[di]    = qo_clone(qo_ptr_data(src)[si]); break;
+    }
 }
 
 static Qo alloc_same_type(uint8_t t, int64_t count) {
-    if (t == QO_SHORT_VEC || t == QO_INT_VEC || t == QO_LONG_VEC || 
-        t == QO_FLOAT_VEC || t == QO_BOOL_VEC || t == QO_BYTE_VEC) {
-        return alloc_data_vec(t, count);
-    }
-    if (t == QO_CHAR_VEC) {
-        return alloc_charlike(t, count);
-    }
+    if (t == QO_CHAR_VEC) return alloc_charlike(t, count);
+    if (type_storage(t) != SC_PTR) return alloc_data_vec(t, count);
     return alloc_ptr_vec(t, count);
 }
 
@@ -256,38 +260,15 @@ Qo eval_equals(Qo left, Qo right) {
     return result;
 }
 
-static int scalar_order_value(Qo v, double *out) {
-    if (v == NULL) return 0;
-    uint8_t t = qo_type(v);
-    if (t == QO_SHORT) {
-        *out = (double)qo_short(v);
-        return 1;
-    }
-    if (t == QO_INT) {
-        *out = (double)qo_int(v);
-        return 1;
-    }
-    if (t == QO_LONG) {
-        *out = (double)qo_long(v);
-        return 1;
-    }
-    if (t == QO_FLOAT) {
-        *out = qo_float(v);
-        return 1;
-    }
-    if (t == QO_BOOL) {
-        *out = (double)qo_bool(v);
-        return 1;
-    }
-    if (t == QO_CHAR) {
-        *out = (double)(unsigned char)qo_char(v);
-        return 1;
-    }
-    return 0;
-}
-
 static int is_order_scalar_type(uint8_t t);
 static int is_order_vector_type(uint8_t t);
+
+static int scalar_order_value(Qo v, double *out) {
+    if (v == NULL) return 0;
+    if (!is_order_scalar_type(qo_type(v))) return 0;
+    *out = value_as_double(v);
+    return 1;
+}
 
 static Qo eval_order_compare(Qo left, Qo right, int want_less) {
     uint8_t lt = qo_type(left);
@@ -355,15 +336,11 @@ Qo eval_gte(Qo left, Qo right) {
 }
 
 static int is_order_scalar_type(uint8_t t) {
-    /* Scalar types accepted by | and &: they compare by numeric ordering. */
-    return t == QO_SHORT || t == QO_INT || t == QO_LONG ||
-           t == QO_FLOAT || t == QO_BOOL || t == QO_CHAR;
+    return type_has_flag(t, TF_NUMERIC) || t == QO_CHAR;
 }
 
 static int is_order_vector_type(uint8_t t) {
-    /* Vector counterparts accepted by | and &. */
-    return t == QO_SHORT_VEC || t == QO_INT_VEC || t == QO_LONG_VEC ||
-           t == QO_FLOAT_VEC || t == QO_BOOL_VEC || t == QO_CHAR_VEC;
+    return type_has_flag(t, TF_NUMERIC) || t == QO_CHAR_VEC;
 }
 
 static uint8_t extrema_vector_type(uint8_t lt, uint8_t rt) {
@@ -590,17 +567,11 @@ typedef enum {
 } JoinFamily;
 
 static JoinFamily join_family(uint8_t t) {
-    if (t == QO_SHORT || t == QO_INT || t == QO_LONG ||
-        t == QO_SHORT_VEC || t == QO_INT_VEC || t == QO_LONG_VEC)
-        return JF_INT;
-    if (t == QO_FLOAT || t == QO_FLOAT_VEC)
-        return JF_FLOAT;
-    if (t == QO_CHAR || t == QO_CHAR_VEC)
-        return JF_CHAR;
-    if (t == QO_SYMBOL || t == QO_SYM_VEC)
-        return JF_SYMBOL;
-    if (t == QO_LIST)
-        return JF_LIST;
+    if (type_has_flag(t, TF_INTEGER)) return JF_INT;
+    if (t == QO_FLOAT || t == QO_FLOAT_VEC) return JF_FLOAT;
+    if (t == QO_CHAR || t == QO_CHAR_VEC) return JF_CHAR;
+    if (t == QO_SYMBOL || t == QO_SYM_VEC) return JF_SYMBOL;
+    if (t == QO_LIST) return JF_LIST;
     return JF_OTHER;
 }
 
@@ -763,11 +734,7 @@ static Qo execute_int_vector_binop(Qo left, Qo right, TokenType op) {
 }
 
 static uint8_t scalar_to_vector_type(uint8_t scalar_type) {
-    if (scalar_type == QO_SHORT) return QO_SHORT_VEC;
-    if (scalar_type == QO_INT) return QO_INT_VEC;
-    if (scalar_type == QO_LONG) return QO_LONG_VEC;
-    if (scalar_type == QO_FLOAT) return QO_FLOAT_VEC;
-    return QO_LONG_VEC;
+    return type_base_type(scalar_type);
 }
 
 static Qo eval_numeric_vector_binop(Qo left, Qo right, TokenType op) {

@@ -319,63 +319,41 @@ Qo qo_clone(Qo q) {
 
 static void qo_destroy(Qo q) {
     if (q == NULL) return;
+    uint8_t t = QO_TYPE(q);
 
-    switch (QO_TYPE(q)) {
-        case QO_SHORT:
-        case QO_INT:
-        case QO_LONG:
-        case QO_FLOAT:
-        case QO_CHAR:
-        case QO_BOOL:
-        case QO_BYTE:
-        case QO_PROJECTOR:
-        case QO_ADVERB:
-        case QO_OPERATOR:
-        case QO_BUILTIN:
-            break;
-        case QO_EACHED:
-            qo_release(QO_EACHED_FUNC(q));
-            break;
-        case QO_SYMBOL:
-            qo_symbol_intern_remove(q);
-            break;
-        case QO_CHAR_VEC:
-        case QO_SHORT_VEC:
-        case QO_INT_VEC:
-        case QO_LONG_VEC:
-        case QO_FLOAT_VEC:
-        case QO_BOOL_VEC:
-        case QO_BYTE_VEC:
-            break;
-        case QO_SYM_VEC:
-        case QO_LIST: {
-            int64_t n = QO_COUNT(q);
-            for (int64_t i = 0; i < n; i++) qo_release(QO_LIST_DATA(q)[i]);
-            break;
-        }
-        case QO_DICT: {
-            int64_t n = QO_DICT_COUNT(q);
-            for (int64_t i = 0; i < n; i++) {
-                qo_release(QO_DICT_KEYS(q)[i]);
-                qo_release(QO_DICT_VALS(q)[i]);
+    if (t == QO_SYMBOL) {
+        qo_symbol_intern_remove(q);
+    } else if (t == QO_EACHED) {
+        qo_release(QO_EACHED_FUNC(q));
+    } else if (type_has_flag(t, TF_COMPLEX)) {
+        switch (t) {
+            case QO_DICT: {
+                int64_t n = QO_DICT_COUNT(q);
+                for (int64_t i = 0; i < n; i++) {
+                    qo_release(QO_DICT_KEYS(q)[i]);
+                    qo_release(QO_DICT_VALS(q)[i]);
+                }
+                break;
             }
-            break;
+            case QO_FUNCTION: {
+                int64_t pc = QO_FN_PC(q);
+                int64_t bc = QO_FN_BC(q);
+                for (int64_t i = 0; i < pc; i++) qo_release(QO_FN_PARAMS(q)[i]);
+                for (int64_t i = 0; i < bc; i++) qo_release(QO_FN_BODY(q)[i]);
+                break;
+            }
+            case QO_PROJECTION: {
+                int64_t ac = QO_PROJ_AC(q);
+                qo_release(QO_PROJ_FUNC(q));
+                for (int64_t i = 0; i < ac; i++) qo_release(QO_PROJ_ARGS(q)[i]);
+                break;
+            }
+            default:
+                break;
         }
-        case QO_FUNCTION: {
-            int64_t pc = QO_FN_PC(q);
-            int64_t bc = QO_FN_BC(q);
-            for (int64_t i = 0; i < pc; i++) qo_release(QO_FN_PARAMS(q)[i]);
-            for (int64_t i = 0; i < bc; i++) qo_release(QO_FN_BODY(q)[i]);
-            break;
-        }
-        case QO_PROJECTION: {
-            int64_t ac = QO_PROJ_AC(q);
-            qo_release(QO_PROJ_FUNC(q));
-            for (int64_t i = 0; i < ac; i++) qo_release(QO_PROJ_ARGS(q)[i]);
-            break;
-        }
-        default:
-            break;
+    } else if (is_vector_type(t) && type_storage(t) == SC_PTR) {
+        int64_t n = QO_COUNT(q);
+        for (int64_t i = 0; i < n; i++) qo_release(QO_LIST_DATA(q)[i]);
     }
 
     free(q);
