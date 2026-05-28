@@ -947,6 +947,14 @@ static Qo eval_cast(Qo type_sym, Qo value, Environment *env) {
 static Qo eval_apply_keyword(Qo head, Qo *arg_values, int arg_count, Environment *env) {
     Qo result;
 
+    for (int i = 0; i < arg_count; i++) {
+        if (arg_values[i] != NULL && qo_type(arg_values[i]) == QO_PROJECTOR) {
+            Qo *slots = xmalloc(sizeof(Qo) * (arg_count > 0 ? arg_count : 1));
+            for (int j = 0; j < arg_count; j++) slots[j] = qo_clone(arg_values[j]);
+            return make_projection_value(head, slots, arg_count);
+        }
+    }
+
     if (qo_type(head) == QO_OPERATOR) {
         TokenType op_token = (TokenType)QO_OPERATOR_OP(head);
         if (arg_count < 2) {
@@ -954,12 +962,6 @@ static Qo eval_apply_keyword(Qo head, Qo *arg_values, int arg_count, Environment
             slots[0] = make_projector_value();
             slots[1] = make_projector_value();
             for (int i = 0; i < arg_count; i++) { qo_release(slots[i]); slots[i] = qo_clone(arg_values[i]); }
-            return make_projection_value(head, slots, 2);
-        }
-        if (qo_type(arg_values[0]) == QO_PROJECTOR || qo_type(arg_values[1]) == QO_PROJECTOR) {
-            Qo *slots = xmalloc(sizeof(Qo) * 2);
-            slots[0] = qo_clone(arg_values[0]);
-            slots[1] = qo_clone(arg_values[1]);
             return make_projection_value(head, slots, 2);
         }
         switch (op_token) {
@@ -1542,13 +1544,6 @@ Qo eval_value(Qo tree, Environment *env) {
 
     if (vt == QO_BUILTIN) {
         uint8_t id = QO_BUILTIN_ID(verb_val);
-        if (id == QO_BUILTIN_ENLIST) {
-            Qo *av = xmalloc(sizeof(Qo) * (arg_count > 0 ? arg_count : 1));
-            if (!eval_args_or_stop(tree, 1, arg_count, env, av)) { free(av); return NULL; }
-            result = eval_builtin_enlist(av, arg_count, env);
-            free_evaluated_args(av, arg_count);
-            return result;
-        }
         if (id == QO_BUILTIN_SEMICOLON) {
             Qo last = NULL;
             for (int i = 0; i < arg_count; i++) {
