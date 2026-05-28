@@ -659,6 +659,52 @@ static IntBinaryScalarKernel select_int_scalar_kernel(TokenType op) {
     return NULL;
 }
 
+static void int_vec_binop_same_type(Qo result, Qo left, Qo right, TokenType op) {
+    int64_t n = QO_COUNT(left);
+    switch (QO_TYPE(left)) {
+    case QO_SHORT_VEC: {
+        int16_t * __restrict__ ld = qo_short_data(left);
+        int16_t * __restrict__ rs = qo_short_data(right);
+        if (QO_TYPE(result) == QO_SHORT_VEC) {
+            int16_t * __restrict__ rd = qo_short_data(result);
+            if (op == TOKEN_PLUS)  for (int64_t i = 0; i < n; i++) rd[i] = ld[i] + rs[i];
+            else                   for (int64_t i = 0; i < n; i++) rd[i] = ld[i] - rs[i];
+        } else {
+            int64_t * __restrict__ rd = qo_long_data(result);
+            if (op == TOKEN_PLUS)       for (int64_t i = 0; i < n; i++) rd[i] = (int64_t)ld[i] + rs[i];
+            else if (op == TOKEN_MINUS) for (int64_t i = 0; i < n; i++) rd[i] = (int64_t)ld[i] - rs[i];
+            else                        for (int64_t i = 0; i < n; i++) rd[i] = (int64_t)ld[i] * rs[i];
+        }
+        return;
+    }
+    case QO_INT_VEC: {
+        int32_t * __restrict__ ld = qo_int_data(left);
+        int32_t * __restrict__ rs = qo_int_data(right);
+        if (QO_TYPE(result) == QO_INT_VEC) {
+            int32_t * __restrict__ rd = qo_int_data(result);
+            if (op == TOKEN_PLUS)  for (int64_t i = 0; i < n; i++) rd[i] = ld[i] + rs[i];
+            else                   for (int64_t i = 0; i < n; i++) rd[i] = ld[i] - rs[i];
+        } else {
+            int64_t * __restrict__ rd = qo_long_data(result);
+            if (op == TOKEN_PLUS)       for (int64_t i = 0; i < n; i++) rd[i] = (int64_t)ld[i] + rs[i];
+            else if (op == TOKEN_MINUS) for (int64_t i = 0; i < n; i++) rd[i] = (int64_t)ld[i] - rs[i];
+            else                        for (int64_t i = 0; i < n; i++) rd[i] = (int64_t)ld[i] * rs[i];
+        }
+        return;
+    }
+    case QO_LONG_VEC: {
+        int64_t * __restrict__ ld = qo_long_data(left);
+        int64_t * __restrict__ rs = qo_long_data(right);
+        int64_t * __restrict__ rd = qo_long_data(result);
+        if (op == TOKEN_PLUS)  for (int64_t i = 0; i < n; i++) rd[i] = ld[i] + rs[i];
+        else if (op == TOKEN_MINUS) for (int64_t i = 0; i < n; i++) rd[i] = ld[i] - rs[i];
+        else                   for (int64_t i = 0; i < n; i++) rd[i] = ld[i] * rs[i];
+        return;
+    }
+    default: break;
+    }
+}
+
 /* This is the extension point for future SIMD work. The current backend is a
    scalar loop, but callers do not know that. */
 static void execute_int_vector_kernel_scalar(Qo result,
@@ -731,8 +777,13 @@ static Qo execute_int_vector_binop(Qo left, Qo right, TokenType op) {
     }
 
     result = alloc_data_vec(out_type, count);
-    kernel = select_int_vector_kernel(op, QO_TYPE(left), QO_TYPE(right), out_type);
-    kernel(result, left, right, left_is_vec, right_is_vec, count, select_int_scalar_kernel(op));
+
+    if (left_is_vec && right_is_vec && QO_TYPE(left) == QO_TYPE(right)) {
+        int_vec_binop_same_type(result, left, right, op);
+    } else {
+        kernel = select_int_vector_kernel(op, QO_TYPE(left), QO_TYPE(right), out_type);
+        kernel(result, left, right, left_is_vec, right_is_vec, count, select_int_scalar_kernel(op));
+    }
     return result;
 }
 
@@ -760,16 +811,32 @@ static Qo eval_numeric_vector_binop(Qo left, Qo right, TokenType op) {
         }
 
         result = alloc_data_vec(QO_FLOAT_VEC, count);
-        for (int64_t i = 0; i < count; i++) {
-            double lv = left_is_vec ? vec_elem_double(left, i) : value_as_double(left);
-            double rv = right_is_vec ? vec_elem_double(right, i) : value_as_double(right);
-            double out;
-            int is_dm;
-            if (!apply_numeric_op(lv, rv, op, &out, &is_dm)) {
-                qo_release(result);
-                return NULL;
+
+        if (left_is_vec && right_is_vec && lt == QO_FLOAT_VEC && rt == QO_FLOAT_VEC) {
+            int64_t n = QO_COUNT(left);
+            double * __restrict__ rd = qo_float_data(result);
+            double * __restrict__ ld = qo_float_data(left);
+            double * __restrict__ rs = qo_float_data(right);
+            switch (op) {
+                case TOKEN_PLUS:    for (int64_t i = 0; i < n; i++) rd[i] = ld[i] + rs[i]; break;
+                case TOKEN_MINUS:   for (int64_t i = 0; i < n; i++) rd[i] = ld[i] - rs[i]; break;
+                case TOKEN_STAR:    for (int64_t i = 0; i < n; i++) rd[i] = ld[i] * rs[i]; break;
+                case TOKEN_DIVIDE:  for (int64_t i = 0; i < n; i++) rd[i] = ld[i] / rs[i]; break;
+                case TOKEN_STAR_STAR: for (int64_t i = 0; i < n; i++) rd[i] = pow(ld[i], rs[i]); break;
+                default: break;
             }
-            QO_FLOAT_DATA(result)[i] = out;
+        } else {
+            for (int64_t i = 0; i < count; i++) {
+                double lv = left_is_vec ? vec_elem_double(left, i) : value_as_double(left);
+                double rv = right_is_vec ? vec_elem_double(right, i) : value_as_double(right);
+                double out;
+                int is_dm;
+                if (!apply_numeric_op(lv, rv, op, &out, &is_dm)) {
+                    qo_release(result);
+                    return NULL;
+                }
+                QO_FLOAT_DATA(result)[i] = out;
+            }
         }
         return result;
     }

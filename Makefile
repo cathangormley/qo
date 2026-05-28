@@ -1,5 +1,5 @@
 CC := gcc
-CFLAGS := -Wall -Wextra
+CFLAGS := -O3 -march=native -funroll-loops -Wall -Wextra
 LDFLAGS := -lm
 
 SRC_DIR := src
