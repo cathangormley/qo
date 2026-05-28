@@ -7,6 +7,39 @@
 
 static void qo_destroy(Qo q);
 
+/* ── Type information table ──────────────────────────────────────────────── */
+const TypeInfo type_table[256] = {
+    /* scalars */
+    [QO_SHORT]       = {2, SC_I16, TF_SCALAR | TF_NUMERIC | TF_INTEGER, QO_SHORT_VEC},
+    [QO_INT]         = {4, SC_I32, TF_SCALAR | TF_NUMERIC | TF_INTEGER, QO_INT_VEC},
+    [QO_LONG]        = {8, SC_I64, TF_SCALAR | TF_NUMERIC | TF_INTEGER, QO_LONG_VEC},
+    [QO_FLOAT]       = {8, SC_F64, TF_SCALAR | TF_NUMERIC,              QO_FLOAT_VEC},
+    [QO_CHAR]        = {1, SC_U8,  TF_SCALAR,                           QO_CHAR_VEC},
+    [QO_BOOL]        = {1, SC_U8,  TF_SCALAR | TF_NUMERIC,              QO_BOOL_VEC},
+    [QO_BYTE]        = {1, SC_U8,  TF_SCALAR,                           QO_BYTE_VEC},
+    [QO_SYMBOL]      = {8, SC_PTR, TF_SCALAR,                           QO_SYM_VEC},
+    [QO_OPERATOR]    = {1, SC_U8,  TF_SCALAR,                           0},
+    [QO_PROJECTOR]   = {1, SC_U8,  TF_SCALAR,                           0},
+    [QO_BUILTIN]     = {1, SC_U8,  TF_SCALAR,                           0},
+    [QO_ADVERB]      = {1, SC_U8,  TF_SCALAR,                           0},
+    /* data vectors */
+    [QO_SHORT_VEC]   = {2, SC_I16, TF_VECTOR | TF_NUMERIC | TF_INTEGER, QO_SHORT},
+    [QO_INT_VEC]     = {4, SC_I32, TF_VECTOR | TF_NUMERIC | TF_INTEGER, QO_INT},
+    [QO_LONG_VEC]    = {8, SC_I64, TF_VECTOR | TF_NUMERIC | TF_INTEGER, QO_LONG},
+    [QO_FLOAT_VEC]   = {8, SC_F64, TF_VECTOR | TF_NUMERIC,              QO_FLOAT},
+    [QO_CHAR_VEC]    = {1, SC_U8,  TF_VECTOR,                           QO_CHAR},
+    [QO_BOOL_VEC]    = {1, SC_U8,  TF_VECTOR | TF_NUMERIC,              QO_BOOL},
+    [QO_BYTE_VEC]    = {1, SC_U8,  TF_VECTOR,                           QO_BYTE},
+    [QO_SYM_VEC]     = {8, SC_PTR, TF_VECTOR,                           QO_SYMBOL},
+    /* pointer vectors */
+    [QO_LIST]        = {8, SC_PTR, TF_VECTOR | TF_COMPLEX,              0},
+    /* complex types */
+    [QO_DICT]        = {0, SC_PTR, TF_COMPLEX,                          0},
+    [QO_FUNCTION]    = {0, SC_PTR, TF_COMPLEX,                          0},
+    [QO_PROJECTION]  = {0, SC_PTR, TF_COMPLEX,                          0},
+    [QO_EACHED]      = {0, SC_PTR, TF_COMPLEX,                          0},
+};
+
 static Qo alloc_block(size_t payload_size) {
     Qo q = (Qo)xmalloc(sizeof(QoObject) + payload_size);
     q->attribute = 0;
@@ -25,19 +58,8 @@ Qo alloc_atom(uint8_t type) {
 
 static Qo make_scalar_value(uint8_t type, const void *value) {
     Qo q = alloc_atom(type);
-    switch (type) {
-        case QO_SHORT:  q->short_val  = *(const int16_t *)value; break;
-        case QO_INT:    q->int_val    = *(const int32_t *)value; break;
-        case QO_LONG:   q->long_val   = *(const int64_t *)value; break;
-        case QO_FLOAT:  q->double_val = *(const double  *)value; break;
-        case QO_CHAR:   q->char_val   = *(const char    *)value; break;
-        case QO_BOOL:   q->bool_val   = *(const uint8_t *)value; break;
-        case QO_BYTE:   q->byte_val   = *(const uint8_t *)value; break;
-        case QO_ADVERB:
-        case QO_OPERATOR:
-        case QO_BUILTIN: q->byte_val  = *(const uint8_t *)value; break;
-        default: break;
-    }
+    size_t sz = type_elem_size(type);
+    if (sz > 0) memcpy(&q->long_val, value, sz);
     return q;
 }
 
@@ -67,13 +89,14 @@ void qo_release(Qo q) {
 }
 
 double value_as_double(Qo q) {
-    uint8_t t = qo_type(q);
-    if (t == QO_SHORT) return (double)qo_short(q);
-    if (t == QO_INT) return (double)qo_int(q);
-    if (t == QO_LONG) return (double)qo_long(q);
-    if (t == QO_FLOAT) return qo_float(q);
-    if (t == QO_BOOL) return (double)qo_bool(q);
-    return 0.0;
+    switch (type_storage(qo_type(q))) {
+        case SC_I64: return (double)qo_long(q);
+        case SC_I32: return (double)qo_int(q);
+        case SC_I16: return (double)qo_short(q);
+        case SC_F64: return qo_float(q);
+        case SC_U8:  return (double)qo_bool(q);
+        default: return 0.0;
+    }
 }
 
 Qo alloc_ptr_vec(uint8_t type, int64_t count) {
@@ -84,15 +107,8 @@ Qo alloc_ptr_vec(uint8_t type, int64_t count) {
     return q;
 }
 
-size_t elem_size_for_type(uint8_t type) {
-    if (type == QO_SHORT_VEC) return 2;
-    if (type == QO_INT_VEC) return 4;
-    if (type == QO_BOOL_VEC || type == QO_BYTE_VEC) return 1;
-    return 8;
-}
-
 Qo alloc_data_vec(uint8_t type, int64_t count) {
-    size_t elem_size = elem_size_for_type(type);
+    size_t elem_size = type_elem_size(type);
     {
         size_t size = (count > 0 ? (size_t)count : 1) * elem_size;
         Qo q = alloc_block(size);
@@ -216,89 +232,60 @@ Qo make_function_value(char **params, int param_count,
 }
 
 Qo qo_clone(Qo q) {
-    int64_t n;
     if (q == NULL) return NULL;
+    uint8_t t = QO_TYPE(q);
 
-    switch (QO_TYPE(q)) {
-        case QO_SHORT:
-        case QO_INT:
-        case QO_LONG:
-        case QO_FLOAT:
-        case QO_CHAR:
-        case QO_BOOL:
-        case QO_BYTE:
-        case QO_PROJECTOR:
-        case QO_ADVERB:
-        case QO_OPERATOR:
-        case QO_BUILTIN: {
-            Qo c = alloc_atom(QO_TYPE(q));
+    if (t == QO_SYMBOL) return qo_retain(q);
+    if (t == QO_EACHED) {
+        Qo c = alloc_block(sizeof(Qo));
+        c->type_tag = QO_EACHED;
+        c->attribute = q->attribute;
+        QO_EACHED_FUNC(c) = qo_clone(QO_EACHED_FUNC(q));
+        return c;
+    }
+    if (type_has_flag(t, TF_SCALAR)) {
+        Qo c = alloc_atom(t);
+        c->attribute = q->attribute;
+        memcpy(&c->long_val, &q->long_val, sizeof(q->long_val));
+        return c;
+    }
+    if (type_has_flag(t, TF_VECTOR)) {
+        int64_t n = QO_COUNT(q);
+        if (t == QO_CHAR_VEC) {
+            Qo c = alloc_block((size_t)n + 1);
+            c->type_tag = t;
             c->attribute = q->attribute;
-            memcpy(&c->long_val, &q->long_val, sizeof(q->long_val));
+            QO_SET_COUNT(c, n);
+            memcpy(c->data, q->data, (size_t)n + 1);
             return c;
         }
-        case QO_EACHED: {
-            Qo c = alloc_block(sizeof(Qo));
-            c->type_tag = QO_EACHED;
-            c->attribute = q->attribute;
-            QO_EACHED_FUNC(c) = qo_clone(QO_EACHED_FUNC(q));
+        if (type_storage(t) == SC_PTR) {
+            Qo c = alloc_ptr_vec(t, n);
+            for (int64_t i = 0; i < n; i++) QO_LIST_DATA(c)[i] = qo_clone(QO_LIST_DATA(q)[i]);
             return c;
         }
-        case QO_SYMBOL:
-            return qo_retain(q);
-        case QO_CHAR_VEC: {
-            n = QO_COUNT(q);
-            {
-                Qo c = alloc_block((size_t)n + 1);
-                c->type_tag = q->type_tag;
-                c->attribute = q->attribute;
-                QO_SET_COUNT(c, QO_COUNT(q));
-                    memcpy(c->data, q->data, (size_t)n + 1);
-                return c;
-            }
-        }
-        case QO_SHORT_VEC:
-        case QO_INT_VEC:
-        case QO_LONG_VEC:
-        case QO_FLOAT_VEC:
-        case QO_BOOL_VEC:
-        case QO_BYTE_VEC: {
-            n = QO_COUNT(q);
-            {
-                size_t elem_size = elem_size_for_type(QO_TYPE(q));
-                {
-                    size_t sz = (size_t)n * elem_size;
-                    Qo c = alloc_block(sz);
-                    c->type_tag = q->type_tag;
-                    c->attribute = q->attribute;
-                    QO_SET_COUNT(c, QO_COUNT(q));
-                        memcpy(c->data, q->data, sz);
-                    return c;
-                }
-            }
-        }
-        case QO_SYM_VEC:
-        case QO_LIST: {
-            n = QO_COUNT(q);
-            {
-                Qo c = alloc_ptr_vec(QO_TYPE(q), n);
-                for (int64_t i = 0; i < n; i++) {
-                    QO_LIST_DATA(c)[i] = qo_clone(QO_LIST_DATA(q)[i]);
-                }
-                return c;
-            }
-        }
+        /* data vector: raw memcpy by element size */
+        size_t elem_size = type_elem_size(t);
+        size_t sz = (size_t)n * elem_size;
+        Qo c = alloc_block(sz);
+        c->type_tag = t;
+        c->attribute = q->attribute;
+        QO_SET_COUNT(c, n);
+        memcpy(c->data, q->data, sz);
+        return c;
+    }
+    /* complex types with custom layouts */
+    switch (t) {
         case QO_DICT: {
-            n = QO_DICT_COUNT(q);
-            {
-                Qo c = alloc_dict_block(n);
-                QO_DICT_KTYPE(c) = QO_DICT_KTYPE(q);
-                QO_DICT_VTYPE(c) = QO_DICT_VTYPE(q);
-                for (int64_t i = 0; i < n; i++) {
-                    QO_DICT_KEYS(c)[i] = qo_clone(QO_DICT_KEYS(q)[i]);
-                    QO_DICT_VALS(c)[i] = qo_clone(QO_DICT_VALS(q)[i]);
-                }
-                return c;
+            int64_t n = QO_DICT_COUNT(q);
+            Qo c = alloc_dict_block(n);
+            QO_DICT_KTYPE(c) = QO_DICT_KTYPE(q);
+            QO_DICT_VTYPE(c) = QO_DICT_VTYPE(q);
+            for (int64_t i = 0; i < n; i++) {
+                QO_DICT_KEYS(c)[i] = qo_clone(QO_DICT_KEYS(q)[i]);
+                QO_DICT_VALS(c)[i] = qo_clone(QO_DICT_VALS(q)[i]);
             }
+            return c;
         }
         case QO_FUNCTION: {
             int64_t pc = QO_FN_PC(q);
@@ -506,29 +493,31 @@ int64_t dict_collection_count(Qo v) {
 }
 
 void set_vec_elem_from_scalar(Qo vec, int64_t i, Qo scalar) {
-    uint8_t vt = QO_TYPE(vec);
-    if (vt == QO_SHORT_VEC) qo_short_data(vec)[i] = qo_short(scalar);
-    else if (vt == QO_INT_VEC) qo_int_data(vec)[i] = qo_int(scalar);
-    else if (vt == QO_LONG_VEC) qo_long_data(vec)[i] = qo_long(scalar);
-    else if (vt == QO_FLOAT_VEC) qo_float_data(vec)[i] = qo_float(scalar);
-    else if (vt == QO_BOOL_VEC) qo_bool_data(vec)[i] = qo_bool(scalar);
-    else if (vt == QO_BYTE_VEC) qo_byte_data(vec)[i] = qo_byte(scalar);
-    else if (vt == QO_CHAR_VEC) qo_char_data(vec)[i] = qo_char(scalar);
+    switch (type_storage(QO_TYPE(vec))) {
+        case SC_I64: qo_long_data(vec)[i] = qo_long(scalar); break;
+        case SC_I32: qo_int_data(vec)[i]  = qo_int(scalar);  break;
+        case SC_I16: qo_short_data(vec)[i] = qo_short(scalar); break;
+        case SC_F64: qo_float_data(vec)[i] = qo_float(scalar); break;
+        case SC_U8:  qo_bool_data(vec)[i]  = qo_bool(scalar);  break;
+        default: break;
+    }
 }
 
 Qo dict_elem_copy(Qo v, int64_t i) {
-    uint8_t t;
     if (v == NULL) return NULL;
-    t = QO_TYPE(v);
-    if (t == QO_LIST || t == QO_SYM_VEC) return qo_clone(QO_LIST_DATA(v)[i]);
-    if (t == QO_SHORT_VEC) return make_short_value(QO_SHORT_DATA(v)[i]);
-    if (t == QO_INT_VEC) return make_int_value(QO_INT_DATA(v)[i]);
-    if (t == QO_LONG_VEC) return make_long_value(QO_LONG_DATA(v)[i]);
-    if (t == QO_FLOAT_VEC) return make_float_value(QO_FLOAT_DATA(v)[i]);
-    if (t == QO_CHAR_VEC) return make_char_value(QO_CHAR_DATA(v)[i]);
-    if (t == QO_BOOL_VEC) return make_bool_value((int)QO_BOOL_DATA(v)[i]);
-    if (t == QO_BYTE_VEC) return make_byte_value(QO_BYTE_DATA(v)[i]);
-    return qo_clone(v);
+    uint8_t t = QO_TYPE(v);
+    if (!type_has_flag(t, TF_VECTOR)) return qo_clone(v);
+    if (type_storage(t) == SC_PTR) return qo_clone(QO_LIST_DATA(v)[i]);
+    switch (type_storage(t)) {
+        case SC_I64: return make_long_value(QO_LONG_DATA(v)[i]);
+        case SC_I32: return make_int_value(QO_INT_DATA(v)[i]);
+        case SC_I16: return make_short_value(QO_SHORT_DATA(v)[i]);
+        case SC_F64: return make_float_value(QO_FLOAT_DATA(v)[i]);
+        case SC_U8:  if (t == QO_CHAR_VEC) return make_char_value(QO_CHAR_DATA(v)[i]);
+                     if (t == QO_BOOL_VEC) return make_bool_value((int)QO_BOOL_DATA(v)[i]);
+                     return make_byte_value(QO_BYTE_DATA(v)[i]);
+        default:     return qo_clone(v);
+    }
 }
 
 Qo extract_dict_side(Qo dict, int want_keys) {
@@ -538,26 +527,19 @@ Qo extract_dict_side(Qo dict, int want_keys) {
 
     if (side_type == QO_CHAR_VEC) {
         Qo result = alloc_charlike(QO_CHAR_VEC, n);
-        for (int64_t i = 0; i < n; i++) {
-            QO_CHAR_DATA(result)[i] = QO_CHAR_VAL(elems[i]);
-        }
+        for (int64_t i = 0; i < n; i++) QO_CHAR_DATA(result)[i] = QO_CHAR_VAL(elems[i]);
         return result;
     }
 
-    if (side_type == QO_SHORT_VEC || side_type == QO_INT_VEC || side_type == QO_LONG_VEC ||
-        side_type == QO_FLOAT_VEC || side_type == QO_BOOL_VEC || side_type == QO_BYTE_VEC) {
+    if (type_storage(side_type) != SC_PTR) {
         Qo result = alloc_data_vec(side_type, n);
-        for (int64_t i = 0; i < n; i++) {
-            set_vec_elem_from_scalar(result, i, elems[i]);
-        }
+        for (int64_t i = 0; i < n; i++) set_vec_elem_from_scalar(result, i, elems[i]);
         return result;
     }
 
-    {
-        Qo result = alloc_ptr_vec(side_type, n);
-        for (int64_t i = 0; i < n; i++) QO_LIST_DATA(result)[i] = qo_clone(elems[i]);
-        return result;
-    }
+    Qo result = alloc_ptr_vec(side_type, n);
+    for (int64_t i = 0; i < n; i++) QO_LIST_DATA(result)[i] = qo_clone(elems[i]);
+    return result;
 }
 
 

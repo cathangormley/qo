@@ -2,6 +2,42 @@
 
 #include "qo_value.h"
 
+/* ── Storage classes (underlying C type for data access) ──────────────── */
+typedef enum {
+    SC_U8,    /* uint8_t  — bool, byte, char (1 B) */
+    SC_I16,   /* int16_t  — short                (2 B) */
+    SC_I32,   /* int32_t  — int                  (4 B) */
+    SC_I64,   /* int64_t  — long, timestamp      (8 B) */
+    SC_F64,   /* double   — float                (8 B) */
+    SC_PTR,   /* pointer types */
+} StorageClass;
+
+/* ── Type flags ────────────────────────────────────────────────────────── */
+#define TF_NONE      0x00
+#define TF_SCALAR    0x01
+#define TF_VECTOR    0x02
+#define TF_COMPLEX   0x04
+#define TF_NUMERIC   0x08
+#define TF_INTEGER   0x10
+
+/* ── Per-type descriptor ──────────────────────────────────────────────── */
+typedef struct {
+    uint8_t elem_size;   /* byte-width of one element (scalars: storage size, vectors: element size) */
+    uint8_t storage;     /* StorageClass */
+    uint8_t flags;       /* TF_* bitmask */
+    uint8_t base_type;   /* scalar ↔ vector peer (e.g. QO_SHORT ↔ QO_SHORT_VEC); self for others */
+} TypeInfo;
+
+extern const TypeInfo type_table[256];
+
+/* ── Inline helpers ────────────────────────────────────────────────────── */
+static inline uint8_t type_storage(uint8_t t)     { return type_table[t].storage; }
+static inline uint8_t type_flags(uint8_t t)       { return type_table[t].flags; }
+static inline uint8_t type_elem_size(uint8_t t)   { return type_table[t].elem_size; }
+static inline uint8_t type_base_type(uint8_t t)   { return type_table[t].base_type; }
+
+static inline int type_has_flag(uint8_t t, uint8_t f) { return (type_flags(t) & f) != 0; }
+
 #define QO_TYPE(q)          qo_type(q)
 #define QO_ATTRS(q)         qo_attrs(q)
 

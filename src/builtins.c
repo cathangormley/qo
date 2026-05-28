@@ -851,43 +851,41 @@ static const struct { const char *name; uint8_t type; } cast_type_names[] = {
 };
 
 static int64_t scalar_as_int64(Qo v) {
-    uint8_t t = qo_type(v);
-    if (t == QO_SHORT) return qo_short(v);
-    if (t == QO_INT)   return qo_int(v);
-    if (t == QO_LONG)  return qo_long(v);
-    if (t == QO_BOOL)  return qo_bool(v);
-    if (t == QO_BYTE)  return qo_byte(v);
-    if (t == QO_CHAR)  return (unsigned char)qo_char(v);
-    return 0;
+    switch (type_storage(qo_type(v))) {
+        case SC_I64: return qo_long(v);
+        case SC_I32: return qo_int(v);
+        case SC_I16: return qo_short(v);
+        case SC_F64: return (int64_t)qo_float(v);
+        case SC_U8:
+            if (qo_type(v) == QO_CHAR) return (unsigned char)qo_char(v);
+            return qo_bool(v);
+        default: return 0;
+    }
 }
 
 static int64_t vec_elem_as_int64(Qo v, int64_t i) {
-    uint8_t t = qo_type(v);
-    if (t == QO_SHORT_VEC) return qo_short_data(v)[i];
-    if (t == QO_INT_VEC)   return qo_int_data(v)[i];
-    if (t == QO_LONG_VEC)  return qo_long_data(v)[i];
-    if (t == QO_FLOAT_VEC) return (int64_t)qo_float_data(v)[i];
-    if (t == QO_BOOL_VEC || t == QO_BYTE_VEC) return qo_bool_data(v)[i];
-    if (t == QO_CHAR_VEC)  return (unsigned char)qo_char_data(v)[i];
-    /* QO_LIST fallback */
+    switch (type_storage(qo_type(v))) {
+        case SC_I64: return qo_long_data(v)[i];
+        case SC_I32: return qo_int_data(v)[i];
+        case SC_I16: return qo_short_data(v)[i];
+        case SC_F64: return (int64_t)qo_float_data(v)[i];
+        case SC_U8:
+            if (qo_type(v) == QO_CHAR_VEC) return (unsigned char)qo_char_data(v)[i];
+            return qo_bool_data(v)[i];
+        default:
+            break;
+    }
     Qo e = qo_ptr_data(v)[i];
     return e ? scalar_as_int64(e) : 0;
 }
 
 static double vec_elem_as_double(Qo v, int64_t i) {
-    if (qo_type(v) == QO_FLOAT_VEC) return qo_float_data(v)[i];
+    if (type_storage(qo_type(v)) == SC_F64) return qo_float_data(v)[i];
     return (double)vec_elem_as_int64(v, i);
 }
 
 static uint8_t vec_type_for_scalar(uint8_t st) {
-    if (st == QO_SHORT) return QO_SHORT_VEC;
-    if (st == QO_INT)   return QO_INT_VEC;
-    if (st == QO_LONG)  return QO_LONG_VEC;
-    if (st == QO_FLOAT) return QO_FLOAT_VEC;
-    if (st == QO_CHAR)  return QO_CHAR_VEC;
-    if (st == QO_BOOL)  return QO_BOOL_VEC;
-    if (st == QO_BYTE)  return QO_BYTE_VEC;
-    return 0;
+    return type_base_type(st);
 }
 
 static Qo make_scalar_from_int64(uint8_t tt, int64_t i) {
@@ -943,8 +941,7 @@ static Qo eval_cast(Qo type_sym, Qo value, Environment *env) {
         EVAL_ERROR("cast: can only cast symbol to string");
     }
 
-    int src_scalar = (st == QO_SHORT || st == QO_INT || st == QO_LONG || st == QO_FLOAT ||
-                      st == QO_CHAR || st == QO_BOOL || st == QO_BYTE);
+    int src_scalar = type_has_flag(st, TF_SCALAR) && !type_has_flag(st, TF_COMPLEX);
     if (!src_scalar && !is_vector_type(st))
         EVAL_ERROR("cast: unsupported source type");
 
@@ -1194,16 +1191,8 @@ static Qo pack_results(Qo *values, int count) {
         }
     }
     if (all_same) {
-        uint8_t vec_type;
-        if (first_type == QO_SHORT) vec_type = QO_SHORT_VEC;
-        else if (first_type == QO_INT) vec_type = QO_INT_VEC;
-        else if (first_type == QO_LONG) vec_type = QO_LONG_VEC;
-        else if (first_type == QO_FLOAT) vec_type = QO_FLOAT_VEC;
-        else if (first_type == QO_CHAR) vec_type = QO_CHAR_VEC;
-        else if (first_type == QO_BOOL) vec_type = QO_BOOL_VEC;
-        else if (first_type == QO_BYTE) vec_type = QO_BYTE_VEC;
-        else if (first_type == QO_SYMBOL) vec_type = QO_SYM_VEC;
-        else all_same = 0;
+        uint8_t vec_type = type_has_flag(first_type, TF_SCALAR) ? type_base_type(first_type) : 0;
+        if (vec_type == 0) all_same = 0;
 
         if (all_same) {
             if (vec_type == QO_CHAR_VEC) {

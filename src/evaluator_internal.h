@@ -49,26 +49,21 @@ Qo alloc_charlike(uint8_t type, int64_t count);
 Qo alloc_dict_block(int64_t count);
 int64_t dict_collection_count(Qo v);
 Qo dict_elem_copy(Qo v, int64_t i);
-size_t elem_size_for_type(uint8_t type);
-
 static inline int is_vector_type(uint8_t t) {
-    return t == QO_SHORT_VEC || t == QO_INT_VEC || t == QO_LONG_VEC || t == QO_FLOAT_VEC ||
-           t == QO_SYM_VEC || t == QO_CHAR_VEC || t == QO_BOOL_VEC || t == QO_BYTE_VEC || t == QO_LIST;
+    return type_has_flag(t, TF_VECTOR);
 }
 static inline int is_numeric_scalar_type(uint8_t t) {
-    return t == QO_SHORT || t == QO_INT || t == QO_LONG || t == QO_FLOAT || t == QO_BOOL;
+    return (type_flags(t) & (TF_SCALAR | TF_NUMERIC)) == (TF_SCALAR | TF_NUMERIC);
 }
 static inline int is_numeric_vector_type(uint8_t t) {
-    return t == QO_SHORT_VEC || t == QO_INT_VEC || t == QO_LONG_VEC || t == QO_FLOAT_VEC || t == QO_BOOL_VEC;
+    return (type_flags(t) & (TF_VECTOR | TF_NUMERIC)) == (TF_VECTOR | TF_NUMERIC);
 }
 static inline int is_numeric_int_type(uint8_t t) {
-    return t == QO_SHORT || t == QO_INT || t == QO_LONG;
+    return type_has_flag(t, TF_INTEGER) && !type_has_flag(t, TF_VECTOR);
 }
 static inline int is_numeric_operand(Qo q) {
     if (q == NULL) return 0;
-    uint8_t t = qo_type(q);
-    return t == QO_SHORT || t == QO_INT || t == QO_LONG || t == QO_FLOAT || t == QO_BOOL ||
-           t == QO_SHORT_VEC || t == QO_INT_VEC || t == QO_LONG_VEC || t == QO_FLOAT_VEC || t == QO_BOOL_VEC;
+    return type_has_flag(qo_type(q), TF_NUMERIC);
 }
 double value_as_double(Qo value);
 void set_vec_elem_from_scalar(Qo vec, int64_t i, Qo scalar);
