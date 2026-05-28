@@ -626,13 +626,6 @@ Qo eval_comma_binop(Qo left, Qo right) {
 }
 
 typedef int64_t (*IntBinaryScalarKernel)(int64_t left, int64_t right);
-typedef void (*IntVectorKernel)(Qo result,
-                                Qo left,
-                                Qo right,
-                                int left_is_vec,
-                                int right_is_vec,
-                                int64_t count,
-                                IntBinaryScalarKernel kernel);
 
 /* Centralize integer arithmetic policy here so scalar and future SIMD backends
    share one definition of +, -, and *. */
@@ -701,8 +694,7 @@ static void int_vec_binop_same_type(Qo result, Qo left, Qo right, TokenType op) 
     }
 }
 
-/* This is the extension point for future SIMD work. The current backend is a
-   scalar loop, but callers do not know that. */
+/* Generic fallback for mixed-type and scalar-broadcast operations. */
 static void execute_int_vector_kernel_scalar(Qo result,
                                              Qo left,
                                              Qo right,
@@ -715,17 +707,6 @@ static void execute_int_vector_kernel_scalar(Qo result,
         int64_t ri = right_is_vec ? int_elem_value(right, i) : get_integer_value(right);
         store_int_vec_elem(result, i, kernel(li, ri));
     }
-}
-
-static IntVectorKernel select_int_vector_kernel(TokenType op,
-                                                uint8_t left_type,
-                                                uint8_t right_type,
-                                                uint8_t out_type) {
-    (void)op;
-    (void)left_type;
-    (void)right_type;
-    (void)out_type;
-    return execute_int_vector_kernel_scalar;
 }
 
 static Qo execute_exact_int_scalar_binop(Qo left, Qo right, TokenType op) {
@@ -757,7 +738,6 @@ static Qo execute_int_vector_binop(Qo left, Qo right, TokenType op) {
     int64_t count = left_is_vec ? QO_COUNT(left) : QO_COUNT(right);
     uint8_t out_type;
     Qo result;
-    IntVectorKernel kernel;
 
     if (left_is_vec && right_is_vec && QO_COUNT(left) != QO_COUNT(right)) {
         EVAL_ERROR("cannot operate on vectors of different lengths");
@@ -777,8 +757,7 @@ static Qo execute_int_vector_binop(Qo left, Qo right, TokenType op) {
     if (left_is_vec && right_is_vec && QO_TYPE(left) == QO_TYPE(right)) {
         int_vec_binop_same_type(result, left, right, op);
     } else {
-        kernel = select_int_vector_kernel(op, QO_TYPE(left), QO_TYPE(right), out_type);
-        kernel(result, left, right, left_is_vec, right_is_vec, count, select_int_scalar_kernel(op));
+        execute_int_vector_kernel_scalar(result, left, right, left_is_vec, right_is_vec, count, select_int_scalar_kernel(op));
     }
     return result;
 }
