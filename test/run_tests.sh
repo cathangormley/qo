@@ -660,6 +660,23 @@ test_case "cast_char_longvec_to_boolvec" "\"b\"\$0 1 2" "011b"
 test_case "cast_char_longvec_to_bytevec" "\"x\"\$255 0 1" "0xff0001"
 test_case "cast_char_shortvec_to_longvec" "\"j\"\$1 2 3h" "1 2 3"
 
+# Operator projection
+test_case "op_projection_plus_left" "(+[2;])3" "5"
+test_case "op_projection_plus_right" "(+[;3])2" "5"
+test_case "op_projection_minus_left" "(-[10;])3" "7"
+test_case "op_projection_mul_left" "(*[5;])3" "15"
+test_case "op_projection_take" "(#[2;])1 2 3 4 5" "1 2"
+test_case "op_projection_drop" "(_[1;])1 2 3 4 5" "2 3 4 5"
+test_case "op_projection_max" "(|[10;])3 5 2" "10 10 10"
+test_case "op_projection_min" "(&[10;])3 5 2" "3 5 2"
+test_case "op_projection_type" "type (+[2;])" "\`projection"
+test_case "op_projection_equal_left" "(=[42;])42" "1b"
+test_case "op_projection_less_left" "(<[3;])5" "1b"
+test_case "op_projection_greater_left" "(>[3;])5" "0b"
+test_case "op_projection_power" "(**[2;])3" "8f"
+test_case "op_projection_div" "(%[10;])3" "3.33333f"
+test_case "op_projection_bare" "+[;]" "+[;]"
+
 # Parse error tests (verify no crash, just error message)
 test_case "bare_open_paren"               "("       "Error: Failed to parse expression"
 test_case "bare_close_paren"              ")"       "Error: Failed to parse expression"

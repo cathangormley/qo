@@ -9,8 +9,9 @@
 #include "ipc.h"
 #include "symbol_intern.h"
 
-/* forward declaration: eval_apply_keyword and eval_apply_value are mutually recursive */
+/* forward declarations */
 static Qo eval_apply_value(Qo head, Qo *args, int arg_count, Environment *env);
+static Qo make_projection_value(Qo function, Qo *slots, int64_t slot_count);
 
 /* ── builtin name ↔ id mapping ────────────────────────────────────────────── */
 
@@ -948,8 +949,18 @@ static Qo eval_apply_keyword(Qo head, Qo *arg_values, int arg_count, Environment
 
     if (qo_type(head) == QO_OPERATOR) {
         TokenType op_token = (TokenType)QO_OPERATOR_OP(head);
-        if (arg_count != 2) {
-            EVAL_ERROR("operator expects exactly 2 arguments");
+        if (arg_count < 2) {
+            Qo *slots = xmalloc(sizeof(Qo) * 2);
+            slots[0] = make_projector_value();
+            slots[1] = make_projector_value();
+            for (int i = 0; i < arg_count; i++) { qo_release(slots[i]); slots[i] = qo_clone(arg_values[i]); }
+            return make_projection_value(head, slots, 2);
+        }
+        if (qo_type(arg_values[0]) == QO_PROJECTOR || qo_type(arg_values[1]) == QO_PROJECTOR) {
+            Qo *slots = xmalloc(sizeof(Qo) * 2);
+            slots[0] = qo_clone(arg_values[0]);
+            slots[1] = qo_clone(arg_values[1]);
+            return make_projection_value(head, slots, 2);
         }
         switch (op_token) {
             case TOKEN_BANG:       return eval_dict_creation(arg_values[0], arg_values[1]);
@@ -1418,7 +1429,14 @@ static Qo eval_apply_value(Qo head, Qo *args, int arg_count, Environment *env) {
                 return make_projection_value(QO_PROJ_FUNC(head), merged, slot_count);
             }
         }
-        Qo result = eval_call_function(QO_PROJ_FUNC(head), merged, (int)slot_count, env);
+        Qo func = QO_PROJ_FUNC(head);
+        uint8_t ft = qo_type(func);
+        Qo result;
+        if (ft == QO_OPERATOR || ft == QO_BUILTIN) {
+            result = eval_apply_keyword(func, merged, (int)slot_count, env);
+        } else {
+            result = eval_call_function(func, merged, (int)slot_count, env);
+        }
         for (int64_t i = 0; i < slot_count; i++) qo_release(merged[i]);
         free(merged);
         return result;
