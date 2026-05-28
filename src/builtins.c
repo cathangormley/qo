@@ -863,17 +863,33 @@ static Qo make_scalar_from_int64(uint8_t tt, int64_t i) {
         return r; \
     }
 
+static uint8_t char_to_cast_type(char c) {
+    switch (c) {
+        case 'c': return QO_CHAR;
+        case 'x': return QO_BYTE;
+        case 'h': return QO_SHORT;
+        case 'i': return QO_INT;
+        case 'j': return QO_LONG;
+        case 'f': return QO_FLOAT;
+        case 'b': return QO_BOOL;
+        default:  return 0;
+    }
+}
+
 static Qo eval_cast(Qo type_sym, Qo value, Environment *env) {
     (void)env;
-    if (type_sym == NULL || qo_type(type_sym) != QO_SYMBOL)
-        EVAL_ERROR("cast: left argument must be a type symbol");
-
-    const char *name = qo_symbol_name(type_sym);
     uint8_t tt = 0;
-    for (size_t i = 0; i < sizeof(cast_type_names)/sizeof(cast_type_names[0]); i++) {
-        if (strcmp(name, cast_type_names[i].name) == 0) { tt = cast_type_names[i].type; break; }
+    if (type_sym != NULL && qo_type(type_sym) == QO_SYMBOL) {
+        const char *name = qo_symbol_name(type_sym);
+        for (size_t i = 0; i < sizeof(cast_type_names)/sizeof(cast_type_names[0]); i++) {
+            if (strcmp(name, cast_type_names[i].name) == 0) { tt = cast_type_names[i].type; break; }
+        }
+    } else if (type_sym != NULL && qo_type(type_sym) == QO_CHAR) {
+        tt = char_to_cast_type(qo_char(type_sym));
+    } else if (type_sym != NULL && qo_type(type_sym) == QO_CHAR_VEC && qo_count(type_sym) == 1) {
+        tt = char_to_cast_type(qo_char_data(type_sym)[0]);
     }
-    if (tt == 0) EVAL_ERROR_FMT("cast: unknown type '%s'", name);
+    if (tt == 0) EVAL_ERROR("cast: left argument must be a type symbol or type character");
 
     if (value == NULL) EVAL_ERROR("cast: cannot cast null");
 
