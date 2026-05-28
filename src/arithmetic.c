@@ -216,7 +216,7 @@ Qo eval_drop(Qo lhs, Qo rhs) {
         return result;
     }
 
-    if (drop_count == 0) return qo_clone(rhs);
+    if (drop_count == 0) return qo_retain(rhs);
 
     {
         uint8_t out_type;
@@ -247,8 +247,8 @@ Qo eval_equals(Qo left, Qo right) {
     count = lv ? qo_count(left) : qo_count(right);
     result = alloc_data_vec(QO_BOOL_VEC, count);
     for (int64_t i = 0; i < count; i++) {
-        Qo l = lv ? dict_elem_copy(left, i) : qo_clone(left);
-        Qo r = rv ? dict_elem_copy(right, i) : qo_clone(right);
+        Qo l = lv ? dict_elem_copy(left, i) : qo_retain(left);
+        Qo r = rv ? dict_elem_copy(right, i) : qo_retain(right);
         qo_bool_data(result)[i] = value_equals(l, r) ? 1 : 0;
         qo_release(l);
         qo_release(r);
@@ -416,8 +416,8 @@ static Qo eval_order_extrema(Qo left, Qo right, int want_greater) {
             EVAL_ERROR("operator requires int/float/bool/char operands");
         }
         /* Scalar/scalar: return the original winning operand to preserve scalar type. */
-        if (want_greater) return qo_clone((l >= r) ? left : right);
-        return qo_clone((l <= r) ? left : right);
+        if (want_greater) return qo_retain((l >= r) ? left : right);
+        return qo_retain((l <= r) ? left : right);
     }
 
     if (lv && rv && qo_count(left) != qo_count(right)) {
