@@ -42,6 +42,7 @@ const char *token_type_to_operator(TokenType op) {
         case TOKEN_DOT:   return ".";
         case TOKEN_DOT_DOT:    return "..";
         case TOKEN_DOT_DOT_EQ: return "..=";
+        case TOKEN_DOLLAR:    return "$";
         default: return NULL;
     }
 }
@@ -267,7 +268,8 @@ static int is_expression_operator(TokenType type) {
            type == TOKEN_LE || type == TOKEN_GE ||
            type == TOKEN_PIPE || type == TOKEN_AMP ||
            type == TOKEN_COLON || type == TOKEN_AT || type == TOKEN_DOT ||
-           type == TOKEN_DOT_DOT || type == TOKEN_DOT_DOT_EQ;
+           type == TOKEN_DOT_DOT || type == TOKEN_DOT_DOT_EQ ||
+           type == TOKEN_DOLLAR;
 }
 
 static int starts_factor(TokenType type) {

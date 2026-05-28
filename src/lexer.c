@@ -33,7 +33,7 @@ static int is_unary_sign_context(const char *input, int pos) {
 
     if (i < 0) return 1;
 
-    return is_char_in_set(input[i], "([{;:,+-*/%!<>=#@.|&");
+    return is_char_in_set(input[i], "([{;:,+-*/%!<>=#@.|&$");
 }
 
 Lexer* lexer_new(const char *input) {
@@ -342,6 +342,7 @@ Token* lexer_next_token(Lexer *lexer) {
         case '{': return token_new(TOKEN_LBRACE, "{", false, '\0', start_pos);
         case '}': return token_new(TOKEN_RBRACE, "}", false, '\0', start_pos);
         case '@': return token_new(TOKEN_AT,     "@", false, '\0', start_pos);
+        case '$': return token_new(TOKEN_DOLLAR, "$", false, '\0', start_pos);
         case '.': {
             if (lexer->input[lexer->pos] == '.') {
                 lexer->pos++;

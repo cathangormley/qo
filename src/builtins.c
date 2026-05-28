@@ -837,6 +837,145 @@ static Qo null_for_vector_type(uint8_t vec_type) {
     }
 }
 
+/* ── $ cast operator ──────────────────────────────────────────────────────── */
+
+static const struct { const char *name; uint8_t type; } cast_type_names[] = {
+    {"short",  QO_SHORT},
+    {"int",    QO_INT},
+    {"long",   QO_LONG},
+    {"float",  QO_FLOAT},
+    {"char",   QO_CHAR},
+    {"bool",   QO_BOOL},
+    {"byte",   QO_BYTE},
+    {"symbol", QO_SYMBOL},
+};
+
+static int64_t scalar_as_int64(Qo v) {
+    uint8_t t = qo_type(v);
+    if (t == QO_SHORT) return qo_short(v);
+    if (t == QO_INT)   return qo_int(v);
+    if (t == QO_LONG)  return qo_long(v);
+    if (t == QO_BOOL)  return qo_bool(v);
+    if (t == QO_BYTE)  return qo_byte(v);
+    if (t == QO_CHAR)  return (unsigned char)qo_char(v);
+    return 0;
+}
+
+static int64_t vec_elem_as_int64(Qo v, int64_t i) {
+    uint8_t t = qo_type(v);
+    if (t == QO_SHORT_VEC) return qo_short_data(v)[i];
+    if (t == QO_INT_VEC)   return qo_int_data(v)[i];
+    if (t == QO_LONG_VEC)  return qo_long_data(v)[i];
+    if (t == QO_FLOAT_VEC) return (int64_t)qo_float_data(v)[i];
+    if (t == QO_BOOL_VEC || t == QO_BYTE_VEC) return qo_bool_data(v)[i];
+    if (t == QO_CHAR_VEC)  return (unsigned char)qo_char_data(v)[i];
+    /* QO_LIST fallback */
+    Qo e = qo_ptr_data(v)[i];
+    return e ? scalar_as_int64(e) : 0;
+}
+
+static double vec_elem_as_double(Qo v, int64_t i) {
+    if (qo_type(v) == QO_FLOAT_VEC) return qo_float_data(v)[i];
+    return (double)vec_elem_as_int64(v, i);
+}
+
+static uint8_t vec_type_for_scalar(uint8_t st) {
+    if (st == QO_SHORT) return QO_SHORT_VEC;
+    if (st == QO_INT)   return QO_INT_VEC;
+    if (st == QO_LONG)  return QO_LONG_VEC;
+    if (st == QO_FLOAT) return QO_FLOAT_VEC;
+    if (st == QO_CHAR)  return QO_CHAR_VEC;
+    if (st == QO_BOOL)  return QO_BOOL_VEC;
+    if (st == QO_BYTE)  return QO_BYTE_VEC;
+    return 0;
+}
+
+static Qo make_scalar_from_int64(uint8_t tt, int64_t i) {
+    switch (tt) {
+        case QO_SHORT: return make_short_value((int16_t)i);
+        case QO_INT:   return make_int_value((int32_t)i);
+        case QO_LONG:  return make_long_value(i);
+        case QO_FLOAT: return make_float_value((double)i);
+        case QO_BOOL:  return make_bool_value(i != 0);
+        case QO_BYTE:  return make_byte_value((uint8_t)i);
+        case QO_CHAR:  return make_char_value((char)i);
+        default:       return NULL;
+    }
+}
+
+#define VEC_CAST(vectype, allocfn, accessor, elem_type, cast_expr) \
+    if (vt == (vectype)) { \
+        Qo r = allocfn(vectype, n); \
+        elem_type *dst = accessor(r); \
+        for (int64_t i = 0; i < n; i++) dst[i] = (cast_expr); \
+        return r; \
+    }
+
+static Qo eval_cast(Qo type_sym, Qo value, Environment *env) {
+    (void)env;
+    if (type_sym == NULL || qo_type(type_sym) != QO_SYMBOL)
+        EVAL_ERROR("cast: left argument must be a type symbol");
+
+    const char *name = qo_symbol_name(type_sym);
+    uint8_t tt = 0;
+    for (size_t i = 0; i < sizeof(cast_type_names)/sizeof(cast_type_names[0]); i++) {
+        if (strcmp(name, cast_type_names[i].name) == 0) { tt = cast_type_names[i].type; break; }
+    }
+    if (tt == 0) EVAL_ERROR_FMT("cast: unknown type '%s'", name);
+
+    if (value == NULL) EVAL_ERROR("cast: cannot cast null");
+
+    uint8_t st = qo_type(value);
+
+    /* symbol <-> string */
+    if (tt == QO_SYMBOL) {
+        if (st == QO_CHAR_VEC) return make_symbol_value(qo_char_data(value));
+        EVAL_ERROR("cast: can only cast string to symbol");
+    }
+    if (st == QO_SYMBOL) {
+        if (tt == QO_CHAR) {
+            const char *s = qo_symbol_name(value);
+            int64_t len = (int64_t)strlen(s);
+            Qo r = alloc_charlike(QO_CHAR_VEC, len);
+            memcpy(qo_char_data(r), s, (size_t)len);
+            return r;
+        }
+        EVAL_ERROR("cast: can only cast symbol to string");
+    }
+
+    int src_scalar = (st == QO_SHORT || st == QO_INT || st == QO_LONG || st == QO_FLOAT ||
+                      st == QO_CHAR || st == QO_BOOL || st == QO_BYTE);
+    if (!src_scalar && !is_vector_type(st))
+        EVAL_ERROR("cast: unsupported source type");
+
+    /* ── Scalar source ── */
+    if (src_scalar) {
+        if (st == tt) return qo_clone(value);
+        Qo r = make_scalar_from_int64(tt, st == QO_FLOAT ? (int64_t)qo_float(value) : scalar_as_int64(value));
+        if (r != NULL) return r;
+        EVAL_ERROR("cast: unsupported target type");
+    }
+
+    /* ── Vector source (element-wise) ── */
+    {
+        int64_t n = qo_count(value);
+        uint8_t vt = vec_type_for_scalar(tt);
+
+        if (vt == st) return qo_clone(value);
+
+        VEC_CAST(QO_LONG_VEC,  alloc_data_vec, qo_long_data,  int64_t, vec_elem_as_int64(value, i))
+        VEC_CAST(QO_INT_VEC,   alloc_data_vec, qo_int_data,   int32_t, (int32_t)vec_elem_as_int64(value, i))
+        VEC_CAST(QO_SHORT_VEC, alloc_data_vec, qo_short_data, int16_t, (int16_t)vec_elem_as_int64(value, i))
+        VEC_CAST(QO_FLOAT_VEC, alloc_data_vec, qo_float_data, double,  vec_elem_as_double(value, i))
+        VEC_CAST(QO_BOOL_VEC,  alloc_data_vec, qo_bool_data,  uint8_t, (vec_elem_as_int64(value, i) != 0))
+        VEC_CAST(QO_BYTE_VEC,  alloc_data_vec, qo_byte_data,  uint8_t, (uint8_t)vec_elem_as_int64(value, i))
+        VEC_CAST(QO_CHAR_VEC,  alloc_charlike, qo_char_data,  char,    (char)vec_elem_as_int64(value, i))
+        EVAL_ERROR("cast: unsupported target type");
+    }
+}
+
+#undef VEC_CAST
+
 static Qo eval_apply_keyword(Qo head, Qo *arg_values, int arg_count, Environment *env) {
     Qo result;
 
@@ -887,6 +1026,8 @@ static Qo eval_apply_keyword(Qo head, Qo *arg_values, int arg_count, Environment
                 return eval_builtin_range(arg_values[0], arg_values[1], env);
             case TOKEN_DOT_DOT_EQ:
                 return eval_builtin_range_inclusive(arg_values[0], arg_values[1], env);
+            case TOKEN_DOLLAR:
+                return eval_cast(arg_values[0], arg_values[1], env);
             case TOKEN_SLASH:
                 EVAL_ERROR("operator '/' is undefined");
             default:
