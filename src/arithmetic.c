@@ -5,10 +5,6 @@
 #include "evaluator_internal.h"
 #include "internal.h"
 
-static int is_numeric_int_type(uint8_t t) {
-    return t == QO_SHORT || t == QO_INT || t == QO_LONG;
-}
-
 static int64_t get_integer_value(Qo q) {
     uint8_t t = qo_type(q);
     if (t == QO_SHORT) return (int64_t)qo_short(q);

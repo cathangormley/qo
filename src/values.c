@@ -66,26 +66,6 @@ void qo_release(Qo q) {
     }
 }
 
-int is_vector_type(uint8_t t) {
-    return t == QO_SHORT_VEC || t == QO_INT_VEC || t == QO_LONG_VEC || t == QO_FLOAT_VEC ||
-           t == QO_SYM_VEC || t == QO_CHAR_VEC || t == QO_BOOL_VEC || t == QO_BYTE_VEC || t == QO_LIST;
-}
-
-int is_numeric_scalar_type(uint8_t t) {
-    return t == QO_SHORT || t == QO_INT || t == QO_LONG || t == QO_FLOAT || t == QO_BOOL;
-}
-
-int is_numeric_vector_type(uint8_t t) {
-    return t == QO_SHORT_VEC || t == QO_INT_VEC || t == QO_LONG_VEC || t == QO_FLOAT_VEC || t == QO_BOOL_VEC;
-}
-
-int is_numeric_operand(Qo q) {
-    if (q == NULL) return 0;
-    uint8_t t = qo_type(q);
-    return t == QO_SHORT || t == QO_INT || t == QO_LONG || t == QO_FLOAT || t == QO_BOOL ||
-           t == QO_SHORT_VEC || t == QO_INT_VEC || t == QO_LONG_VEC || t == QO_FLOAT_VEC || t == QO_BOOL_VEC;
-}
-
 double value_as_double(Qo q) {
     uint8_t t = qo_type(q);
     if (t == QO_SHORT) return (double)qo_short(q);

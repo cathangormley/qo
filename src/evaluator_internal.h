@@ -50,10 +50,26 @@ Qo alloc_dict_block(int64_t count);
 int64_t dict_collection_count(Qo v);
 Qo dict_elem_copy(Qo v, int64_t i);
 size_t elem_size_for_type(uint8_t type);
-int is_vector_type(uint8_t type);
-int is_numeric_scalar_type(uint8_t type);
-int is_numeric_vector_type(uint8_t type);
-int is_numeric_operand(Qo value);
+
+static inline int is_vector_type(uint8_t t) {
+    return t == QO_SHORT_VEC || t == QO_INT_VEC || t == QO_LONG_VEC || t == QO_FLOAT_VEC ||
+           t == QO_SYM_VEC || t == QO_CHAR_VEC || t == QO_BOOL_VEC || t == QO_BYTE_VEC || t == QO_LIST;
+}
+static inline int is_numeric_scalar_type(uint8_t t) {
+    return t == QO_SHORT || t == QO_INT || t == QO_LONG || t == QO_FLOAT || t == QO_BOOL;
+}
+static inline int is_numeric_vector_type(uint8_t t) {
+    return t == QO_SHORT_VEC || t == QO_INT_VEC || t == QO_LONG_VEC || t == QO_FLOAT_VEC || t == QO_BOOL_VEC;
+}
+static inline int is_numeric_int_type(uint8_t t) {
+    return t == QO_SHORT || t == QO_INT || t == QO_LONG;
+}
+static inline int is_numeric_operand(Qo q) {
+    if (q == NULL) return 0;
+    uint8_t t = qo_type(q);
+    return t == QO_SHORT || t == QO_INT || t == QO_LONG || t == QO_FLOAT || t == QO_BOOL ||
+           t == QO_SHORT_VEC || t == QO_INT_VEC || t == QO_LONG_VEC || t == QO_FLOAT_VEC || t == QO_BOOL_VEC;
+}
 double value_as_double(Qo value);
 void set_vec_elem_from_scalar(Qo vec, int64_t i, Qo scalar);
 Qo extract_dict_side(Qo dict, int want_keys);
