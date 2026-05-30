@@ -179,7 +179,8 @@ static Qo eval_builtin_parse(Qo arg, Environment *env) {
     char *input = charvec_to_cstr(arg);
     Qo result = parse_source_to_value(input);
     free(input);
-    if (result != NULL && !is_parse_error(result)) {
+    if (is_parse_error(result)) EVAL_ERROR("parse: failed to parse expression");
+    if (result != NULL) {
         Qo normalized = normalize_parsed_tree(result);
         qo_release(result);
         result = normalized;

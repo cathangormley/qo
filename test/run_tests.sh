@@ -393,6 +393,11 @@ test_case_multiline "lex_empty_symbol_amp" "lex \"\`&\"" $'"`"\n"&"'
 test_case_multiline "lex_empty_symbol_semicolon" "lex \"\`;\"" $'"`"\n";"'
 test_case "parse_generic_call_head_type" "type first parse\"f[2;3]\"" "\`symbol"
 test_case_multiline "parse_projection_holes" "parse \"f[;x;;y]\"" $'`f\nP\n`x\nP\n`y'
+test_case "parse_unclosed_paren_errors"   "parse \" (\""  "Error: parse: failed to parse expression"
+test_case "parse_stray_bracket_errors"    "parse \"[\""   "Error: parse: failed to parse expression"
+test_case "parse_trailing_operator_errors" "parse \"1+\"" "Error: parse: failed to parse expression"
+test_case "parse_unclosed_brace_errors"   "parse \"{\""   "Error: parse: failed to parse expression"
+test_case "parse_stray_tilde_errors"      "parse \"~\""   "Error: parse: failed to parse expression"
 test_case "projection_partial_apply" "f:{[x;y] x+y}; g:f[2;]; g[3]" "5"
 test_case "projection_print" "f:{[x;y;z]x+y+z}; g:f[2;;3]; g" "{[x;y;z]x+y+z}[2;;3]"
 test_case "projection_type" "f:{[x;y] x+y}; type f[2;]" "\`projection"
