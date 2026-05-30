@@ -180,6 +180,29 @@ Token* lexer_next_token(Lexer *lexer) {
         return t;
     }
 
+    // Timestamp literal: YYYY.MM.DDTHH:MM:SS.NNNNNNNNN (fixed 29 chars)
+    if (isdigit((unsigned char)ch)) {
+        int p = lexer->pos;
+        int ok = 1;
+        const int digit_offsets[] = {0,1,2,3, 5,6, 8,9, 11,12, 14,15, 17,18, 20,21,22,23,24,25,26,27,28};
+        const int dot_offsets[]   = {4, 7, 19};
+        const int colon_offsets[] = {13, 16};
+        for (size_t i = 0; ok && i < sizeof(digit_offsets)/sizeof(int); i++)
+            ok = isdigit((unsigned char)lexer->input[p + digit_offsets[i]]);
+        for (size_t i = 0; ok && i < sizeof(dot_offsets)/sizeof(int); i++)
+            ok = lexer->input[p + dot_offsets[i]] == '.';
+        for (size_t i = 0; ok && i < sizeof(colon_offsets)/sizeof(int); i++)
+            ok = lexer->input[p + colon_offsets[i]] == ':';
+        if (ok) ok = lexer->input[p + 10] == 'T';
+        if (ok) {
+            char value[30];
+            memcpy(value, lexer->input + p, 29);
+            value[29] = '\0';
+            lexer->pos += 29;
+            return token_new(TOKEN_TIMESTAMP, value, false, '\0', start_pos);
+        }
+    }
+
     // Booleans (0b, 1b, or bit patterns like 1010011b)
     if ((isdigit(ch) || (ch == '-' && is_unary_sign_context(lexer->input, lexer->pos) && isdigit(lexer->input[lexer->pos + 1])))) {
         // Look ahead to check if this is a boolean

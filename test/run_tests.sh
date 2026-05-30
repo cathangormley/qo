@@ -288,9 +288,37 @@ test_case "string_vector_type" "type string 11 22 33" "\`list"
 test_case "sum_inline_call" "sum[(1;2;3)]" "6"
 test_case "sum_scalar" "sum 5" "5"
 test_case "keyword_alias_call" "a:sum; a (5;4;3)" "12"
-test_case "now_type" "type now[]" "\`long"
-test_case "now_positive" "now[] > 0" "1b"
-test_case "now_nanosecond_scale" "now[] > 1000000000000000000" "1b"
+test_case "now_type" "type now[]" "\`timestamp"
+test_case "now_positive" "now[] > 2020.01.01T00:00:00.000000000" "1b"
+test_case "timestamp_scalar_parse_print" "2026.05.31T00:11:00.123456789" "2026.05.31T00:11:00.123456789"
+test_case "timestamp_scalar_type" "type 2026.05.31T00:11:00.123456789" "\`timestamp"
+test_case "timestamp_var_roundtrip" "t:2026.05.31T00:11:00.123456789; t" "2026.05.31T00:11:00.123456789"
+test_case "timestamp_epoch" "1970.01.01T00:00:00.000000000" "1970.01.01T00:00:00.000000000"
+test_case "timestamp_leap_day" "2024.02.29T23:59:59.999999999" "2024.02.29T23:59:59.999999999"
+test_case "timestamp_vector_print" \
+    "2026.05.31T00:11:00.000000000 2026.06.01T12:00:00.000000000" \
+    "2026.05.31T00:11:00.000000000 2026.06.01T12:00:00.000000000"
+test_case "timestamp_vector_type" \
+    "type 2026.05.31T00:11:00.000000000 2026.06.01T12:00:00.000000000" \
+    "\`TIMESTAMP"
+test_case "timestamp_vector_count" \
+    "count 2026.05.31T00:11:00.000000000 2026.06.01T12:00:00.000000000 2026.06.02T12:00:00.000000000" \
+    "3"
+test_case "timestamp_equal" \
+    "2026.05.31T00:11:00.123456789 = 2026.05.31T00:11:00.123456789" \
+    "1b"
+test_case "timestamp_less" \
+    "2026.05.31T00:11:00.000000000 < 2026.06.01T12:00:00.000000000" \
+    "1b"
+test_case "timestamp_first" \
+    "first 2026.05.31T00:11:00.000000000 2026.06.01T12:00:00.000000000" \
+    "2026.05.31T00:11:00.000000000"
+test_case "timestamp_first_type" \
+    "type first 2026.05.31T00:11:00.000000000 2026.06.01T12:00:00.000000000" \
+    "\`timestamp"
+test_case "timestamp_string" \
+    "string 2026.05.31T00:11:00.123456789" \
+    "\"2026.05.31T00:11:00.123456789\""
 test_case "empty_brackets_passes_null" "f:{[x] type x}; f[]" "\`null"
 test_case "read_file" "read \"test/read_fixture.txt\"" "\"Hello world!\""
 test_case "read_file_with_at_apply" "read @ \"test/read_fixture.txt\"" "\"Hello world!\""

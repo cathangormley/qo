@@ -503,9 +503,11 @@ static Qo eval_builtin_type(Qo arg, Environment *env) {
         case QO_SHORT:      tag = "short";     break;
         case QO_INT:        tag = "int";       break;
         case QO_LONG:       tag = "long";      break;
+        case QO_TIMESTAMP:  tag = "timestamp"; break;
         case QO_SHORT_VEC:  tag = "SHORT";     break;
         case QO_INT_VEC:    tag = "INT";       break;
         case QO_LONG_VEC:   tag = "LONG";      break;
+        case QO_TIMESTAMP_VEC: tag = "TIMESTAMP"; break;
         case QO_FLOAT:      tag = "float";     break;
         case QO_FLOAT_VEC:  tag = "FLOAT";     break;
         case QO_CHAR:       tag = "char";      break;
@@ -639,6 +641,22 @@ static Qo format_scalar_as_string(Qo q) {
             else n = snprintf(buf, sizeof buf, "%ld", (long)v);
             break;
         }
+        case QO_TIMESTAMP: {
+            int64_t v = qo_timestamp(q);
+            if (v == QO_LONG_NULL) { memcpy(buf, "0N", 2); n = 2; }
+            else {
+                int64_t secs = v / 1000000000LL;
+                int64_t nanos = v % 1000000000LL;
+                if (nanos < 0) { nanos += 1000000000LL; secs--; }
+                time_t tt = (time_t)secs;
+                struct tm tm;
+                gmtime_r(&tt, &tm);
+                n = snprintf(buf, sizeof buf, "%04d.%02d.%02dT%02d:%02d:%02d.%09ld",
+                             tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
+                             tm.tm_hour, tm.tm_min, tm.tm_sec, (long)nanos);
+            }
+            break;
+        }
         case QO_FLOAT: {
             double v = qo_float(q);
             if (isnan(v))      { memcpy(buf, "0N", 2);  n = 2; }
@@ -702,6 +720,7 @@ static Qo eval_builtin_string(Qo arg, Environment *env) {
                 case QO_SHORT_VEC: scalar = make_short_value(qo_short_data(arg)[i]); break;
                 case QO_INT_VEC:   scalar = make_int_value(qo_int_data(arg)[i]);     break;
                 case QO_LONG_VEC:  scalar = make_long_value(qo_long_data(arg)[i]);   break;
+                case QO_TIMESTAMP_VEC: scalar = make_timestamp_value(qo_timestamp_data(arg)[i]); break;
                 case QO_FLOAT_VEC: scalar = make_float_value(qo_float_data(arg)[i]); break;
                 case QO_BOOL_VEC:  scalar = make_bool_value(qo_bool_data(arg)[i]);   break;
                 case QO_BYTE_VEC:  scalar = make_byte_value(qo_byte_data(arg)[i]);   break;
@@ -766,7 +785,7 @@ static Qo eval_builtin_now(Qo arg, Environment *env) {
     (void)arg; (void)env;
     if (timespec_get(&ts, TIME_UTC) != TIME_UTC) EVAL_ERROR("now: failed to read system clock");
     now_ns = (int64_t)ts.tv_sec * 1000000000LL + (int64_t)ts.tv_nsec;
-    return make_long_value(now_ns);
+    return make_timestamp_value(now_ns);
 }
 
 static Qo eval_builtin_read(Qo arg, Environment *env) {

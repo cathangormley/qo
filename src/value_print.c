@@ -4,10 +4,24 @@
 #include <stdarg.h>
 #include <limits.h>
 #include <math.h>
+#include <time.h>
 #include "evaluator_internal.h"
 #include "internal.h"
 
 static void qo_print_internal(Qo q, int depth);
+
+/* Format an int64 number of nanoseconds since unix epoch as YYYY.MM.DDTHH:MM:SS.NNNNNNNNN. */
+static void format_timestamp_ns(int64_t ns, char *out, size_t outlen) {
+    int64_t secs = ns / 1000000000LL;
+    int64_t nanos = ns % 1000000000LL;
+    if (nanos < 0) { nanos += 1000000000LL; secs -= 1; }
+    time_t t = (time_t)secs;
+    struct tm tm;
+    gmtime_r(&t, &tm);
+    snprintf(out, outlen, "%04d.%02d.%02dT%02d:%02d:%02d.%09ld",
+             tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
+             tm.tm_hour, tm.tm_min, tm.tm_sec, (long)nanos);
+}
 static char *qo_print_buffer;
 static size_t qo_print_buffer_len;
 static size_t qo_print_buffer_cap;
@@ -130,6 +144,14 @@ static void qo_print_internal(Qo q, int depth) {
             else qo_printf("%ld", lv);
             break;
         }
+        case QO_TIMESTAMP: {
+            int64_t ns = qo_timestamp(q);
+            if (ns == QO_LONG_NULL) { qo_printf("0Np"); break; }
+            char buf[64];
+            format_timestamp_ns(ns, buf, sizeof buf);
+            qo_printf("%s", buf);
+            break;
+        }
         case QO_FLOAT: {
             double fv = QO_FLOAT_VAL(q);
             if (isnan(fv)) qo_printf("0Nf");
@@ -237,6 +259,19 @@ static void qo_print_internal(Qo q, int depth) {
                 else if (v == QO_LONG_INF) qo_printf("0W");
                 else if (v == QO_LONG_NEGINF) qo_printf("-0W");
                 else qo_printf("%ld", v);
+            }
+            break;
+        }
+        case QO_TIMESTAMP_VEC: {
+            int64_t n = QO_COUNT(q);
+            if (n == 0) { qo_printf("[]"); break; }
+            for (int64_t i = 0; i < n; i++) {
+                if (i > 0) qo_printf(" ");
+                int64_t v = QO_LONG_DATA(q)[i];
+                if (v == QO_LONG_NULL) { qo_printf("0N"); continue; }
+                char buf[64];
+                format_timestamp_ns(v, buf, sizeof buf);
+                qo_printf("%s", buf);
             }
             break;
         }

@@ -48,6 +48,7 @@ static size_t ipc_block_size(Qo q) {
         case QO_SHORT: return 4;
         case QO_INT: return 6;
         case QO_LONG:
+        case QO_TIMESTAMP:
         case QO_FLOAT: return 10;
         case QO_CHAR:
         case QO_BOOL:
@@ -59,6 +60,7 @@ static size_t ipc_block_size(Qo q) {
         case QO_SHORT_VEC: return (size_t)(10 + qo_count(q) * 2);
         case QO_INT_VEC: return (size_t)(10 + qo_count(q) * 4);
         case QO_LONG_VEC:
+        case QO_TIMESTAMP_VEC:
         case QO_FLOAT_VEC: return (size_t)(10 + qo_count(q) * 8);
         case QO_BOOL_VEC:
         case QO_BYTE_VEC: return (size_t)(10 + qo_count(q));
@@ -82,6 +84,7 @@ Qo ipc_serialize(Qo arg) {
         case QO_SHORT: { int16_t v = qo_short(arg); memcpy(out + 2, &v, 2); break; }
         case QO_INT: { int32_t v = qo_int(arg); memcpy(out + 2, &v, 4); break; }
         case QO_LONG:
+        case QO_TIMESTAMP:
         case QO_SYMBOL: {
             int64_t v = (t == QO_SYMBOL) ? qo_symbol_id(arg) : qo_long(arg);
             memcpy(out + 2, &v, 8); break;
@@ -100,6 +103,7 @@ Qo ipc_serialize(Qo arg) {
         case QO_SHORT_VEC:
         case QO_INT_VEC:
         case QO_LONG_VEC:
+        case QO_TIMESTAMP_VEC:
         case QO_FLOAT_VEC:
         case QO_BOOL_VEC:
         case QO_BYTE_VEC:
@@ -120,6 +124,7 @@ static Qo deserialize_scalar(uint8_t t, const uint8_t *data, size_t len) {
         case QO_SHORT: { int16_t v; memcpy(&v, data, 2); return make_short_value(v); }
         case QO_INT: { int32_t v; memcpy(&v, data, 4); return make_int_value(v); }
         case QO_LONG: { int64_t v; memcpy(&v, data, 8); return make_long_value(v); }
+        case QO_TIMESTAMP: { int64_t v; memcpy(&v, data, 8); return make_timestamp_value(v); }
         case QO_FLOAT: { double v; memcpy(&v, data, 8); return make_float_value(v); }
         case QO_CHAR: return make_char_value((char)data[0]);
         case QO_BOOL: return make_bool_value(data[0]);
@@ -153,6 +158,7 @@ Qo ipc_deserialize(const uint8_t *data, size_t len) {
         case QO_SHORT: return (len < 2)  ? NULL : deserialize_scalar(t, data, len);
         case QO_INT:   return (len < 4)  ? NULL : deserialize_scalar(t, data, len);
         case QO_LONG:
+        case QO_TIMESTAMP:
         case QO_FLOAT:
         case QO_SYMBOL: return (len < 8)  ? NULL : deserialize_scalar(t, data, len);
         case QO_CHAR:
@@ -164,6 +170,7 @@ Qo ipc_deserialize(const uint8_t *data, size_t len) {
         case QO_SHORT_VEC:
         case QO_INT_VEC:
         case QO_LONG_VEC:
+        case QO_TIMESTAMP_VEC:
         case QO_FLOAT_VEC:
         case QO_BOOL_VEC:
         case QO_BYTE_VEC:

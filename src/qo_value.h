@@ -46,6 +46,7 @@ typedef QoObject *Qo;
 #define QO_PROJECTOR   0x09
 #define QO_BUILTIN     0x0B
 #define QO_BYTE        0x0A
+#define QO_TIMESTAMP   0x0C
 #define QO_SHORT_VEC   0x11
 #define QO_INT_VEC     0x12
 #define QO_LONG_VEC    0x13
@@ -54,6 +55,7 @@ typedef QoObject *Qo;
 #define QO_BOOL_VEC    0x16
 #define QO_SYM_VEC     0x17
 #define QO_BYTE_VEC    0x18
+#define QO_TIMESTAMP_VEC 0x19
 #define QO_LIST        0x20
 #define QO_DICT        0x21
 #define QO_FUNCTION    0x22
@@ -98,6 +100,14 @@ static inline int32_t qo_int(Qo q) {
 
 static inline int64_t qo_long(Qo q) {
     return q->long_val;
+}
+
+static inline int64_t qo_timestamp(Qo q) {
+    return q->long_val;
+}
+
+static inline int64_t *qo_timestamp_data(Qo q) {
+    return (int64_t *)q->data;
 }
 
 static inline int64_t qo_symbol_id(Qo q) {

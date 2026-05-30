@@ -226,6 +226,59 @@ static Qo parse_expression(Parser *parser);
 static Qo parse_factor(Parser *parser);
 static Qo parse_postfix_calls(Parser *parser, Qo base);
 
+/* Convert "YYYY.MM.DDTHH:MM:SS.NNNNNNNNN" into nanoseconds since unix epoch. */
+static int64_t parse_timestamp_lexeme(const char *s) {
+    int year   = (s[0]-'0')*1000 + (s[1]-'0')*100 + (s[2]-'0')*10 + (s[3]-'0');
+    int month  = (s[5]-'0')*10 + (s[6]-'0');
+    int day    = (s[8]-'0')*10 + (s[9]-'0');
+    int hour   = (s[11]-'0')*10 + (s[12]-'0');
+    int minute = (s[14]-'0')*10 + (s[15]-'0');
+    int second = (s[17]-'0')*10 + (s[18]-'0');
+    int64_t nanos = 0;
+    for (int i = 20; i <= 28; i++) nanos = nanos * 10 + (s[i] - '0');
+
+    /* Days from civil (Howard Hinnant). Treats year/month/day as UTC. */
+    int y = year - (month <= 2);
+    int era = (y >= 0 ? y : y - 399) / 400;
+    unsigned yoe = (unsigned)(y - era * 400);
+    unsigned doy = (153u * (unsigned)(month + (month > 2 ? -3 : 9)) + 2) / 5 + (unsigned)day - 1;
+    unsigned doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    int64_t days = (int64_t)era * 146097 + (int64_t)doe - 719468;
+
+    int64_t secs = days * 86400 + hour * 3600 + minute * 60 + second;
+    return secs * 1000000000LL + nanos;
+}
+
+static Qo parse_timestamp_sequence(Parser *parser, Token *first_token) {
+    int capacity = 16;
+    int count = 0;
+    int64_t *values = xmalloc(sizeof(int64_t) * (size_t)capacity);
+
+    values[count++] = parse_timestamp_lexeme(first_token->lexeme);
+    advance(parser);
+
+    while (1) {
+        Token *next = current_token(parser);
+        if (!next || next->type != TOKEN_TIMESTAMP) break;
+        if (count >= capacity) {
+            capacity *= 2;
+            values = xrealloc(values, sizeof(int64_t) * (size_t)capacity);
+        }
+        values[count++] = parse_timestamp_lexeme(next->lexeme);
+        advance(parser);
+    }
+
+    if (count == 1) {
+        Qo r = make_timestamp_value(values[0]);
+        free(values);
+        return r;
+    }
+    Qo result = alloc_data_vec(QO_TIMESTAMP_VEC, count);
+    memcpy(qo_long_data(result), values, (size_t)count * sizeof(int64_t));
+    free(values);
+    return result;
+}
+
 static Qo parse_symbol_sequence(Parser *parser, Token *first_token) {
     int capacity = 64;
     Qo *values = xmalloc(sizeof(Qo) * (size_t)capacity);
@@ -276,6 +329,7 @@ static int starts_factor(TokenType type) {
     return type == TOKEN_NUMBER ||
            type == TOKEN_BOOLEAN ||
            type == TOKEN_HEX ||
+           type == TOKEN_TIMESTAMP ||
            type == TOKEN_IDENTIFIER ||
            type == TOKEN_SYMBOL ||
            type == TOKEN_STRING ||
@@ -722,6 +776,12 @@ static Qo parse_factor(Parser *parser) {
 
     if (token->type == TOKEN_NUMBER) {
         Qo node = parse_number_sequence(parser, token);
+        if (is_parse_error(node)) return PARSE_ERROR;
+        return parse_postfix_calls(parser, node);
+    }
+
+    if (token->type == TOKEN_TIMESTAMP) {
+        Qo node = parse_timestamp_sequence(parser, token);
         if (is_parse_error(node)) return PARSE_ERROR;
         return parse_postfix_calls(parser, node);
     }

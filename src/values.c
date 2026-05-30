@@ -13,6 +13,7 @@ const TypeInfo type_table[256] = {
     [QO_SHORT]       = {2, SC_I16, TF_SCALAR | TF_NUMERIC | TF_INTEGER, QO_SHORT_VEC},
     [QO_INT]         = {4, SC_I32, TF_SCALAR | TF_NUMERIC | TF_INTEGER, QO_INT_VEC},
     [QO_LONG]        = {8, SC_I64, TF_SCALAR | TF_NUMERIC | TF_INTEGER, QO_LONG_VEC},
+    [QO_TIMESTAMP]   = {8, SC_I64, TF_SCALAR | TF_NUMERIC | TF_INTEGER, QO_TIMESTAMP_VEC},
     [QO_FLOAT]       = {8, SC_F64, TF_SCALAR | TF_NUMERIC,              QO_FLOAT_VEC},
     [QO_CHAR]        = {1, SC_U8,  TF_SCALAR,                           QO_CHAR_VEC},
     [QO_BOOL]        = {1, SC_U8,  TF_SCALAR | TF_NUMERIC,              QO_BOOL_VEC},
@@ -26,6 +27,7 @@ const TypeInfo type_table[256] = {
     [QO_SHORT_VEC]   = {2, SC_I16, TF_VECTOR | TF_NUMERIC | TF_INTEGER, QO_SHORT},
     [QO_INT_VEC]     = {4, SC_I32, TF_VECTOR | TF_NUMERIC | TF_INTEGER, QO_INT},
     [QO_LONG_VEC]    = {8, SC_I64, TF_VECTOR | TF_NUMERIC | TF_INTEGER, QO_LONG},
+    [QO_TIMESTAMP_VEC] = {8, SC_I64, TF_VECTOR | TF_NUMERIC | TF_INTEGER, QO_TIMESTAMP},
     [QO_FLOAT_VEC]   = {8, SC_F64, TF_VECTOR | TF_NUMERIC,              QO_FLOAT},
     [QO_CHAR_VEC]    = {1, SC_U8,  TF_VECTOR,                           QO_CHAR},
     [QO_BOOL_VEC]    = {1, SC_U8,  TF_VECTOR | TF_NUMERIC,              QO_BOOL},
@@ -145,6 +147,10 @@ Qo make_int_value(int32_t value) {
 
 Qo make_long_value(int64_t value) {
     return make_scalar_value(QO_LONG, &value);
+}
+
+Qo make_timestamp_value(int64_t nanos_since_epoch) {
+    return make_scalar_value(QO_TIMESTAMP, &nanos_since_epoch);
 }
 
 Qo make_float_value(double value) {
@@ -371,6 +377,8 @@ int value_equals(Qo a, Qo b) {
             return QO_INT_VAL(a) == QO_INT_VAL(b);
         case QO_LONG:
             return QO_LONG_VAL(a) == QO_LONG_VAL(b);
+        case QO_TIMESTAMP:
+            return qo_timestamp(a) == qo_timestamp(b);
         case QO_FLOAT:
             return QO_FLOAT_VAL(a) == QO_FLOAT_VAL(b);
         case QO_CHAR:
@@ -404,7 +412,8 @@ int value_equals(Qo a, Qo b) {
             if (n != QO_COUNT(b)) return 0;
             return memcmp(QO_INT_DATA(a), QO_INT_DATA(b), (size_t)n * 4) == 0;
         }
-        case QO_LONG_VEC: {
+        case QO_LONG_VEC:
+        case QO_TIMESTAMP_VEC: {
             int64_t n = QO_COUNT(a);
             if (n != QO_COUNT(b)) return 0;
             return memcmp(QO_LONG_DATA(a), QO_LONG_DATA(b), (size_t)n * 8) == 0;
@@ -487,7 +496,9 @@ Qo dict_elem_copy(Qo v, int64_t i) {
     if (!type_has_flag(t, TF_VECTOR)) return qo_clone(v);
     if (type_storage(t) == SC_PTR) return qo_clone(QO_LIST_DATA(v)[i]);
     switch (type_storage(t)) {
-        case SC_I64: return make_long_value(QO_LONG_DATA(v)[i]);
+        case SC_I64:
+            if (t == QO_TIMESTAMP_VEC) return make_timestamp_value(QO_LONG_DATA(v)[i]);
+            return make_long_value(QO_LONG_DATA(v)[i]);
         case SC_I32: return make_int_value(QO_INT_DATA(v)[i]);
         case SC_I16: return make_short_value(QO_SHORT_DATA(v)[i]);
         case SC_F64: return make_float_value(QO_FLOAT_DATA(v)[i]);
