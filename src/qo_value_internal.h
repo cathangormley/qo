@@ -133,3 +133,4 @@ static inline int type_has_flag(uint8_t t, uint8_t f) { return (type_flags(t) & 
 #define QO_BUILTIN_FIND         26
 #define QO_BUILTIN_SEMICOLON    27
 #define QO_BUILTIN_NULL         28
+#define QO_BUILTIN_STRING       29

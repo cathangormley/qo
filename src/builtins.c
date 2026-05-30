@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <math.h>
 #include "evaluator_internal.h"
 #include "internal.h"
 #include "lexer.h"
@@ -45,6 +46,7 @@ int builtin_name_to_id(const char *name) {
     if (strcmp(name, "find") == 0)     return QO_BUILTIN_FIND;
     if (strcmp(name, ";") == 0)        return QO_BUILTIN_SEMICOLON;
     if (strcmp(name, "null") == 0)     return QO_BUILTIN_NULL;
+    if (strcmp(name, "string") == 0)   return QO_BUILTIN_STRING;
     return -1;
 }
 
@@ -79,6 +81,7 @@ const char *builtin_id_to_name(uint8_t id) {
         case QO_BUILTIN_FIND:     return "find";
         case QO_BUILTIN_SEMICOLON:return ";";
         case QO_BUILTIN_NULL:     return "null";
+        case QO_BUILTIN_STRING:   return "string";
         default:                  return NULL;
     }
 }
@@ -599,6 +602,123 @@ static Qo eval_builtin_enlist(Qo *args, int arg_count, Environment *env) {
     }
 }
 
+static Qo make_charvec_from_buf(const char *buf, size_t n) {
+    Qo r = alloc_charlike(QO_CHAR_VEC, (int64_t)n);
+    if (n > 0) memcpy(qo_char_data(r), buf, n);
+    return r;
+}
+
+/* Format a scalar Qo as a q-style string with no type suffix. */
+static Qo format_scalar_as_string(Qo q) {
+    char buf[64];
+    int n = 0;
+    if (q == NULL) return alloc_charlike(QO_CHAR_VEC, 0);
+
+    uint8_t t = qo_type(q);
+    switch (t) {
+        case QO_SHORT: {
+            int16_t v = qo_short(q);
+            if (v == QO_SHORT_NULL) { memcpy(buf, "0N", 2); n = 2; }
+            else n = snprintf(buf, sizeof buf, "%d", (int)v);
+            break;
+        }
+        case QO_INT: {
+            int32_t v = qo_int(q);
+            if (v == QO_INT_NULL)        { memcpy(buf, "0N", 2);  n = 2; }
+            else if (v == QO_INT_INF)    { memcpy(buf, "0W", 2);  n = 2; }
+            else if (v == QO_INT_NEGINF) { memcpy(buf, "-0W", 3); n = 3; }
+            else n = snprintf(buf, sizeof buf, "%d", (int)v);
+            break;
+        }
+        case QO_LONG: {
+            int64_t v = qo_long(q);
+            if (v == QO_LONG_NULL)        { memcpy(buf, "0N", 2);  n = 2; }
+            else if (v == QO_LONG_INF)    { memcpy(buf, "0W", 2);  n = 2; }
+            else if (v == QO_LONG_NEGINF) { memcpy(buf, "-0W", 3); n = 3; }
+            else n = snprintf(buf, sizeof buf, "%ld", (long)v);
+            break;
+        }
+        case QO_FLOAT: {
+            double v = qo_float(q);
+            if (isnan(v))      { memcpy(buf, "0N", 2);  n = 2; }
+            else if (isinf(v)) {
+                if (v > 0) { memcpy(buf, "0W", 2);  n = 2; }
+                else       { memcpy(buf, "-0W", 3); n = 3; }
+            } else n = snprintf(buf, sizeof buf, "%g", v);
+            break;
+        }
+        case QO_CHAR:
+            buf[0] = qo_char(q);
+            n = 1;
+            break;
+        case QO_BOOL:
+            buf[0] = qo_bool(q) ? '1' : '0';
+            n = 1;
+            break;
+        case QO_BYTE:
+            n = snprintf(buf, sizeof buf, "%02x", (unsigned int)qo_byte(q));
+            break;
+        case QO_SYMBOL: {
+            const char *s = qo_symbol_name(q);
+            return make_charvec_from_buf(s, strlen(s));
+        }
+        default:
+            return alloc_charlike(QO_CHAR_VEC, 0);
+    }
+    if (n < 0) n = 0;
+    if ((size_t)n > sizeof buf) n = (int)sizeof buf;
+    return make_charvec_from_buf(buf, (size_t)n);
+}
+
+static Qo eval_builtin_string(Qo arg, Environment *env) {
+    (void)env;
+    if (arg == NULL) return alloc_charlike(QO_CHAR_VEC, 0);
+
+    uint8_t t = qo_type(arg);
+
+    /* Already a string: idempotent */
+    if (t == QO_CHAR_VEC) return qo_clone(arg);
+
+    /* Scalar: produce a single string */
+    if (type_has_flag(t, TF_SCALAR)) {
+        return format_scalar_as_string(arg);
+    }
+
+    /* Mixed list: recurse atomically */
+    if (t == QO_LIST) {
+        int64_t n = qo_count(arg);
+        Qo result = alloc_ptr_vec(QO_LIST, n);
+        for (int64_t i = 0; i < n; i++) {
+            qo_ptr_data(result)[i] = eval_builtin_string(qo_ptr_data(arg)[i], env);
+        }
+        return result;
+    }
+
+    /* Typed vector: build a scalar per element, format, collect into a list */
+    if (type_has_flag(t, TF_VECTOR)) {
+        int64_t n = qo_count(arg);
+        Qo result = alloc_ptr_vec(QO_LIST, n);
+        for (int64_t i = 0; i < n; i++) {
+            Qo scalar = NULL;
+            switch (t) {
+                case QO_SHORT_VEC: scalar = make_short_value(qo_short_data(arg)[i]); break;
+                case QO_INT_VEC:   scalar = make_int_value(qo_int_data(arg)[i]);     break;
+                case QO_LONG_VEC:  scalar = make_long_value(qo_long_data(arg)[i]);   break;
+                case QO_FLOAT_VEC: scalar = make_float_value(qo_float_data(arg)[i]); break;
+                case QO_BOOL_VEC:  scalar = make_bool_value(qo_bool_data(arg)[i]);   break;
+                case QO_BYTE_VEC:  scalar = make_byte_value(qo_byte_data(arg)[i]);   break;
+                case QO_SYM_VEC:   scalar = qo_clone(QO_LIST_DATA(arg)[i]);          break;
+                default: break;
+            }
+            qo_ptr_data(result)[i] = format_scalar_as_string(scalar);
+            qo_release(scalar);
+        }
+        return result;
+    }
+
+    return alloc_charlike(QO_CHAR_VEC, 0);
+}
+
 static Qo eval_builtin_print(Qo arg, Environment *env) {
     (void)env;
     Qo a = arg;
@@ -1082,6 +1202,7 @@ static Qo eval_apply_keyword(Qo head, Qo *arg_values, int arg_count, Environment
                     case QO_BUILTIN_HCLOSE:   return eval_builtin_hclose(arg_values[0], env);
                     case QO_BUILTIN_REFCOUNT: return eval_builtin_refcount(arg_values[0], env);
                     case QO_BUILTIN_NULL:     return eval_builtin_null(arg_values[0], env);
+                    case QO_BUILTIN_STRING:   return eval_builtin_string(arg_values[0], env);
                     default:
                         EVAL_ERROR_FMT("unknown builtin id %d", id);
                 }

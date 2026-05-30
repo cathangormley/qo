@@ -263,6 +263,23 @@ test_case "enlist_projection_type" "type enlist[3;]" "\`projection"
 test_case "enlist_projection_apply" "enlist[3;][5]" "3 5"
 test_case "enlist_projection_first_slot" "enlist[;5][3]" "3 5"
 test_case "enlist_projection_three_args" "enlist[1;;3][2]" "1 2 3"
+test_case "string_long_scalar" "string 123" "\"123\""
+test_case "string_int_scalar" "string 5i" "\"5\""
+test_case "string_short_scalar" "string 7h" "\"7\""
+test_case "string_float_scalar" "string 1.5" "\"1.5\""
+test_case "string_bool_scalar" "string 1b" "\"1\""
+test_case "string_char_scalar" "string \"a\"" "\"a\""
+test_case "string_symbol" "string \`foo" "\"foo\""
+test_case "string_charvec_idempotent" "string \"hello\"" "\"hello\""
+test_case "string_null_long" "string 0N" "\"0N\""
+test_case "string_inf_long" "string 0W" "\"0W\""
+test_case_multiline "string_long_vector" "string 11 22 33" $'"11"\n"22"\n"33"'
+test_case_multiline "string_int_vector" "string 1 2 3i" $'"1"\n"2"\n"3"'
+test_case_multiline "string_float_vector" "string 1.5 2.5 3.5" $'"1.5"\n"2.5"\n"3.5"'
+test_case_multiline "string_sym_vector" "string \`a\`b\`c" $'"a"\n"b"\n"c"'
+test_case_multiline "string_mixed_list" "string (1;2.5;\`a)" $'"1"\n"2.5"\n"a"'
+test_case "string_scalar_type" "type string 123" "\`CHAR"
+test_case "string_vector_type" "type string 11 22 33" "\`list"
 test_case "sum_inline_call" "sum[(1;2;3)]" "6"
 test_case "sum_scalar" "sum 5" "5"
 test_case "keyword_alias_call" "a:sum; a (5;4;3)" "12"
