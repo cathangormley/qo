@@ -676,9 +676,6 @@ static Qo eval_builtin_string(Qo arg, Environment *env) {
 
     uint8_t t = qo_type(arg);
 
-    /* Already a string: idempotent */
-    if (t == QO_CHAR_VEC) return qo_clone(arg);
-
     /* Scalar: produce a single string */
     if (type_has_flag(t, TF_SCALAR)) {
         return format_scalar_as_string(arg);
@@ -707,6 +704,7 @@ static Qo eval_builtin_string(Qo arg, Environment *env) {
                 case QO_FLOAT_VEC: scalar = make_float_value(qo_float_data(arg)[i]); break;
                 case QO_BOOL_VEC:  scalar = make_bool_value(qo_bool_data(arg)[i]);   break;
                 case QO_BYTE_VEC:  scalar = make_byte_value(qo_byte_data(arg)[i]);   break;
+                case QO_CHAR_VEC:  scalar = make_char_value(qo_char_data(arg)[i]);   break;
                 case QO_SYM_VEC:   scalar = qo_clone(QO_LIST_DATA(arg)[i]);          break;
                 default: break;
             }

@@ -270,7 +270,12 @@ test_case "string_float_scalar" "string 1.5" "\"1.5\""
 test_case "string_bool_scalar" "string 1b" "\"1\""
 test_case "string_char_scalar" "string \"a\"" "\"a\""
 test_case "string_symbol" "string \`foo" "\"foo\""
-test_case "string_charvec_idempotent" "string \"hello\"" "\"hello\""
+test_case_multiline "string_charvec_atomic" "string \"hello\"" $'"h"\n"e"\n"l"\n"l"\n"o"'
+test_case_multiline "string_charvec_two_chars" "string \"ab\"" $'"a"\n"b"'
+test_case "string_charvec_type" "type string \"hello\"" "\`list"
+test_case "string_empty_charvec_type" "type string \"\"" "\`list"
+test_case "string_empty_charvec_count" "count string \"\"" "0"
+test_case "string_charvec_count" "count string \"hello\"" "5"
 test_case "string_null_long" "string 0N" "\"0N\""
 test_case "string_inf_long" "string 0W" "\"0W\""
 test_case_multiline "string_long_vector" "string 11 22 33" $'"11"\n"22"\n"33"'
