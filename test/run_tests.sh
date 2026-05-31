@@ -331,6 +331,25 @@ test_case "timestamp_partial_equals_full" \
 test_case "timestamp_date_only_equals_midnight" \
     "2026.01.01T = 2026.01.01T00:00:00.000000000" "1b"
 test_case "timestamp_date_only_type" "type 2026.01.01T" "\`timestamp"
+test_case "timestamp_plus_long_type"        "type 2026.01.01T + 1"          "\`timestamp"
+test_case "timestamp_plus_long_value"       "2026.01.01T + 1000000000"      "2026.01.01T00:00:01.000000000"
+test_case "timestamp_minus_long_value"      "2026.01.01T - 1000000000"      "2025.12.31T23:59:59.000000000"
+test_case "long_plus_timestamp_type"        "type 1 + 2026.01.01T"          "\`timestamp"
+test_case "timestamp_plus_int_type"         "type 2026.01.01T + 1i"         "\`timestamp"
+test_case "timestamp_plus_short_type"       "type 2026.01.01T + 1h"         "\`timestamp"
+test_case "timestamp_times_long_type"       "type 2026.01.01T * 2"          "\`timestamp"
+test_case "timestamp_plus_long_vector_type" "type 2026.01.01T + 1 2 3"      "\`TIMESTAMP"
+test_case "timestamp_vector_plus_long_type" \
+    "type 2026.01.01T 2026.01.02T + 1" "\`TIMESTAMP"
+test_case "timestamp_vector_plus_long_vector_type" \
+    "type 2026.01.01T 2026.01.02T + 1 2" "\`TIMESTAMP"
+test_case "timestamp_vector_plus_long_vector_value" \
+    "2026.01.01T 2026.01.02T + 1 2" \
+    "2026.01.01T00:00:00.000000001 2026.01.02T00:00:00.000000002"
+test_case "timestamp_vector_minus_short_type" \
+    "type 2026.01.01T 2026.01.02T - 1h" "\`TIMESTAMP"
+test_case "timestamp_roundtrip_add_subtract" \
+    "a:2026.05.31T00:11:00.123456789; b:(a + 5) - 5; a = b" "1b"
 test_case "empty_brackets_passes_null" "f:{[x] type x}; f[]" "\`null"
 test_case "read_file" "read \"test/read_fixture.txt\"" "\"Hello world!\""
 test_case "read_file_with_at_apply" "read @ \"test/read_fixture.txt\"" "\"Hello world!\""
