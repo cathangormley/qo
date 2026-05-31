@@ -226,16 +226,26 @@ static Qo parse_expression(Parser *parser);
 static Qo parse_factor(Parser *parser);
 static Qo parse_postfix_calls(Parser *parser, Qo base);
 
-/* Convert "YYYY.MM.DDTHH:MM:SS.NNNNNNNNN" into nanoseconds since unix epoch. */
+/* Convert a timestamp lexeme into nanoseconds since unix epoch.
+   The required prefix is "YYYY.MM.DDT"; HH, :MM, :SS, and .<1..9 frac digits>
+   are optional and default to zero. */
 static int64_t parse_timestamp_lexeme(const char *s) {
     int year   = (s[0]-'0')*1000 + (s[1]-'0')*100 + (s[2]-'0')*10 + (s[3]-'0');
     int month  = (s[5]-'0')*10 + (s[6]-'0');
     int day    = (s[8]-'0')*10 + (s[9]-'0');
-    int hour   = (s[11]-'0')*10 + (s[12]-'0');
-    int minute = (s[14]-'0')*10 + (s[15]-'0');
-    int second = (s[17]-'0')*10 + (s[18]-'0');
+    int hour   = 0, minute = 0, second = 0;
     int64_t nanos = 0;
-    for (int i = 20; i <= 28; i++) nanos = nanos * 10 + (s[i] - '0');
+
+    size_t len = strlen(s);
+    if (len >= 13) hour   = (s[11]-'0')*10 + (s[12]-'0');
+    if (len >= 16) minute = (s[14]-'0')*10 + (s[15]-'0');
+    if (len >= 19) second = (s[17]-'0')*10 + (s[18]-'0');
+    if (len >= 21) {
+        int digits = (int)len - 20;          /* count of fractional digits present */
+        if (digits > 9) digits = 9;
+        for (int i = 0; i < digits; i++) nanos = nanos * 10 + (s[20 + i] - '0');
+        for (int i = digits; i < 9; i++) nanos *= 10;     /* pad to nanoseconds */
+    }
 
     /* Days from civil (Howard Hinnant). Treats year/month/day as UTC. */
     int y = year - (month <= 2);

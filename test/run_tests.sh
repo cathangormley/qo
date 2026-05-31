@@ -319,6 +319,18 @@ test_case "timestamp_first_type" \
 test_case "timestamp_string" \
     "string 2026.05.31T00:11:00.123456789" \
     "\"2026.05.31T00:11:00.123456789\""
+test_case "timestamp_date_only"          "2026.01.01T"             "2026.01.01T00:00:00.000000000"
+test_case "timestamp_with_hour"          "2026.01.01T01"           "2026.01.01T01:00:00.000000000"
+test_case "timestamp_with_minute"        "2026.01.01T01:02"        "2026.01.01T01:02:00.000000000"
+test_case "timestamp_with_second"        "2026.01.01T01:02:03"     "2026.01.01T01:02:03.000000000"
+test_case "timestamp_with_one_frac"      "2026.01.01T01:02:03.4"   "2026.01.01T01:02:03.400000000"
+test_case "timestamp_with_three_frac"    "2026.01.01T01:02:03.123" "2026.01.01T01:02:03.123000000"
+test_case "timestamp_with_full_frac"     "2026.01.01T01:02:03.123456789" "2026.01.01T01:02:03.123456789"
+test_case "timestamp_partial_equals_full" \
+    "2026.01.01T01:02:03.4 = 2026.01.01T01:02:03.400000000" "1b"
+test_case "timestamp_date_only_equals_midnight" \
+    "2026.01.01T = 2026.01.01T00:00:00.000000000" "1b"
+test_case "timestamp_date_only_type" "type 2026.01.01T" "\`timestamp"
 test_case "empty_brackets_passes_null" "f:{[x] type x}; f[]" "\`null"
 test_case "read_file" "read \"test/read_fixture.txt\"" "\"Hello world!\""
 test_case "read_file_with_at_apply" "read @ \"test/read_fixture.txt\"" "\"Hello world!\""

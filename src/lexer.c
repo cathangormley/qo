@@ -180,26 +180,46 @@ Token* lexer_next_token(Lexer *lexer) {
         return t;
     }
 
-    // Timestamp literal: YYYY.MM.DDTHH:MM:SS.NNNNNNNNN (fixed 29 chars)
+    /* Timestamp literal: required prefix YYYY.MM.DDT, then optional
+       HH, :MM, :SS, .<1..9 fractional digits> appended greedily. */
     if (isdigit((unsigned char)ch)) {
+        const char *in = lexer->input;
         int p = lexer->pos;
-        int ok = 1;
-        const int digit_offsets[] = {0,1,2,3, 5,6, 8,9, 11,12, 14,15, 17,18, 20,21,22,23,24,25,26,27,28};
-        const int dot_offsets[]   = {4, 7, 19};
-        const int colon_offsets[] = {13, 16};
-        for (size_t i = 0; ok && i < sizeof(digit_offsets)/sizeof(int); i++)
-            ok = isdigit((unsigned char)lexer->input[p + digit_offsets[i]]);
-        for (size_t i = 0; ok && i < sizeof(dot_offsets)/sizeof(int); i++)
-            ok = lexer->input[p + dot_offsets[i]] == '.';
-        for (size_t i = 0; ok && i < sizeof(colon_offsets)/sizeof(int); i++)
-            ok = lexer->input[p + colon_offsets[i]] == ':';
-        if (ok) ok = lexer->input[p + 10] == 'T';
-        if (ok) {
-            char value[30];
-            memcpy(value, lexer->input + p, 29);
-            value[29] = '\0';
-            lexer->pos += 29;
-            return token_new(TOKEN_TIMESTAMP, value, false, '\0', start_pos);
+        int prefix_ok =
+            isdigit((unsigned char)in[p+0]) && isdigit((unsigned char)in[p+1]) &&
+            isdigit((unsigned char)in[p+2]) && isdigit((unsigned char)in[p+3]) &&
+            in[p+4] == '.' &&
+            isdigit((unsigned char)in[p+5]) && isdigit((unsigned char)in[p+6]) &&
+            in[p+7] == '.' &&
+            isdigit((unsigned char)in[p+8]) && isdigit((unsigned char)in[p+9]) &&
+            in[p+10] == 'T';
+        if (prefix_ok) {
+            int end = p + 11;  /* past the 'T' */
+            if (isdigit((unsigned char)in[end]) && isdigit((unsigned char)in[end+1])) {
+                end += 2;                                                     /* HH */
+                if (in[end] == ':' &&
+                    isdigit((unsigned char)in[end+1]) && isdigit((unsigned char)in[end+2])) {
+                    end += 3;                                                 /* :MM */
+                    if (in[end] == ':' &&
+                        isdigit((unsigned char)in[end+1]) && isdigit((unsigned char)in[end+2])) {
+                        end += 3;                                             /* :SS */
+                        if (in[end] == '.' && isdigit((unsigned char)in[end+1])) {
+                            int frac = end + 1;
+                            int digits = 0;
+                            while (digits < 9 && isdigit((unsigned char)in[frac + digits])) digits++;
+                            end = frac + digits;                              /* .<1..9 digits> */
+                        }
+                    }
+                }
+            }
+            int len = end - p;
+            char *value = xmalloc((size_t)len + 1);
+            memcpy(value, in + p, (size_t)len);
+            value[len] = '\0';
+            lexer->pos = end;
+            Token *t = token_new(TOKEN_TIMESTAMP, value, false, '\0', start_pos);
+            free(value);
+            return t;
         }
     }
 
