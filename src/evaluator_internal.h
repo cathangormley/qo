@@ -30,6 +30,7 @@ Qo make_short_value(int16_t value);
 Qo make_int_value(int32_t value);
 Qo make_long_value(int64_t value);
 Qo make_timestamp_value(int64_t nanos_since_epoch);
+Qo make_timespan_value(int64_t nanos);
 Qo make_float_value(double value);
 Qo make_char_value(char c);
 Qo make_bool_value(int v);

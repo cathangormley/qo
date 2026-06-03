@@ -22,6 +22,24 @@ static void format_timestamp_ns(int64_t ns, char *out, size_t outlen) {
              tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
              tm.tm_hour, tm.tm_min, tm.tm_sec, (long)nanos);
 }
+
+static void format_timespan_ns(int64_t ns, char *out, size_t outlen) {
+    int neg = (ns < 0);
+    if (neg) ns = -ns;
+    int64_t days = ns / 86400000000000LL;
+    int64_t rem = ns % 86400000000000LL;
+    int64_t hours = rem / 3600000000000LL;
+    rem %= 3600000000000LL;
+    int64_t minutes = rem / 60000000000LL;
+    rem %= 60000000000LL;
+    int64_t seconds = rem / 1000000000LL;
+    int64_t nanos = rem % 1000000000LL;
+    if (neg)
+        snprintf(out, outlen, "-%ldT%02ld:%02ld:%02ld.%09ld", days, hours, minutes, seconds, nanos);
+    else
+        snprintf(out, outlen, "%ldT%02ld:%02ld:%02ld.%09ld", days, hours, minutes, seconds, nanos);
+}
+
 static char *qo_print_buffer;
 static size_t qo_print_buffer_len;
 static size_t qo_print_buffer_cap;
@@ -152,6 +170,14 @@ static void qo_print_internal(Qo q, int depth) {
             qo_printf("%s", buf);
             break;
         }
+        case QO_TIMESPAN: {
+            int64_t ns = qo_timespan(q);
+            if (ns == QO_LONG_NULL) { qo_printf("0N"); break; }
+            char buf[64];
+            format_timespan_ns(ns, buf, sizeof buf);
+            qo_printf("%s", buf);
+            break;
+        }
         case QO_FLOAT: {
             double fv = QO_FLOAT_VAL(q);
             if (isnan(fv)) qo_printf("0Nf");
@@ -271,6 +297,19 @@ static void qo_print_internal(Qo q, int depth) {
                 if (v == QO_LONG_NULL) { qo_printf("0N"); continue; }
                 char buf[64];
                 format_timestamp_ns(v, buf, sizeof buf);
+                qo_printf("%s", buf);
+            }
+            break;
+        }
+        case QO_TIMESPAN_VEC: {
+            int64_t n = QO_COUNT(q);
+            if (n == 0) { qo_printf("[]"); break; }
+            for (int64_t i = 0; i < n; i++) {
+                if (i > 0) qo_printf(" ");
+                int64_t v = QO_LONG_DATA(q)[i];
+                if (v == QO_LONG_NULL) { qo_printf("0N"); continue; }
+                char buf[64];
+                format_timespan_ns(v, buf, sizeof buf);
                 qo_printf("%s", buf);
             }
             break;

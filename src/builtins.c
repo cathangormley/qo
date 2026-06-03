@@ -285,14 +285,16 @@ static Qo eval_builtin_null(Qo arg, Environment *env) {
             return make_bool_value(qo_int(arg) == QO_INT_NULL);
         case QO_LONG:
             return make_bool_value(qo_long(arg) == QO_LONG_NULL);
+        case QO_TIMESPAN:
+            return make_bool_value(qo_timespan(arg) == QO_LONG_NULL);
         case QO_FLOAT:
             return make_bool_value(isnan(qo_float(arg)));
 
         case QO_SHORT_VEC:
         case QO_INT_VEC:
         case QO_LONG_VEC:
+        case QO_TIMESPAN_VEC:
         case QO_FLOAT_VEC:
-        case QO_BOOL_VEC:
         case QO_BYTE_VEC:
         case QO_CHAR_VEC:
         case QO_SYM_VEC: {
@@ -504,10 +506,12 @@ static Qo eval_builtin_type(Qo arg, Environment *env) {
         case QO_INT:        tag = "int";       break;
         case QO_LONG:       tag = "long";      break;
         case QO_TIMESTAMP:  tag = "timestamp"; break;
+        case QO_TIMESPAN:   tag = "timespan";  break;
         case QO_SHORT_VEC:  tag = "SHORT";     break;
         case QO_INT_VEC:    tag = "INT";       break;
         case QO_LONG_VEC:   tag = "LONG";      break;
         case QO_TIMESTAMP_VEC: tag = "TIMESTAMP"; break;
+        case QO_TIMESPAN_VEC:  tag = "TIMESPAN";  break;
         case QO_FLOAT:      tag = "float";     break;
         case QO_FLOAT_VEC:  tag = "FLOAT";     break;
         case QO_CHAR:       tag = "char";      break;
@@ -657,6 +661,27 @@ static Qo format_scalar_as_string(Qo q) {
             }
             break;
         }
+        case QO_TIMESPAN: {
+            int64_t v = qo_timespan(q);
+            if (v == QO_LONG_NULL) { memcpy(buf, "0N", 2); n = 2; }
+            else {
+                int neg = (v < 0);
+                if (neg) v = -v;
+                int64_t days = v / 86400000000000LL;
+                int64_t rem = v % 86400000000000LL;
+                int64_t hours = rem / 3600000000000LL;
+                rem %= 3600000000000LL;
+                int64_t minutes = rem / 60000000000LL;
+                rem %= 60000000000LL;
+                int64_t secs = rem / 1000000000LL;
+                int64_t nanos = rem % 1000000000LL;
+                if (neg)
+                    n = snprintf(buf, sizeof buf, "-%ldT%02ld:%02ld:%02ld.%09ld", days, hours, minutes, secs, nanos);
+                else
+                    n = snprintf(buf, sizeof buf, "%ldT%02ld:%02ld:%02ld.%09ld", days, hours, minutes, secs, nanos);
+            }
+            break;
+        }
         case QO_FLOAT: {
             double v = qo_float(q);
             if (isnan(v))      { memcpy(buf, "0N", 2);  n = 2; }
@@ -721,6 +746,7 @@ static Qo eval_builtin_string(Qo arg, Environment *env) {
                 case QO_INT_VEC:   scalar = make_int_value(qo_int_data(arg)[i]);     break;
                 case QO_LONG_VEC:  scalar = make_long_value(qo_long_data(arg)[i]);   break;
                 case QO_TIMESTAMP_VEC: scalar = make_timestamp_value(qo_timestamp_data(arg)[i]); break;
+                case QO_TIMESPAN_VEC: scalar = make_timespan_value(qo_timespan_data(arg)[i]); break;
                 case QO_FLOAT_VEC: scalar = make_float_value(qo_float_data(arg)[i]); break;
                 case QO_BOOL_VEC:  scalar = make_bool_value(qo_bool_data(arg)[i]);   break;
                 case QO_BYTE_VEC:  scalar = make_byte_value(qo_byte_data(arg)[i]);   break;
@@ -932,14 +958,15 @@ static Qo null_for_vector_type(uint8_t vec_type) {
 /* ── $ cast operator ──────────────────────────────────────────────────────── */
 
 static const struct { const char *name; uint8_t type; } cast_type_names[] = {
-    {"short",  QO_SHORT},
-    {"int",    QO_INT},
-    {"long",   QO_LONG},
-    {"float",  QO_FLOAT},
-    {"char",   QO_CHAR},
-    {"bool",   QO_BOOL},
-    {"byte",   QO_BYTE},
-    {"symbol", QO_SYMBOL},
+    {"short",    QO_SHORT},
+    {"int",      QO_INT},
+    {"long",     QO_LONG},
+    {"float",    QO_FLOAT},
+    {"char",     QO_CHAR},
+    {"bool",     QO_BOOL},
+    {"byte",     QO_BYTE},
+    {"symbol",   QO_SYMBOL},
+    {"timespan", QO_TIMESPAN},
 };
 
 static int64_t scalar_as_int64(Qo v) {
@@ -981,6 +1008,7 @@ static uint8_t vec_type_for_scalar(uint8_t st) {
 }
 
 static Qo make_scalar_from_int64(uint8_t tt, int64_t i) {
+    if (tt == QO_TIMESPAN) return make_timespan_value(i);
     switch (type_storage(tt)) {
         case SC_I16: return make_short_value((int16_t)i);
         case SC_I32: return make_int_value((int32_t)i);
@@ -1070,6 +1098,7 @@ static Qo eval_cast(Qo type_sym, Qo value, Environment *env) {
         if (vt == st) return qo_clone(value);
 
         VEC_CAST(QO_LONG_VEC,  alloc_data_vec, qo_long_data,  int64_t, vec_elem_as_int64(value, i))
+        VEC_CAST(QO_TIMESPAN_VEC, alloc_data_vec, qo_long_data, int64_t, vec_elem_as_int64(value, i))
         VEC_CAST(QO_INT_VEC,   alloc_data_vec, qo_int_data,   int32_t, (int32_t)vec_elem_as_int64(value, i))
         VEC_CAST(QO_SHORT_VEC, alloc_data_vec, qo_short_data, int16_t, (int16_t)vec_elem_as_int64(value, i))
         VEC_CAST(QO_FLOAT_VEC, alloc_data_vec, qo_float_data, double,  vec_elem_as_double(value, i))

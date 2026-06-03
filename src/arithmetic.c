@@ -56,6 +56,7 @@ static void store_int_vec_elem(Qo v, int64_t i, int64_t value) {
 
 static Qo make_int_scalar_of_type(uint8_t t, int64_t value) {
     if (t == QO_TIMESTAMP) return make_timestamp_value(value);
+    if (t == QO_TIMESPAN) return make_timespan_value(value);
     switch (type_storage(t)) {
         case SC_I16: return make_short_value((int16_t)value);
         case SC_I32: return make_int_value((int32_t)value);
@@ -69,6 +70,14 @@ static int has_timestamp_operand(Qo left, Qo right) {
     uint8_t rt = QO_TYPE(right);
     return lt == QO_TIMESTAMP || lt == QO_TIMESTAMP_VEC
         || rt == QO_TIMESTAMP || rt == QO_TIMESTAMP_VEC;
+}
+
+/* True when an operand is a timespan scalar or vector. */
+static int has_timespan_operand(Qo left, Qo right) {
+    uint8_t lt = QO_TYPE(left);
+    uint8_t rt = QO_TYPE(right);
+    return lt == QO_TIMESPAN || lt == QO_TIMESPAN_VEC
+        || rt == QO_TIMESPAN || rt == QO_TIMESPAN_VEC;
 }
 
 static Qo make_numeric_result(double value, int use_float) {
@@ -662,7 +671,8 @@ static void int_vec_binop_same_type(Qo result, Qo left, Qo right, TokenType op) 
         return;
     }
     case QO_LONG_VEC:
-    case QO_TIMESTAMP_VEC: {
+    case QO_TIMESTAMP_VEC:
+    case QO_TIMESPAN_VEC: {
         int64_t * __restrict__ ld = qo_long_data(left);
         int64_t * __restrict__ rs = qo_long_data(right);
         int64_t * __restrict__ rd = qo_long_data(result);
@@ -693,7 +703,12 @@ static void execute_int_vector_kernel_scalar(Qo result,
 static Qo execute_exact_int_scalar_binop(Qo left, Qo right, TokenType op) {
     uint8_t out_type = QO_LONG;
     if (has_timestamp_operand(left, right)) {
-        out_type = QO_TIMESTAMP;
+        out_type = (op == TOKEN_MINUS
+                    && qo_type(left) == QO_TIMESTAMP
+                    && qo_type(right) == QO_TIMESTAMP)
+                   ? QO_TIMESPAN : QO_TIMESTAMP;
+    } else if (has_timespan_operand(left, right)) {
+        out_type = QO_TIMESPAN;
     } else if (op == TOKEN_PLUS || op == TOKEN_MINUS) {
         int rank = int_rank_from_type(QO_TYPE(left));
         int r_rank = int_rank_from_type(QO_TYPE(right));
@@ -727,7 +742,15 @@ static Qo execute_int_vector_binop(Qo left, Qo right, TokenType op) {
     }
 
     if (has_timestamp_operand(left, right)) {
-        out_type = QO_TIMESTAMP_VEC;
+        if (op == TOKEN_MINUS
+            && (QO_TYPE(left) == QO_TIMESTAMP || QO_TYPE(left) == QO_TIMESTAMP_VEC)
+            && (QO_TYPE(right) == QO_TIMESTAMP || QO_TYPE(right) == QO_TIMESTAMP_VEC)) {
+            out_type = QO_TIMESPAN_VEC;
+        } else {
+            out_type = QO_TIMESTAMP_VEC;
+        }
+    } else if (has_timespan_operand(left, right)) {
+        out_type = QO_TIMESPAN_VEC;
     } else if (op == TOKEN_PLUS || op == TOKEN_MINUS) {
         int rank = int_rank_from_type(QO_TYPE(left));
         int r_rank = int_rank_from_type(QO_TYPE(right));

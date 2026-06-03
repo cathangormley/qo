@@ -221,6 +221,40 @@ Token* lexer_next_token(Lexer *lexer) {
             free(value);
             return t;
         }
+
+        /* Timespan literal: <digits>T, then optional HH:MM:SS.FFF. */
+        {
+            int ts_digits = 0;
+            while (isdigit((unsigned char)in[p + ts_digits])) ts_digits++;
+            if (ts_digits > 0 && in[p + ts_digits] == 'T') {
+                int end = p + ts_digits + 1;          /* past the 'T' */
+                if (isdigit((unsigned char)in[end]) && isdigit((unsigned char)in[end+1])) {
+                    end += 2;                         /* HH */
+                    if (in[end] == ':' &&
+                        isdigit((unsigned char)in[end+1]) && isdigit((unsigned char)in[end+2])) {
+                        end += 3;                     /* :MM */
+                        if (in[end] == ':' &&
+                            isdigit((unsigned char)in[end+1]) && isdigit((unsigned char)in[end+2])) {
+                            end += 3;                 /* :SS */
+                            if (in[end] == '.' && isdigit((unsigned char)in[end+1])) {
+                                int frac = end + 1;
+                                int digits = 0;
+                                while (digits < 9 && isdigit((unsigned char)in[frac + digits])) digits++;
+                                end = frac + digits;  /* .<1..9 digits> */
+                            }
+                        }
+                    }
+                }
+                int len = end - p;
+                char *value = xmalloc((size_t)len + 1);
+                memcpy(value, in + p, (size_t)len);
+                value[len] = '\0';
+                lexer->pos = end;
+                Token *t = token_new(TOKEN_TIMESPAN, value, false, '\0', start_pos);
+                free(value);
+                return t;
+            }
+        }
     }
 
     // Booleans (0b, 1b, or bit patterns like 1010011b)

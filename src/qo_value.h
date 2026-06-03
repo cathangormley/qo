@@ -47,6 +47,7 @@ typedef QoObject *Qo;
 #define QO_BUILTIN     0x0B
 #define QO_BYTE        0x0A
 #define QO_TIMESTAMP   0x0C
+#define QO_TIMESPAN    0x0D
 #define QO_SHORT_VEC   0x11
 #define QO_INT_VEC     0x12
 #define QO_LONG_VEC    0x13
@@ -56,6 +57,7 @@ typedef QoObject *Qo;
 #define QO_SYM_VEC     0x17
 #define QO_BYTE_VEC    0x18
 #define QO_TIMESTAMP_VEC 0x19
+#define QO_TIMESPAN_VEC  0x1A
 #define QO_LIST        0x20
 #define QO_DICT        0x21
 #define QO_FUNCTION    0x22
@@ -107,6 +109,14 @@ static inline int64_t qo_timestamp(Qo q) {
 }
 
 static inline int64_t *qo_timestamp_data(Qo q) {
+    return (int64_t *)q->data;
+}
+
+static inline int64_t qo_timespan(Qo q) {
+    return q->long_val;
+}
+
+static inline int64_t *qo_timespan_data(Qo q) {
     return (int64_t *)q->data;
 }
 

@@ -350,6 +350,63 @@ test_case "timestamp_vector_minus_short_type" \
     "type 2026.01.01T 2026.01.02T - 1h" "\`TIMESTAMP"
 test_case "timestamp_roundtrip_add_subtract" \
     "a:2026.05.31T00:11:00.123456789; b:(a + 5) - 5; a = b" "1b"
+
+# timespan tests
+test_case "timespan_full_format"       "1T00:01:00.000000000"              "1T00:01:00.000000000"
+test_case "timespan_type"              "type 1T00:01:00.000000000"         "\`timespan"
+test_case "timespan_var_roundtrip"     "t:1T00:01:00.000000000; t"         "1T00:01:00.000000000"
+test_case "timespan_zero"              "0T"                                "0T00:00:00.000000000"
+test_case "timespan_multi_day"         "365T00:00:00.000000000"            "365T00:00:00.000000000"
+test_case "timespan_vector_print" \
+    "1T 2T" "1T00:00:00.000000000 2T00:00:00.000000000"
+test_case "timespan_vector_type" \
+    "type 1T 2T" "\`TIMESPAN"
+test_case "timespan_vector_count" \
+    "count 1T 2T 3T" "3"
+test_case "timespan_equal"             "1T00:01:00.000000000 = 1T00:01:00.000000000" "1b"
+test_case "timespan_not_equal"         "1T = 2T"                              "0b"
+test_case "timespan_less"              "1T < 2T"                              "1b"
+test_case "timespan_greater"           "2T > 1T"                              "1b"
+test_case "timespan_first" \
+    "first 1T 2T" "1T00:00:00.000000000"
+test_case "timespan_first_type" \
+    "type first 1T 2T" "\`timespan"
+test_case "timespan_string" \
+    "string 1T00:01:00.000000000"  "\"1T00:01:00.000000000\""
+test_case "timespan_date_only"         "1T"                   "1T00:00:00.000000000"
+test_case "timespan_with_hour"         "1T01"                 "1T01:00:00.000000000"
+test_case "timespan_with_minute"       "1T01:02"              "1T01:02:00.000000000"
+test_case "timespan_with_second"       "1T01:02:03"           "1T01:02:03.000000000"
+test_case "timespan_with_one_frac"     "1T01:02:03.4"         "1T01:02:03.400000000"
+test_case "timespan_with_full_frac"    "1T01:02:03.123456789" "1T01:02:03.123456789"
+test_case "timespan_partial_equals_full" \
+    "1T01:02 = 1T01:02:00.000000000" "1b"
+test_case "timespan_plus_long_type"    "type 1T + 1"           "\`timespan"
+test_case "timespan_plus_long_value"   "1T + 1000000000"       "1T00:00:01.000000000"
+test_case "timespan_minus_long_value"  "1T - 1000000000"       "0T23:59:59.000000000"
+test_case "long_plus_timespan_type"    "type 1 + 1T"           "\`timespan"
+test_case "timespan_plus_int_type"     "type 1T + 1i"          "\`timespan"
+test_case "timespan_plus_short_type"   "type 1T + 1h"          "\`timespan"
+test_case "timespan_times_long_type"   "type 1T00:01:00 * 2"   "\`timespan"
+test_case "timespan_times_long_value"  "2T * 3"                "6T00:00:00.000000000"
+test_case "timespan_plus_long_vector_type" \
+    "type 1T + 1 2 3" "\`TIMESPAN"
+test_case "timespan_vector_plus_long_type" \
+    "type 1T 2T + 1" "\`TIMESPAN"
+test_case "timespan_vector_plus_long_vector_type" \
+    "type 1T 2T + 1 2" "\`TIMESPAN"
+test_case "timespan_vector_plus_long_vector_value" \
+    "1T 2T + 1 2" "1T00:00:00.000000001 2T00:00:00.000000002"
+test_case "timespan_vector_minus_short_type" \
+    "type 1T 2T - 1h" "\`TIMESPAN"
+test_case "timespan_roundtrip_add_subtract" \
+    "a:1T00:01:00.000000001; b:(a + 5) - 5; a = b" "1b"
+test_case "timespan_null" "null 0T" "0b"
+test_case "timespan_ser_deser" "deser ser 1T00:01:00" "1T00:01:00.000000000"
+test_case "timespan_cast_to_timespan" "\$[\`timespan; 5]" "0T00:00:00.000000005"
+test_case "timespan_cast_from_long" "\$[\`long; 1T]" "86400000000000"
+test_case "timespan_first_of_vector" "first 1T 2T 3T" "1T00:00:00.000000000"
+
 test_case "empty_brackets_passes_null" "f:{[x] type x}; f[]" "\`null"
 test_case "read_file" "read \"test/read_fixture.txt\"" "\"Hello world!\""
 test_case "read_file_with_at_apply" "read @ \"test/read_fixture.txt\"" "\"Hello world!\""

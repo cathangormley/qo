@@ -226,6 +226,27 @@ static Qo parse_expression(Parser *parser);
 static Qo parse_factor(Parser *parser);
 static Qo parse_postfix_calls(Parser *parser, Qo base);
 
+/* Parse HH, :MM, :SS, and .<1..9 frac digits> starting at s[pos].
+   Fields not present default to zero. */
+static void parse_hms_nanos(const char *s, size_t pos, size_t len,
+                            int *hour, int *minute, int *second, int64_t *nanos) {
+    if (len > pos) {
+        *hour = (s[pos] - '0') * 10 + (s[pos + 1] - '0');
+        if (len >= pos + 4 && s[pos + 2] == ':') {
+            *minute = (s[pos + 3] - '0') * 10 + (s[pos + 4] - '0');
+            if (len >= pos + 7 && s[pos + 5] == ':') {
+                *second = (s[pos + 6] - '0') * 10 + (s[pos + 7] - '0');
+                if (len >= pos + 9 && s[pos + 8] == '.') {
+                    int digits = (int)(len - (pos + 9));
+                    if (digits > 9) digits = 9;
+                    for (int i = 0; i < digits; i++) *nanos = *nanos * 10 + (s[pos + 9 + i] - '0');
+                    for (int i = digits; i < 9; i++) *nanos *= 10;
+                }
+            }
+        }
+    }
+}
+
 /* Convert a timestamp lexeme into nanoseconds since unix epoch.
    The required prefix is "YYYY.MM.DDT"; HH, :MM, :SS, and .<1..9 frac digits>
    are optional and default to zero. */
@@ -233,19 +254,10 @@ static int64_t parse_timestamp_lexeme(const char *s) {
     int year   = (s[0]-'0')*1000 + (s[1]-'0')*100 + (s[2]-'0')*10 + (s[3]-'0');
     int month  = (s[5]-'0')*10 + (s[6]-'0');
     int day    = (s[8]-'0')*10 + (s[9]-'0');
-    int hour   = 0, minute = 0, second = 0;
+    int hour = 0, minute = 0, second = 0;
     int64_t nanos = 0;
 
-    size_t len = strlen(s);
-    if (len >= 13) hour   = (s[11]-'0')*10 + (s[12]-'0');
-    if (len >= 16) minute = (s[14]-'0')*10 + (s[15]-'0');
-    if (len >= 19) second = (s[17]-'0')*10 + (s[18]-'0');
-    if (len >= 21) {
-        int digits = (int)len - 20;          /* count of fractional digits present */
-        if (digits > 9) digits = 9;
-        for (int i = 0; i < digits; i++) nanos = nanos * 10 + (s[20 + i] - '0');
-        for (int i = digits; i < 9; i++) nanos *= 10;     /* pad to nanoseconds */
-    }
+    parse_hms_nanos(s, 11, strlen(s), &hour, &minute, &second, &nanos);
 
     /* Days from civil (Howard Hinnant). Treats year/month/day as UTC. */
     int y = year - (month <= 2);
@@ -257,6 +269,52 @@ static int64_t parse_timestamp_lexeme(const char *s) {
 
     int64_t secs = days * 86400 + hour * 3600 + minute * 60 + second;
     return secs * 1000000000LL + nanos;
+}
+
+/* Convert a timespan lexeme "<days>T[HH[:MM[:SS[.FFF]]]]" into nanoseconds. */
+static int64_t parse_timespan_lexeme(const char *s) {
+    const char *t = strchr(s, 'T');
+    if (!t) return 0;
+    size_t day_len = (size_t)(t - s);
+    int days = 0;
+    for (size_t i = 0; i < day_len; i++) days = days * 10 + (s[i] - '0');
+
+    int hour = 0, minute = 0, second = 0;
+    int64_t nanos = 0;
+    parse_hms_nanos(s, (size_t)(t - s + 1), strlen(s), &hour, &minute, &second, &nanos);
+
+    int64_t secs = (int64_t)days * 86400 + hour * 3600 + minute * 60 + second;
+    return secs * 1000000000LL + nanos;
+}
+
+static Qo parse_timespan_sequence(Parser *parser, Token *first_token) {
+    int capacity = 16;
+    int count = 0;
+    int64_t *values = xmalloc(sizeof(int64_t) * (size_t)capacity);
+
+    values[count++] = parse_timespan_lexeme(first_token->lexeme);
+    advance(parser);
+
+    while (1) {
+        Token *next = current_token(parser);
+        if (!next || next->type != TOKEN_TIMESPAN) break;
+        if (count >= capacity) {
+            capacity *= 2;
+            values = xrealloc(values, sizeof(int64_t) * (size_t)capacity);
+        }
+        values[count++] = parse_timespan_lexeme(next->lexeme);
+        advance(parser);
+    }
+
+    if (count == 1) {
+        Qo r = make_timespan_value(values[0]);
+        free(values);
+        return r;
+    }
+    Qo result = alloc_data_vec(QO_TIMESPAN_VEC, count);
+    memcpy(qo_long_data(result), values, (size_t)count * sizeof(int64_t));
+    free(values);
+    return result;
 }
 
 static Qo parse_timestamp_sequence(Parser *parser, Token *first_token) {
@@ -340,6 +398,7 @@ static int starts_factor(TokenType type) {
            type == TOKEN_BOOLEAN ||
            type == TOKEN_HEX ||
            type == TOKEN_TIMESTAMP ||
+           type == TOKEN_TIMESPAN ||
            type == TOKEN_IDENTIFIER ||
            type == TOKEN_SYMBOL ||
            type == TOKEN_STRING ||
@@ -792,6 +851,12 @@ static Qo parse_factor(Parser *parser) {
 
     if (token->type == TOKEN_TIMESTAMP) {
         Qo node = parse_timestamp_sequence(parser, token);
+        if (is_parse_error(node)) return PARSE_ERROR;
+        return parse_postfix_calls(parser, node);
+    }
+
+    if (token->type == TOKEN_TIMESPAN) {
+        Qo node = parse_timespan_sequence(parser, token);
         if (is_parse_error(node)) return PARSE_ERROR;
         return parse_postfix_calls(parser, node);
     }
