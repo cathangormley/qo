@@ -151,8 +151,8 @@ static Qo alloc_same_type(uint8_t t, int64_t count) {
 }
 
 Qo eval_take(Qo lhs, Qo rhs) {
-    long take_count;
-    long output_count;
+    int64_t take_count;
+    int64_t output_count;
     if (lhs == NULL || !is_numeric_int_type(qo_type(lhs))) EVAL_ERROR("take count must be an integer");
     take_count = get_integer_value(lhs);
     output_count = (take_count < 0) ? -take_count : take_count;
@@ -160,19 +160,19 @@ Qo eval_take(Qo lhs, Qo rhs) {
     if (qo_type(rhs) == QO_DICT || qo_type(rhs) == QO_OPERATOR || qo_type(rhs) == QO_BUILTIN) {
         EVAL_ERROR("take right argument must be a list, vector, or atom");
     }
- 
+
     if (is_vector_type(qo_type(rhs))) {
         int64_t source_count = qo_count(rhs);
         Qo result;
         if (source_count == 0 && output_count > 0) EVAL_ERROR("cannot take from empty vector");
-        result = alloc_same_type(qo_type(rhs), (int64_t)output_count);
-        for (long i = 0; i < output_count; i++) {
+        result = alloc_same_type(qo_type(rhs), output_count);
+        for (int64_t i = 0; i < output_count; i++) {
             int64_t src_index;
             if (take_count >= 0) {
-                src_index = (source_count == 0) ? 0 : (int64_t)i % source_count;
+                src_index = (source_count == 0) ? 0 : i % source_count;
             } else {
-                int64_t start = source_count - ((int64_t)output_count % source_count);
-                src_index = (start + (int64_t)i) % source_count;
+                int64_t start = source_count - (output_count % source_count);
+                src_index = (start + i) % source_count;
             }
             copy_vec_elem_to(result, i, rhs, src_index);
         }
@@ -189,8 +189,8 @@ Qo eval_take(Qo lhs, Qo rhs) {
         else if (qo_type(rhs) == QO_SYMBOL) out_type = QO_SYM_VEC;
         else EVAL_ERROR("take right argument must be a list, vector, or atom");
 
-        result = alloc_same_type(out_type, (int64_t)output_count);
-        for (long i = 0; i < output_count; i++) {
+        result = alloc_same_type(out_type, output_count);
+        for (int64_t i = 0; i < output_count; i++) {
             if (out_type == QO_LONG_VEC) qo_long_data(result)[i] = get_integer_value(rhs);
             else if (out_type == QO_FLOAT_VEC) qo_float_data(result)[i] = qo_float(rhs);
             else if (out_type == QO_CHAR_VEC) qo_char_data(result)[i] = qo_char(rhs);
@@ -202,7 +202,7 @@ Qo eval_take(Qo lhs, Qo rhs) {
 }
 
 Qo eval_drop(Qo lhs, Qo rhs) {
-    long drop_count;
+    int64_t drop_count;
     if (lhs == NULL || !is_numeric_int_type(qo_type(lhs))) EVAL_ERROR("drop count must be an integer");
     drop_count = get_integer_value(lhs);
     if (rhs == NULL) EVAL_ERROR("drop right argument must be a list, vector, or atom");
@@ -223,11 +223,11 @@ Qo eval_drop(Qo lhs, Qo rhs) {
         }
 
         if (drop_count >= 0) {
-            start_idx = (int64_t)drop_count;
-            result_count = source_count - (int64_t)drop_count;
+            start_idx = drop_count;
+            result_count = source_count - drop_count;
         } else {
             start_idx = 0;
-            result_count = source_count + (int64_t)drop_count;
+            result_count = source_count + drop_count;
         }
 
         result = alloc_same_type(qo_type(rhs), result_count);
@@ -828,14 +828,15 @@ static Qo eval_dict_scalar_binop(Qo left, Qo right, TokenType op) {
     Qo scalar = (left != NULL && QO_TYPE(left) == QO_DICT) ? right : left;
     int dict_is_left = (left != NULL && QO_TYPE(left) == QO_DICT);
     int64_t n = QO_DICT_COUNT(dict);
-    Qo result = alloc_dict_block(n);
 
-    QO_DICT_KTYPE(result) = QO_DICT_KTYPE(dict);
-    QO_DICT_VTYPE(result) = QO_DICT_VTYPE(dict);
-
+    /* Validate scalar before allocating result to avoid leak on error */
     if (scalar == NULL || !is_numeric_scalar_type(QO_TYPE(scalar))) {
         EVAL_ERROR("dictionary arithmetic requires numeric scalar values");
     }
+
+    Qo result = alloc_dict_block(n);
+    QO_DICT_KTYPE(result) = QO_DICT_KTYPE(dict);
+    QO_DICT_VTYPE(result) = QO_DICT_VTYPE(dict);
 
     for (int64_t i = 0; i < n; i++) {
         Qo dict_value = QO_DICT_VALS(dict)[i];

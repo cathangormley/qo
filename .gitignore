@@ -16,3 +16,6 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.bak
+
+# OpenCode agent configuration (personal tooling)
+.opencode/

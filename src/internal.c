@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include "internal.h"
-#include "lexer.h"
 
 void *xmalloc(size_t size) {
     if (size == 0) {

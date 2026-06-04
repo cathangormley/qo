@@ -113,13 +113,11 @@ Qo alloc_ptr_vec(uint8_t type, int64_t count) {
 
 Qo alloc_data_vec(uint8_t type, int64_t count) {
     size_t elem_size = type_elem_size(type);
-    {
-        size_t size = (count > 0 ? (size_t)count : 1) * elem_size;
-        Qo q = alloc_block(size);
-        q->type_tag = type;
-        QO_SET_COUNT(q, count);
-        return q;
-    }
+    size_t size = (count > 0 ? (size_t)count : 1) * elem_size;
+    Qo q = alloc_block(size);
+    q->type_tag = type;
+    QO_SET_COUNT(q, count);
+    return q;
 }
 
 Qo alloc_charlike(uint8_t type, int64_t count) {
@@ -236,7 +234,7 @@ Qo make_function_value(char **params, int param_count,
         QO_FN_PARAMS(q)[i] = make_symbol_value(params[i]);
     }
     for (int i = 0; i < body_count; i++) {
-        QO_FN_BODY(q)[i] = body[i];
+        QO_FN_BODY(q)[i] = qo_retain(body[i]);  /* take ownership of each body expression */
     }
     memcpy(QO_FN_SOURCE(q), source, (size_t)source_len);
     QO_FN_SOURCE(q)[source_len] = '\0';

@@ -290,19 +290,23 @@ static Qo eval_builtin_null(Qo arg, Environment *env) {
         case QO_FLOAT:
             return make_bool_value(isnan(qo_float(arg)));
 
+        case QO_BOOL_VEC:
+        case QO_BYTE_VEC:
+        case QO_CHAR_VEC:
         case QO_SHORT_VEC:
         case QO_INT_VEC:
         case QO_LONG_VEC:
+        case QO_TIMESTAMP_VEC:
         case QO_TIMESPAN_VEC:
         case QO_FLOAT_VEC:
-        case QO_BYTE_VEC:
-        case QO_CHAR_VEC:
         case QO_SYM_VEC: {
             int64_t n = qo_count(arg);
             Qo result = alloc_data_vec(QO_BOOL_VEC, n);
             for (int64_t i = 0; i < n; i++) {
                 int is_null = 0;
                 switch (type_storage(t)) {
+                    case SC_U8:                                                     /* bool/byte/char: no sentinel null */
+                        break;
                     case SC_I16: is_null = (qo_short_data(arg)[i] == QO_SHORT_NULL); break;
                     case SC_I32: is_null = (qo_int_data(arg)[i] == QO_INT_NULL); break;
                     case SC_I64: is_null = (qo_long_data(arg)[i] == QO_LONG_NULL); break;

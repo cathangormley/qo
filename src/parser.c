@@ -440,6 +440,8 @@ static Qo finish_function_literal(Parser *parser,
     {
         Qo fn = make_function_value(params, param_count, statements, statement_count, src, src_len);
         free_param_list(params, param_count);
+        /* release each body element (make_function_value retained them) */
+        for (int i = 0; i < statement_count; i++) qo_release(statements[i]);
         if (statements) free(statements);
         return parse_postfix_calls(parser, fn);
     }

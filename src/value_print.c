@@ -159,7 +159,7 @@ static void qo_print_internal(Qo q, int depth) {
             if (lv == QO_LONG_NULL) qo_printf("0N");
             else if (lv == QO_LONG_INF) qo_printf("0W");
             else if (lv == QO_LONG_NEGINF) qo_printf("-0W");
-            else qo_printf("%ld", lv);
+            else qo_printf("%ld", (long)lv);
             break;
         }
         case QO_TIMESTAMP: {
@@ -284,7 +284,7 @@ static void qo_print_internal(Qo q, int depth) {
                 if (v == QO_LONG_NULL) qo_printf("0N");
                 else if (v == QO_LONG_INF) qo_printf("0W");
                 else if (v == QO_LONG_NEGINF) qo_printf("-0W");
-                else qo_printf("%ld", v);
+                else qo_printf("%ld", (long)v);
             }
             break;
         }
