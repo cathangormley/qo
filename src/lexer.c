@@ -431,6 +431,7 @@ Token* lexer_next_token(Lexer *lexer) {
             }
             return token_new(TOKEN_DOT,    ".", false, '\0', start_pos);
         }
+        case '?': return token_new(TOKEN_QUESTION, "?", false, '\0', start_pos);
         case '\'': return token_new(TOKEN_EACH,   "'", false, '\0', start_pos);
         default: {
             char lexeme[2] = {ch, '\0'};

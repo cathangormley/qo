@@ -1152,6 +1152,7 @@ static Qo eval_apply_keyword(Qo head, Qo *arg_values, int arg_count, Environment
             case TOKEN_STAR:       return eval_multiply(arg_values[0], arg_values[1]);
             case TOKEN_DIVIDE:    return eval_divide(arg_values[0], arg_values[1]);
             case TOKEN_STAR_STAR:  return eval_power(arg_values[0], arg_values[1]);
+            case TOKEN_QUESTION:  return eval_builtin_find(arg_values[0], arg_values[1], env);
             case TOKEN_AT:
                 return eval_apply_value(arg_values[0], &arg_values[1], 1, env);
             case TOKEN_DOT: {

@@ -43,6 +43,7 @@ typedef enum {
     TOKEN_DOT_DOT,
     TOKEN_DOT_DOT_EQ,
     TOKEN_DOLLAR,
+    TOKEN_QUESTION,
     TOKEN_ERROR,
 } TokenType;
 

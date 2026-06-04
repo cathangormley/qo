@@ -737,6 +737,12 @@ test_case "find_multi_str_in_list"  "find[(\"cat\";\"dog\";\"bird\");(\"bird\";\
 test_case "find_char_in_str"        "find[\"cat\";first \"a\"]" "1"
 test_case "find_type"               "type find"               "\`builtin"
 
+# Find operator (?)
+test_case "find_op_scalar_found"     "3 4 5 ? 4"            "1"
+test_case "find_op_scalar_notfound"  "3 4 5 ? 6"            "3"
+test_case "find_op_vector_found"     "3 4 5 ? 4 5"          "1 2"
+test_case "find_op_vector_notfound"  "3 4 5 ? 3 6"          "0 3"
+
 # IPC tests (same-process via localhost)
 IPC_PORT=19101
 test_case "ipc_same_process_int"     "listen $IPC_PORT; h: hopen[\"127.0.0.1\";$IPC_PORT]; h[42]" "42"
