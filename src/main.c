@@ -4,10 +4,12 @@
 #include <poll.h>
 #include <unistd.h>
 #include "evaluator.h"
+#include "evaluator_internal.h"
 #include "internal.h"
 #include "lexer.h"
 #include "parser.h"
 #include "ipc.h"
+#include "symbol_intern.h"
 
 static int eval_string(const char *input, Environment *env, int print_result) {
     TokenBuffer buffer = tokenize_input(input);
@@ -130,17 +132,44 @@ static int run_repl(Environment *env) {
 int main(int argc, char **argv) {
     int exit_code = 0;
 
-    if (argc > 2) {
-        fprintf(stderr, "Usage: qo [file.qo]\n");
-        return 1;
-    }
-
     evaluator_reset_exit();
     ipc_init();
     Environment *env = env_new();
-    // File execution and the REPL share one environment so script-defined values remain available.
-    if (argc == 2) {
-        exit_code = run_file(argv[1], env);
+
+    /* Set sys.argv — command-line arguments (excluding program name) as a list of strings */
+    Qo sys_dict = alloc_dict_block(1);
+    QO_DICT_KTYPE(sys_dict) = QO_SYMBOL;
+    QO_DICT_VTYPE(sys_dict) = QO_LIST;
+
+    Qo argv_sym = qo_symbol_intern("argv");
+    int argv_count = argc > 0 ? argc - 1 : 0;
+    Qo argv_list = alloc_ptr_vec(QO_LIST, argv_count);
+    for (int i = 0; i < argv_count; i++) {
+        int64_t len = (int64_t)strlen(argv[i + 1]);
+        Qo s = alloc_charlike(QO_CHAR_VEC, len);
+        memcpy(qo_char_data(s), argv[i + 1], (size_t)len);
+        qo_ptr_data(argv_list)[i] = s;
+    }
+
+    QO_DICT_KEYS(sys_dict)[0] = qo_retain(argv_sym);
+    QO_DICT_VALS(sys_dict)[0] = qo_retain(argv_list);
+    qo_release(argv_sym);
+    qo_release(argv_list);
+
+    {
+        Qo sys_sym = qo_symbol_intern("sys");
+        env_set(env, qo_symbol_id(sys_sym), sys_dict);
+        qo_release(sys_sym);
+    }
+    qo_release(sys_dict);
+
+    /* If the first argument doesn't look like a flag, treat it as a file to execute */
+    const char *file = NULL;
+    if (argc >= 2 && argv[1][0] != '-') {
+        file = argv[1];
+    }
+    if (file) {
+        exit_code = run_file(file, env);
         if (!exit_code && evaluator_exit_requested()) {
             exit_code = (int)evaluator_exit_code();
         }

@@ -28,6 +28,30 @@ test_case() {
     fi
 }
 
+test_case_file_args() {
+    local name="$1"
+    local script="$2"
+    local expected="$3"
+    shift 3
+
+    local tmpfile=$(mktemp /tmp/qo_test_XXXXXX.qo)
+    printf '%s\n' "$script" > "$tmpfile"
+    result=$(echo "exit 0" | "$QO_BIN" "$tmpfile" "$@" 2>&1 | sed 's/^qo>//' | grep -v "^Welcome" | grep -v "^Type" | grep -v "^$" | tail -1)
+    rm -f "$tmpfile"
+
+    if [ "$result" = "$expected" ]; then
+        echo "[PASS] $name"
+        PASS=$((PASS + 1))
+    else
+        echo "[FAIL] $name"
+        echo "  Script:   $script"
+        echo "  Args:     $*"
+        echo "  Expected: $expected"
+        echo "  Got:      $result"
+        FAIL=$((FAIL + 1))
+    fi
+}
+
 test_case_multiline() {
     local name="$1"
     local input="$2"
@@ -927,6 +951,15 @@ test_case "where_int_pos"              "where 3"              "0 0 0"
 test_case "where_type_error"           "where 1.5"            "Error: where expects a boolean or integer argument"
 test_case "where_overflow_inf"          "where 0W"             "Error: where result too large"
 test_case "where_overflow_neginf"       "where -0W"           "Error: where expects non-negative values"
+
+# ── sys.argv tests ────────────────────────────────────────────────────
+test_case "sys_argv_count"       "count sys.argv"        "0"
+test_case "sys_argv_type"        "type sys.argv"         "\`list"
+test_case "sys_type"             "type sys"              "\`dict"
+test_case_file_args "sys_argv_with_args"    "count sys.argv"  "4"       "a" "b" "c"
+test_case_file_args "sys_argv_index_one"    "sys.argv[1]"     "\"a\""   "a" "b" "c"
+test_case_file_args "sys_argv_index_two"    "sys.argv[2]"     "\"b\""   "a" "b" "c"
+test_case_file_args "sys_argv_dash_first"   "sys.argv[1]"     "\"-opt\"" "-opt" "val"
 
 echo ""
 echo "Passed: $PASS, Failed: $FAIL"
