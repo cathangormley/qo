@@ -1365,14 +1365,160 @@ static Qo eval_apply_keyword(Qo head, Qo *arg_values, int arg_count, Environment
     EVAL_ERROR("unknown keyword type");
 }
 
+/* Forward declaration for namespace helper used by eval_builtin_assign */
+static Qo eval_dot_assign(Qo left_raw, Qo key_raw, Qo val_raw, Environment *env);
+
 static Qo eval_builtin_assign(Qo *args, int arg_count, Environment *env) {
     if (arg_count != 2) EVAL_ERROR("assignment requires exactly 2 arguments");
     Qo target = args[0];
+
     if (target == NULL || qo_type(target) != QO_SYMBOL) EVAL_ERROR("assignment target must be a symbol");
+
+    /* Namespace assignment: a.b:5 — split target symbol on last dot */
+    const char *name = qo_symbol_name(target);
+    const char *dot = strchr(name, '.');
+    if (dot) {
+        const char *last_dot = strrchr(name, '.');
+        int ns_len = (int)(last_dot - name);
+        char *ns_name = strndup(name, (size_t)ns_len);
+        Qo ns_sym = qo_symbol_intern(ns_name);
+        free(ns_name);
+
+        const char *field_name = last_dot + 1;
+        if (strchr(field_name, '.'))
+            EVAL_ERROR("nested namespace assignment not supported");
+
+        Qo field_sym = qo_symbol_intern(field_name);
+        return eval_dot_assign(ns_sym, field_sym, args[1], env);
+    }
+
     Qo result = eval_value(args[1], env);
     if (evaluator_error_requested() || evaluator_exit_requested()) return result;
     env_set(env, qo_symbol_id(target), result);
     return result;
+}
+
+/* Namespace assignment: a.b:val — set key_raw to val in the dict of left_raw */
+static Qo eval_dot_assign(Qo left_raw, Qo key_raw, Qo val_raw, Environment *env) {
+    if (qo_type(key_raw) != QO_SYMBOL)
+        EVAL_ERROR("namespace field must be a symbol");
+
+    int found;
+    Qo ns = env_get(env, qo_symbol_id(left_raw), &found);
+
+    Qo val = eval_value(val_raw, env);
+    if (evaluator_error_requested() || evaluator_exit_requested()) {
+        if (found) qo_release(ns);
+        return val;
+    }
+
+    if (!found || ns == NULL) {
+        Qo new_dict = alloc_dict_block(1);
+        QO_DICT_KTYPE(new_dict) = QO_SYMBOL;
+        QO_DICT_VTYPE(new_dict) = qo_type(val);
+        QO_DICT_KEYS(new_dict)[0] = qo_retain(key_raw);
+        QO_DICT_VALS(new_dict)[0] = qo_retain(val);
+
+        env_set(env_root(env), qo_symbol_id(left_raw), new_dict);
+        qo_release(new_dict);
+        return val;
+    }
+
+    if (qo_type(ns) != QO_DICT) {
+        qo_release(ns);
+        EVAL_ERROR("namespace must be a dictionary");
+    }
+
+    int64_t n = QO_DICT_COUNT(ns);
+    int64_t found_idx = -1;
+    for (int64_t i = 0; i < n; i++) {
+        if (value_equals(QO_DICT_KEYS(ns)[i], key_raw)) { found_idx = i; break; }
+    }
+
+    if (found_idx >= 0) {
+        qo_release(QO_DICT_VALS(ns)[found_idx]);
+        QO_DICT_VALS(ns)[found_idx] = qo_retain(val);
+    } else {
+        Qo new_dict = alloc_dict_block(n + 1);
+        QO_DICT_KTYPE(new_dict) = QO_DICT_KTYPE(ns);
+        QO_DICT_VTYPE(new_dict) = QO_DICT_VTYPE(ns);
+        for (int64_t i = 0; i < n; i++) {
+            QO_DICT_KEYS(new_dict)[i] = qo_retain(QO_DICT_KEYS(ns)[i]);
+            QO_DICT_VALS(new_dict)[i] = qo_retain(QO_DICT_VALS(ns)[i]);
+        }
+        QO_DICT_KEYS(new_dict)[n] = qo_retain(key_raw);
+        QO_DICT_VALS(new_dict)[n] = qo_retain(val);
+        env_set(env_root(env), qo_symbol_id(left_raw), new_dict);
+        qo_release(new_dict);
+    }
+
+    qo_release(ns);
+    return val;
+}
+
+/* Nested namespace read: a.b.c — walk dict chain */
+static Qo eval_nested_read(Qo full_sym, Environment *env) {
+    const char *name = qo_symbol_name(full_sym);
+    const char *dot = strchr(name, '.');
+    if (!dot) {
+        int found;
+        Qo v = env_get(env, qo_symbol_id(full_sym), &found);
+        if (found) return v;
+        EVAL_ERROR_FMT("undefined variable '%s'", name);
+    }
+
+    /* First component: look up in env */
+    int ns_len = (int)(dot - name);
+    char *ns_name = strndup(name, (size_t)ns_len);
+    Qo ns_sym = qo_symbol_intern(ns_name);
+
+    int found;
+    Qo current = env_get(env, qo_symbol_id(ns_sym), &found);
+    if (!found) {
+        const char *saved_name = qo_symbol_name(ns_sym);
+        free(ns_name);
+        EVAL_ERROR_FMT("undefined variable '%s'", saved_name);
+    }
+    free(ns_name);
+
+    const char *rest = dot + 1;
+
+    /* Walk remaining dots */
+    while (1) {
+        const char *next_dot = strchr(rest, '.');
+        int key_len = next_dot ? (int)(next_dot - rest) : (int)strlen(rest);
+        char *key_name = strndup(rest, (size_t)key_len);
+        Qo key_sym = qo_symbol_intern(key_name);
+        free(key_name);
+
+        if (qo_type(current) != QO_DICT) {
+            qo_release(current);
+            EVAL_ERROR("namespace must be a dictionary");
+        }
+
+        int64_t n = QO_DICT_COUNT(current);
+        Qo found_val = NULL;
+        int val_found = 0;
+        for (int64_t i = 0; i < n; i++) {
+            if (value_equals(QO_DICT_KEYS(current)[i], key_sym)) {
+                found_val = qo_clone(QO_DICT_VALS(current)[i]);
+                val_found = 1;
+                break;
+            }
+        }
+
+        if (!next_dot) {
+            qo_release(current);
+            if (!val_found) EVAL_ERROR_FMT("key '%s' not found in namespace", qo_symbol_name(key_sym));
+            return found_val;
+        }
+
+        qo_release(current);
+        if (!val_found) EVAL_ERROR_FMT("key '%s' not found in namespace", qo_symbol_name(key_sym));
+
+        current = found_val;
+        rest = next_dot + 1;
+    }
 }
 
 /* ── projection helpers ──────────────────────────────────────────────────── */
@@ -1765,8 +1911,11 @@ Qo eval_value(Qo tree, Environment *env) {
         return qo_clone(tree);
     }
 
-    /* Symbol: variable lookup */
+    /* Symbol: variable lookup (dotted names for namespace field access) */
     if (qo_type(tree) == QO_SYMBOL) {
+        const char *name = qo_symbol_name(tree);
+        if (strchr(name, '.'))
+            return eval_nested_read(tree, env);
         int found = 0;
         Qo v = env_get(env, qo_symbol_id(tree), &found);
         if (found) return v;
@@ -1809,6 +1958,7 @@ Qo eval_value(Qo tree, Environment *env) {
         TokenType op = (TokenType)QO_OPERATOR_OP(verb_val);
         if (op == TOKEN_COLON)
             return eval_builtin_assign(&QO_LIST_DATA(tree)[1], arg_count, env);
+
         Qo *arg_values = xmalloc(sizeof(Qo) * (arg_count > 0 ? arg_count : 1));
         if (!eval_args_or_stop(tree, 1, arg_count, env, arg_values)) { free(arg_values); return NULL; }
         result = eval_apply_keyword(verb_val, arg_values, arg_count, env);

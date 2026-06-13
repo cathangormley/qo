@@ -898,6 +898,15 @@ test_case "enlist_dict_no_promotion" "type (\`a\`b!1 2;\`c\`d!3 4)" "\`list"
 test_case_multiline "enlist_dict_promotion_flip" "flip (\`a\`b!1 2;\`a\`b!3 4)" \
   $'`a | 1 3\n`b | 2 4'
 
+# ── Namespace access tests ────────────────────────────────────────────
+test_case "ns_assign_basic"     "a.b:5"                  "5"
+test_case "ns_read_after_set"   "a.b:5; a.b"             "5"
+test_case "ns_multi_key"        "a.b:5; a.c:6; a.b+a.c"  "11"
+test_case "ns_overwrite"        "a.b:5; a.b:6; a.b"      "6"
+test_case "ns_assign_to_var"    "a.b:5; x: a.b"          "5"
+test_case "ns_read_undefined"   "a.b"                    "Error: undefined variable 'a'"
+test_case "ns_assign_retains_value" "a.b:5; a.b + 1"     "6"
+
 echo ""
 echo "Passed: $PASS, Failed: $FAIL"
 exit $FAIL
