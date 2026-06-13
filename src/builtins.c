@@ -607,6 +607,43 @@ static Qo eval_builtin_enlist(Qo *args, int arg_count, Environment *env) {
                 return result;
             }
         }
+
+        /* All args are dicts with the same keys → promote to table */
+        if (all_same && scalar_type == QO_DICT) {
+            Qo first = args[0];
+            int64_t nkeys = QO_DICT_COUNT(first);
+
+            int same_keys = 1;
+            for (int i = 1; i < arg_count && same_keys; i++) {
+                if (QO_DICT_COUNT(args[i]) != nkeys) { same_keys = 0; break; }
+                for (int64_t j = 0; j < nkeys; j++) {
+                    if (!value_equals(QO_DICT_KEYS(args[i])[j], QO_DICT_KEYS(first)[j])) {
+                        same_keys = 0; break;
+                    }
+                }
+            }
+
+            if (same_keys) {
+                Qo dict = alloc_dict_block(nkeys);
+                QO_DICT_KTYPE(dict) = QO_SYMBOL;
+                QO_DICT_VTYPE(dict) = 0;
+
+                for (int64_t j = 0; j < nkeys; j++) {
+                    QO_DICT_KEYS(dict)[j] = qo_retain(QO_DICT_KEYS(first)[j]);
+
+                    Qo *col_vals = xmalloc(sizeof(Qo) * (size_t)arg_count);
+                    for (int i = 0; i < arg_count; i++)
+                        col_vals[i] = QO_DICT_VALS(args[i])[j];
+                    QO_DICT_VALS(dict)[j] = eval_builtin_enlist(col_vals, arg_count, env);
+                    free(col_vals);
+                }
+
+                Qo table = alloc_table_block();
+                QO_SET_COUNT(table, arg_count);
+                QO_TABLE_DICT(table) = dict;
+                return table;
+            }
+        }
     }
 
     {

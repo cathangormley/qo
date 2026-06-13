@@ -866,6 +866,16 @@ test_case_multiline "flip_flip_table" "flip flip ([]a:1 2 3;b:4 5 6)" \
 test_case_multiline "flip_dict_scalar_cols" "flip \`a\`b!(42;7)" \
   $'a b\n- -\n42 7'
 
+# ── Enlist dict promotion tests ──────────────────────────────────────
+test_case_multiline "enlist_dict_promotion" "(\`a\`b!1 2;\`a\`b!3 4)" \
+  $'a b\n- -\n1 2\n3 4'
+test_case_multiline "enlist_dict_promotion_single" "enlist[\`a\`b!1 2]" \
+  $'a b\n- -\n1 2'
+test_case "enlist_dict_promotion_type" "type (\`a\`b!1 2;\`a\`b!3 4)" "\`table"
+test_case "enlist_dict_no_promotion" "type (\`a\`b!1 2;\`c\`d!3 4)" "\`list"
+test_case_multiline "enlist_dict_promotion_flip" "flip (\`a\`b!1 2;\`a\`b!3 4)" \
+  $'`a | 1 3\n`b | 2 4'
+
 echo ""
 echo "Passed: $PASS, Failed: $FAIL"
 exit $FAIL
