@@ -349,8 +349,12 @@ static Qo eval_builtin_null(Qo arg, Environment *env) {
 
 static Qo eval_builtin_count(Qo arg, Environment *env) {
     (void)env;
-    if (arg != NULL && is_vector_type(qo_type(arg))) return make_long_value(qo_count(arg));
-    EVAL_ERROR("count expects a list or vector argument");
+    if (arg != NULL) {
+        uint8_t t = qo_type(arg);
+        if (is_vector_type(t) || t == QO_DICT || t == QO_TABLE)
+            return make_long_value(qo_count(arg));
+    }
+    EVAL_ERROR("count expects a list, vector, dict, or table argument");
 }
 
 static Qo eval_builtin_min(Qo arg, Environment *env) {
