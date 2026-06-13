@@ -1249,6 +1249,83 @@ static Qo eval_cast(Qo type_sym, Qo value, Environment *env) {
 
 #undef VEC_CAST
 
+static Qo eval_builtin_dispatch(Qo head, Qo *arg_values, int arg_count, Environment *env) {
+    uint8_t id = QO_BUILTIN_ID(head);
+    switch (id) {
+        case QO_BUILTIN_HOPEN: {
+            int fd;
+            if (arg_count == 1) {
+                Qo port_val = arg_values[0];
+                if (port_val == NULL || !is_numeric_scalar_type(qo_type(port_val)))
+                    EVAL_ERROR("hopen expects a numeric port");
+                int port = (int)value_as_double(port_val);
+                fd = ipc_connect("127.0.0.1", port);
+            } else if (arg_count == 2) {
+                Qo host_val = arg_values[0];
+                Qo port_val = arg_values[1];
+                if (host_val == NULL || qo_type(host_val) != QO_CHAR_VEC)
+                    EVAL_ERROR("hopen expects a string host");
+                if (port_val == NULL || !is_numeric_scalar_type(qo_type(port_val)))
+                    EVAL_ERROR("hopen expects a numeric port");
+                char *host = charvec_to_cstr(host_val);
+                int port = (int)value_as_double(port_val);
+                fd = ipc_connect(host, port);
+                free(host);
+            } else {
+                EVAL_ERROR("hopen expects 1 or 2 arguments");
+            }
+            if (fd < 0) EVAL_ERROR("failed to connect");
+            if (ipc_server_fd() >= 0) {
+                ipc_accept_connection();
+            }
+            return make_int_value(fd);
+        }
+        case QO_BUILTIN_FIND:
+            if (arg_count != 2) EVAL_ERROR("find expects exactly 2 arguments");
+            return eval_builtin_find(arg_values[0], arg_values[1], env);
+        case QO_BUILTIN_ENLIST:
+            return eval_builtin_enlist(arg_values, arg_count, env);
+        case QO_BUILTIN_SEMICOLON:
+            EVAL_ERROR("unexpected semicolon in apply");
+        default:
+            if (arg_count != 1)
+                EVAL_ERROR_FMT("builtin expects exactly 1 argument, got %d", arg_count);
+            switch (id) {
+                case QO_BUILTIN_SUM:      return eval_builtin_sum(arg_values[0], env);
+                case QO_BUILTIN_COUNT:    return eval_builtin_count(arg_values[0], env);
+                case QO_BUILTIN_MIN:      return eval_builtin_min(arg_values[0], env);
+                case QO_BUILTIN_MAX:      return eval_builtin_max(arg_values[0], env);
+                case QO_BUILTIN_TIL:      return eval_builtin_til(arg_values[0], env);
+                case QO_BUILTIN_PARSE:    return eval_builtin_parse(arg_values[0], env);
+                case QO_BUILTIN_LEX:      return eval_builtin_lex(arg_values[0], env);
+                case QO_BUILTIN_NOT:      return eval_builtin_not(arg_values[0], env);
+                case QO_BUILTIN_TYPE:     return eval_builtin_type(arg_values[0], env);
+                case QO_BUILTIN_KEY:      return eval_builtin_key(arg_values[0], env);
+                case QO_BUILTIN_VALUE:    return eval_builtin_value(arg_values[0], env);
+                case QO_BUILTIN_PRINT:    return eval_builtin_print(arg_values[0], env);
+                case QO_BUILTIN_EXIT:     return eval_builtin_exit(arg_values[0], env);
+                case QO_BUILTIN_EVAL:     return eval_builtin_eval(arg_values[0], env);
+                case QO_BUILTIN_FIRST:    return eval_builtin_first(arg_values[0], env);
+                case QO_BUILTIN_LAST:     return eval_builtin_last(arg_values[0], env);
+                case QO_BUILTIN_NOW:      return eval_builtin_now(arg_values[0], env);
+                case QO_BUILTIN_READ:     return eval_builtin_read(arg_values[0], env);
+                case QO_BUILTIN_SHELL:    return eval_builtin_shell(arg_values[0], env);
+                case QO_BUILTIN_SER:      return eval_builtin_ser(arg_values[0], env);
+                case QO_BUILTIN_DESER:    return eval_builtin_deser(arg_values[0], env);
+                case QO_BUILTIN_LISTEN:   return eval_builtin_listen(arg_values[0], env);
+                case QO_BUILTIN_HCLOSE:   return eval_builtin_hclose(arg_values[0], env);
+                case QO_BUILTIN_REFCOUNT: return eval_builtin_refcount(arg_values[0], env);
+                case QO_BUILTIN_NULL:     return eval_builtin_null(arg_values[0], env);
+                case QO_BUILTIN_STRING:   return eval_builtin_string(arg_values[0], env);
+                case QO_BUILTIN_FLIP:     return eval_builtin_flip(arg_values[0], env);
+                case QO_BUILTIN_WHERE:    return eval_builtin_where(arg_values[0], env);
+                default:
+                    EVAL_ERROR_FMT("unknown builtin id %d", id);
+            }
+    }
+    return NULL;
+}
+
 static Qo eval_apply_keyword(Qo head, Qo *arg_values, int arg_count, Environment *env) {
     Qo result;
 
@@ -1353,81 +1430,8 @@ static Qo eval_apply_keyword(Qo head, Qo *arg_values, int arg_count, Environment
         }
     }
 
-    if (qo_type(head) == QO_BUILTIN) {
-        uint8_t id = QO_BUILTIN_ID(head);
-        switch (id) {
-            case QO_BUILTIN_HOPEN: {
-                int fd;
-                if (arg_count == 1) {
-                    Qo port_val = arg_values[0];
-                    if (port_val == NULL || !is_numeric_scalar_type(qo_type(port_val)))
-                        EVAL_ERROR("hopen expects a numeric port");
-                    int port = (int)value_as_double(port_val);
-                    fd = ipc_connect("127.0.0.1", port);
-                } else if (arg_count == 2) {
-                    Qo host_val = arg_values[0];
-                    Qo port_val = arg_values[1];
-                    if (host_val == NULL || qo_type(host_val) != QO_CHAR_VEC)
-                        EVAL_ERROR("hopen expects a string host");
-                    if (port_val == NULL || !is_numeric_scalar_type(qo_type(port_val)))
-                        EVAL_ERROR("hopen expects a numeric port");
-                    char *host = charvec_to_cstr(host_val);
-                    int port = (int)value_as_double(port_val);
-                    fd = ipc_connect(host, port);
-                    free(host);
-                } else {
-                    EVAL_ERROR("hopen expects 1 or 2 arguments");
-                }
-                if (fd < 0) EVAL_ERROR("failed to connect");
-                if (ipc_server_fd() >= 0) {
-                    ipc_accept_connection();
-                }
-                return make_int_value(fd);
-            }
-            case QO_BUILTIN_FIND:
-                if (arg_count != 2) EVAL_ERROR("find expects exactly 2 arguments");
-                return eval_builtin_find(arg_values[0], arg_values[1], env);
-            case QO_BUILTIN_ENLIST:
-                return eval_builtin_enlist(arg_values, arg_count, env);
-            case QO_BUILTIN_SEMICOLON:
-                EVAL_ERROR("unexpected semicolon in apply");
-            default:
-                if (arg_count != 1)
-                    EVAL_ERROR_FMT("builtin expects exactly 1 argument, got %d", arg_count);
-                switch (id) {
-                    case QO_BUILTIN_SUM:      return eval_builtin_sum(arg_values[0], env);
-                    case QO_BUILTIN_COUNT:    return eval_builtin_count(arg_values[0], env);
-                    case QO_BUILTIN_MIN:      return eval_builtin_min(arg_values[0], env);
-                    case QO_BUILTIN_MAX:      return eval_builtin_max(arg_values[0], env);
-                    case QO_BUILTIN_TIL:      return eval_builtin_til(arg_values[0], env);
-                    case QO_BUILTIN_PARSE:    return eval_builtin_parse(arg_values[0], env);
-                    case QO_BUILTIN_LEX:      return eval_builtin_lex(arg_values[0], env);
-                    case QO_BUILTIN_NOT:      return eval_builtin_not(arg_values[0], env);
-                    case QO_BUILTIN_TYPE:     return eval_builtin_type(arg_values[0], env);
-                    case QO_BUILTIN_KEY:      return eval_builtin_key(arg_values[0], env);
-                    case QO_BUILTIN_VALUE:    return eval_builtin_value(arg_values[0], env);
-                    case QO_BUILTIN_PRINT:    return eval_builtin_print(arg_values[0], env);
-                    case QO_BUILTIN_EXIT:     return eval_builtin_exit(arg_values[0], env);
-                    case QO_BUILTIN_EVAL:     return eval_builtin_eval(arg_values[0], env);
-                    case QO_BUILTIN_FIRST:    return eval_builtin_first(arg_values[0], env);
-                    case QO_BUILTIN_LAST:     return eval_builtin_last(arg_values[0], env);
-                    case QO_BUILTIN_NOW:      return eval_builtin_now(arg_values[0], env);
-                    case QO_BUILTIN_READ:     return eval_builtin_read(arg_values[0], env);
-                    case QO_BUILTIN_SHELL:    return eval_builtin_shell(arg_values[0], env);
-                    case QO_BUILTIN_SER:      return eval_builtin_ser(arg_values[0], env);
-                    case QO_BUILTIN_DESER:    return eval_builtin_deser(arg_values[0], env);
-                    case QO_BUILTIN_LISTEN:   return eval_builtin_listen(arg_values[0], env);
-                    case QO_BUILTIN_HCLOSE:   return eval_builtin_hclose(arg_values[0], env);
-                    case QO_BUILTIN_REFCOUNT: return eval_builtin_refcount(arg_values[0], env);
-                    case QO_BUILTIN_NULL:     return eval_builtin_null(arg_values[0], env);
-                    case QO_BUILTIN_STRING:   return eval_builtin_string(arg_values[0], env);
-                    case QO_BUILTIN_FLIP:     return eval_builtin_flip(arg_values[0], env);
-                    case QO_BUILTIN_WHERE:    return eval_builtin_where(arg_values[0], env);
-                    default:
-                        EVAL_ERROR_FMT("unknown builtin id %d", id);
-                }
-        }
-    }
+    if (qo_type(head) == QO_BUILTIN)
+        return eval_builtin_dispatch(head, arg_values, arg_count, env);
 
     EVAL_ERROR("unknown keyword type");
 }
