@@ -44,6 +44,7 @@ const char *token_type_to_operator(TokenType op) {
         case TOKEN_DOT_DOT_EQ: return "..=";
         case TOKEN_DOLLAR:    return "$";
         case TOKEN_QUESTION:  return "?";
+        case TOKEN_TABLE:     return "table";
         default: return NULL;
     }
 }
@@ -226,6 +227,7 @@ static Qo parse_number_sequence(Parser *parser, Token *first_token) {
 static Qo parse_expression(Parser *parser);
 static Qo parse_factor(Parser *parser);
 static Qo parse_postfix_calls(Parser *parser, Qo base);
+static Qo parse_table_literal(Parser *parser);
 
 /* Parse HH, :MM, :SS, and .<1..9 frac digits> starting at s[pos].
    Fields not present default to zero. */
@@ -838,6 +840,175 @@ func_cleanup:
     return PARSE_ERROR;
 }
 
+/* Parse a table literal: ([keyCol:expr;...]valCol:expr;...)
+   Called after '(' has been consumed and '[' is the current token. */
+static Qo parse_table_literal(Parser *parser) {
+    Token *token;
+
+    /* Consume '[' */
+    advance(parser);
+    token = current_token(parser);
+
+    /* Dynamic arrays for key column names and expressions */
+    int capacity = 16;
+    int nKey = 0;
+    Qo *keyNames = xmalloc(sizeof(Qo) * (size_t)capacity);
+    Qo *keyExprs = xmalloc(sizeof(Qo) * (size_t)capacity);
+
+    /* Parse key columns until ']' */
+    while (token && token->type != TOKEN_RBRACKET) {
+        if (token->type != TOKEN_IDENTIFIER) {
+            fprintf(stderr, "Error: expected column name in table literal\n");
+            goto table_cleanup_keys;
+        }
+        if (nKey >= capacity) {
+            capacity *= 2;
+            keyNames = xrealloc(keyNames, sizeof(Qo) * (size_t)capacity);
+            keyExprs = xrealloc(keyExprs, sizeof(Qo) * (size_t)capacity);
+        }
+        keyNames[nKey] = make_symbol_value(token->lexeme);
+        advance(parser);
+
+        token = current_token(parser);
+        if (!token || token->type != TOKEN_COLON) {
+            fprintf(stderr, "Error: expected ':' after column name in table literal\n");
+            qo_release(keyNames[nKey]);
+            goto table_cleanup_keys;
+        }
+        advance(parser);
+
+        {
+            Qo expr = parse_expression(parser);
+            if (is_parse_error(expr)) {
+                qo_release(keyNames[nKey]);
+                goto table_cleanup_keys;
+            }
+            keyExprs[nKey] = expr;
+        }
+        nKey++;
+
+        token = current_token(parser);
+        if (token && token->type == TOKEN_SEMICOLON) {
+            advance(parser);
+            token = current_token(parser);
+        } else if (token && token->type == TOKEN_RBRACKET) {
+            /* end of key columns */
+        } else {
+            fprintf(stderr, "Error: expected ';' or ']' in table literal\n");
+            goto table_cleanup_keys;
+        }
+    }
+
+    if (!token) {
+        fprintf(stderr, "Error: expected ']' in table literal\n");
+        goto table_cleanup_keys;
+    }
+    advance(parser); /* consume ']' */
+    token = current_token(parser);
+
+    /* Dynamic arrays for value column names and expressions */
+    capacity = 16;
+    int nVal = 0;
+    Qo *valNames = xmalloc(sizeof(Qo) * (size_t)capacity);
+    Qo *valExprs = xmalloc(sizeof(Qo) * (size_t)capacity);
+
+    /* Parse value columns until ')' */
+    while (token && token->type != TOKEN_RPAREN) {
+        if (token->type != TOKEN_IDENTIFIER) {
+            fprintf(stderr, "Error: expected column name in table literal\n");
+            goto table_cleanup_vals;
+        }
+        if (nVal >= capacity) {
+            capacity *= 2;
+            valNames = xrealloc(valNames, sizeof(Qo) * (size_t)capacity);
+            valExprs = xrealloc(valExprs, sizeof(Qo) * (size_t)capacity);
+        }
+        valNames[nVal] = make_symbol_value(token->lexeme);
+        advance(parser);
+
+        token = current_token(parser);
+        if (!token || token->type != TOKEN_COLON) {
+            fprintf(stderr, "Error: expected ':' after column name in table literal\n");
+            qo_release(valNames[nVal]);
+            goto table_cleanup_vals;
+        }
+        advance(parser);
+
+        {
+            Qo expr = parse_expression(parser);
+            if (is_parse_error(expr)) {
+                qo_release(valNames[nVal]);
+                goto table_cleanup_vals;
+            }
+            valExprs[nVal] = expr;
+        }
+        nVal++;
+
+        token = current_token(parser);
+        if (token && token->type == TOKEN_SEMICOLON) {
+            advance(parser);
+            token = current_token(parser);
+        } else if (token && token->type == TOKEN_RPAREN) {
+            /* end of value columns */
+        } else {
+            fprintf(stderr, "Error: expected ';' or ')' in table literal\n");
+            goto table_cleanup_vals;
+        }
+    }
+
+    if (!token) {
+        fprintf(stderr, "Error: expected ')' in table literal\n");
+        goto table_cleanup_vals;
+    }
+    advance(parser); /* consume ')' */
+
+    /* Build AST: (TOKEN_TABLE; namesVec; expr1; expr2; ...) */
+    {
+        int64_t totalCols = nKey + nVal;
+
+        /* List of column name symbols (Qo* pointers) */
+        Qo namesVec = alloc_ptr_vec(QO_SYM_VEC, totalCols);
+        for (int i = 0; i < nKey; i++)
+            QO_LIST_DATA(namesVec)[i] = keyNames[i];
+        for (int i = 0; i < nVal; i++)
+            QO_LIST_DATA(namesVec)[nKey + i] = valNames[i];
+
+        /* Outer (TOKEN_TABLE; namesVec; keyExpr1; ...; valExpr1; ...) */
+        int64_t outerLen = 2 + totalCols;
+        Qo outerList = alloc_ptr_vec(QO_LIST, outerLen);
+        QO_LIST_DATA(outerList)[0] = make_operator_value(TOKEN_TABLE);
+        QO_LIST_DATA(outerList)[1] = namesVec;
+        for (int i = 0; i < nKey; i++)
+            QO_LIST_DATA(outerList)[2 + i] = keyExprs[i];
+        for (int i = 0; i < nVal; i++)
+            QO_LIST_DATA(outerList)[2 + nKey + i] = valExprs[i];
+
+        free(keyNames);
+        free(keyExprs);
+        free(valNames);
+        free(valExprs);
+
+        return outerList;
+    }
+
+table_cleanup_vals:
+    for (int i = 0; i < nVal; i++) {
+        qo_release(valNames[i]);
+        qo_release(valExprs[i]);
+    }
+    free(valNames);
+    free(valExprs);
+
+table_cleanup_keys:
+    for (int i = 0; i < nKey; i++) {
+        qo_release(keyNames[i]);
+        qo_release(keyExprs[i]);
+    }
+    free(keyNames);
+    free(keyExprs);
+    return PARSE_ERROR;
+}
+
 static Qo parse_factor(Parser *parser) {
     Token *token = current_token(parser);
     Qo node;
@@ -965,6 +1136,17 @@ static Qo parse_factor(Parser *parser) {
     }
 
     if (token->type == TOKEN_LPAREN) {
+        /* Save position to check for table literal ([...]) */
+        int saved_pos = parser->pos;
+        advance(parser);
+        token = current_token(parser);
+        if (token && token->type == TOKEN_LBRACKET) {
+            Qo table = parse_table_literal(parser);
+            if (is_parse_error(table)) return PARSE_ERROR;
+            return parse_postfix_calls(parser, table);
+        }
+        /* Not a table literal — restore position for normal parenthesized parsing */
+        parser->pos = saved_pos;
         return parse_parenthesized(parser);
     }
 

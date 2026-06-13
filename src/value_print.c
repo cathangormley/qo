@@ -361,6 +361,38 @@ static void qo_print_internal(Qo q, int depth) {
             }
             break;
         }
+        case QO_TABLE: {
+            Qo dict = QO_TABLE_DICT(q);
+            int64_t ncols = dict ? QO_DICT_COUNT(dict) : 0;
+            if (!dict || ncols == 0) { qo_printf("()"); break; }
+            int64_t nrows = QO_TABLE_ROWS(q);
+
+            /* Column header row — print symbol names without backtick */
+            for (int64_t i = 0; i < ncols; i++) {
+                if (i > 0) qo_printf(" ");
+                qo_printf("%s", qo_symbol_name(QO_DICT_KEYS(dict)[i]));
+            }
+            qo_printf("\n");
+
+            /* Dash separator row */
+            for (int64_t i = 0; i < ncols; i++) {
+                if (i > 0) qo_printf(" ");
+                qo_printf("-");
+            }
+
+            /* Data rows */
+            for (int64_t r = 0; r < nrows; r++) {
+                qo_printf("\n");
+                for (int64_t c = 0; c < ncols; c++) {
+                    if (c > 0) qo_printf(" ");
+                    Qo col = QO_DICT_VALS(dict)[c];
+                    Qo elem = dict_elem_copy(col, r);
+                    qo_print_internal(elem, depth + 1);
+                    qo_release(elem);
+                }
+            }
+            break;
+        }
         default:
             break;
     }

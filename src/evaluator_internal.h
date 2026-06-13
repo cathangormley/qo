@@ -49,6 +49,7 @@ Qo alloc_data_vec(uint8_t type, int64_t count);
 Qo alloc_ptr_vec(uint8_t type, int64_t count);
 Qo alloc_charlike(uint8_t type, int64_t count);
 Qo alloc_dict_block(int64_t count);
+Qo alloc_table_block(void);
 int64_t dict_collection_count(Qo v);
 Qo dict_elem_copy(Qo v, int64_t i);
 static inline int is_vector_type(uint8_t t) {

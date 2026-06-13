@@ -45,6 +45,7 @@ typedef enum {
     TOKEN_DOLLAR,
     TOKEN_QUESTION,
     TOKEN_ERROR,
+    TOKEN_TABLE,
 } TokenType;
 
 /* A token with source text and minimal numeric metadata for parser decisions. */

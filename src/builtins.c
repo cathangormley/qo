@@ -47,6 +47,7 @@ int builtin_name_to_id(const char *name) {
     if (strcmp(name, ";") == 0)        return QO_BUILTIN_SEMICOLON;
     if (strcmp(name, "null") == 0)     return QO_BUILTIN_NULL;
     if (strcmp(name, "string") == 0)   return QO_BUILTIN_STRING;
+    if (strcmp(name, "flip") == 0)     return QO_BUILTIN_FLIP;
     return -1;
 }
 
@@ -82,6 +83,7 @@ const char *builtin_id_to_name(uint8_t id) {
         case QO_BUILTIN_SEMICOLON:return ";";
         case QO_BUILTIN_NULL:     return "null";
         case QO_BUILTIN_STRING:   return "string";
+        case QO_BUILTIN_FLIP:     return "flip";
         default:                  return NULL;
     }
 }
@@ -535,6 +537,7 @@ static Qo eval_builtin_type(Qo arg, Environment *env) {
         case QO_FUNCTION:   tag = "function";  break;
         case QO_EACHED:     tag = "each";      break;
         case QO_ADVERB:     tag = "adverb";    break;
+        case QO_TABLE:      tag = "table";     break;
         default: break;
     }
     return make_symbol_value(tag);
@@ -780,6 +783,34 @@ static Qo eval_builtin_print(Qo arg, Environment *env) {
         EVAL_ERROR("print expects a string or char argument");
     }
     return make_null_value();
+}
+
+static Qo eval_builtin_flip(Qo arg, Environment *env) {
+    (void)env;
+    uint8_t t = qo_type(arg);
+    if (t == QO_DICT) {
+        /* Flip dict → table */
+        int64_t ncols = QO_DICT_COUNT(arg);
+        int64_t nrows = 0;
+        if (ncols > 0) {
+            Qo first_val = QO_DICT_VALS(arg)[0];
+            if (is_vector_type(qo_type(first_val)))
+                nrows = QO_COUNT(first_val);
+            else
+                nrows = 1;
+        }
+        Qo table = alloc_table_block();
+        QO_SET_COUNT(table, nrows);
+        QO_TABLE_DICT(table) = qo_clone(arg);
+        return table;
+    }
+    if (t == QO_TABLE) {
+        /* Flip table → dict */
+        Qo dict = QO_TABLE_DICT(arg);
+        if (!dict) return alloc_dict_block(0);
+        return qo_clone(dict);
+    }
+    EVAL_ERROR("flip expects a dict or table");
 }
 
 Qo eval_value(Qo tree, Environment *env);
@@ -1128,6 +1159,38 @@ static Qo eval_apply_keyword(Qo head, Qo *arg_values, int arg_count, Environment
 
     if (qo_type(head) == QO_OPERATOR) {
         TokenType op_token = (TokenType)QO_OPERATOR_OP(head);
+
+        /* TOKEN_TABLE can have 0 column expressions (empty table), so it's exempt
+           from the general arg_count < 2 projection-creation logic. */
+        if (op_token == TOKEN_TABLE) {
+            Qo names = arg_values[0];
+            int64_t ncols = arg_count - 1;
+
+            Qo dict = alloc_dict_block(ncols);
+            QO_DICT_KTYPE(dict) = QO_SYMBOL;
+            QO_DICT_VTYPE(dict) = 0;
+
+            int64_t nrows = 0;
+            for (int64_t i = 0; i < ncols; i++) {
+                QO_DICT_KEYS(dict)[i] = qo_retain(QO_LIST_DATA(names)[i]);
+                Qo col = arg_values[1 + i];
+                QO_DICT_VALS(dict)[i] = qo_retain(col);
+                if (is_vector_type(qo_type(col))) {
+                    int64_t cnt = QO_COUNT(col);
+                    if (nrows == 0) nrows = cnt;
+                }
+            }
+
+            /* If all columns are scalars, treat as single-row table */
+            if (nrows == 0 && ncols > 0) nrows = 1;
+
+            Qo table = alloc_table_block();
+            QO_SET_COUNT(table, nrows);
+            QO_TABLE_DICT(table) = dict;
+
+            return table;
+        }
+
         if (arg_count < 2) {
             Qo *slots = xmalloc(sizeof(Qo) * 2);
             slots[0] = make_projector_value();
@@ -1255,6 +1318,7 @@ static Qo eval_apply_keyword(Qo head, Qo *arg_values, int arg_count, Environment
                     case QO_BUILTIN_REFCOUNT: return eval_builtin_refcount(arg_values[0], env);
                     case QO_BUILTIN_NULL:     return eval_builtin_null(arg_values[0], env);
                     case QO_BUILTIN_STRING:   return eval_builtin_string(arg_values[0], env);
+                    case QO_BUILTIN_FLIP:     return eval_builtin_flip(arg_values[0], env);
                     default:
                         EVAL_ERROR_FMT("unknown builtin id %d", id);
                 }

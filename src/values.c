@@ -42,6 +42,7 @@ const TypeInfo type_table[256] = {
     [QO_FUNCTION]    = {0, SC_PTR, TF_COMPLEX,                          0},
     [QO_PROJECTION]  = {0, SC_PTR, TF_COMPLEX,                          0},
     [QO_EACHED]      = {0, SC_PTR, TF_COMPLEX,                          0},
+    [QO_TABLE]       = {0, SC_PTR, TF_COMPLEX,                          0},
 };
 
 static Qo alloc_block(size_t payload_size) {
@@ -134,6 +135,14 @@ Qo alloc_dict_block(int64_t count) {
     Qo q = alloc_block(sz);
     q->type_tag = QO_DICT;
     QO_SET_COUNT(q, count);
+    return q;
+}
+
+Qo alloc_table_block(void) {
+    Qo q = alloc_block(sizeof(Qo));
+    q->type_tag = QO_TABLE;
+    QO_SET_COUNT(q, 0);
+    QO_TABLE_DICT(q) = NULL;
     return q;
 }
 
@@ -322,6 +331,13 @@ Qo qo_clone(Qo q) {
             for (int64_t i = 0; i < ac; i++) QO_PROJ_ARGS(c)[i] = qo_clone(QO_PROJ_ARGS(q)[i]);
             return c;
         }
+        case QO_TABLE: {
+            Qo clone = alloc_table_block();
+            QO_SET_COUNT(clone, QO_TABLE_ROWS(q));
+            Qo d = QO_TABLE_DICT(q);
+            if (d) QO_TABLE_DICT(clone) = qo_clone(d);
+            return clone;
+        }
         default:
             return NULL;
     }
@@ -356,6 +372,11 @@ static void qo_destroy(Qo q) {
                 int64_t ac = QO_PROJ_AC(q);
                 qo_release(QO_PROJ_FUNC(q));
                 for (int64_t i = 0; i < ac; i++) qo_release(QO_PROJ_ARGS(q)[i]);
+                break;
+            }
+            case QO_TABLE: {
+                Qo d = QO_TABLE_DICT(q);
+                if (d) qo_release(d);
                 break;
             }
             default:
@@ -475,6 +496,14 @@ int value_equals(Qo a, Qo b) {
                 if (!value_equals(QO_PROJ_ARGS(a)[i], QO_PROJ_ARGS(b)[i])) return 0;
             }
             return 1;
+        }
+        case QO_TABLE: {
+            if (QO_TABLE_ROWS(a) != QO_TABLE_ROWS(b)) return 0;
+            Qo da = QO_TABLE_DICT(a);
+            Qo db = QO_TABLE_DICT(b);
+            if (!da && !db) return 1;
+            if (!da || !db) return 0;
+            return value_equals(da, db);
         }
         default:
             return 0;

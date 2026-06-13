@@ -98,6 +98,13 @@ static inline int type_has_flag(uint8_t t, uint8_t f) { return (type_flags(t) & 
 #define QO_ADVERB_KIND(q)   ((q)->byte_val)
 #define QO_ADVERB_EACH      0
 
+/* table payload: count=nrows, data[0..sizeof(Qo)-1]=dict pointer (Qo*) */
+#define QO_TABLE_ROWS(q)   QO_COUNT(q)
+#define QO_TABLE_DICT(q)   (*(Qo *)((q)->data))
+#define QO_TABLE_COLS(q)   (QO_TABLE_DICT(q) ? QO_DICT_COUNT(QO_TABLE_DICT(q)) : 0)
+
+#define is_table_type(t)    ((t) == QO_TABLE)
+
 /* operator payload: TokenType byte */
 #define QO_OPERATOR_OP(q)   ((q)->byte_val)
 
@@ -134,3 +141,4 @@ static inline int type_has_flag(uint8_t t, uint8_t f) { return (type_flags(t) & 
 #define QO_BUILTIN_SEMICOLON    27
 #define QO_BUILTIN_NULL         28
 #define QO_BUILTIN_STRING       29
+#define QO_BUILTIN_FLIP         30

@@ -845,6 +845,27 @@ test_case "func_literal_bad_body"         "{~}"     "Error: Failed to parse expr
 test_case "func_literal_empty_body"       "{;}"     "Error: Failed to parse expression"
 test_case "unclosed_string"               '"abc'    "Error: Failed to parse expression"
 
+# ── Table literal tests ──────────────────────────────────────────────
+test_case_multiline "table_simple" "([a:1 2 3] b:4 5 6)" $'a b\n- -\n1 4\n2 5\n3 6'
+test_case_multiline "table_single_col" "([a:10 20 30])" $'a\n-\n10\n20\n30'
+test_case_multiline "table_scalar_cols" "([a:42] b:7)" $'a b\n- -\n42 7'
+test_case "table_type" "type ([]a:1 2)" "\`table"
+test_case_multiline "table_one_row" "([x:10] y:20)" $'x y\n- -\n10 20'
+test_case_multiline "table_expr_cols" "([a:1+1 2+2] b:3+3 4+4)" $'a b\n- -\n4 10\n5 11'
+test_case "table_empty" "([])" "()"
+
+# ── Flip builtin tests ───────────────────────────────────────────────
+test_case "flip_table_to_dict_type" "type flip ([]a:1 2 3;b:4 5 6)" "\`dict"
+test_case_multiline "flip_table_to_dict" "flip ([]a:1 2 3;b:4 5 6)" \
+  $'`a | 1 2 3\n`b | 4 5 6'
+test_case "flip_dict_to_table_type" "type flip \`a\`b!(1 2 3;4 5 6)" "\`table"
+test_case_multiline "flip_dict_to_table" "flip \`a\`b!(1 2 3;4 5 6)" \
+  $'a b\n- -\n1 4\n2 5\n3 6'
+test_case_multiline "flip_flip_table" "flip flip ([]a:1 2 3;b:4 5 6)" \
+  $'a b\n- -\n1 4\n2 5\n3 6'
+test_case_multiline "flip_dict_scalar_cols" "flip \`a\`b!(42;7)" \
+  $'a b\n- -\n42 7'
+
 echo ""
 echo "Passed: $PASS, Failed: $FAIL"
 exit $FAIL
