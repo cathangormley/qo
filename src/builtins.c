@@ -48,6 +48,7 @@ int builtin_name_to_id(const char *name) {
     if (strcmp(name, "null") == 0)     return QO_BUILTIN_NULL;
     if (strcmp(name, "string") == 0)   return QO_BUILTIN_STRING;
     if (strcmp(name, "flip") == 0)     return QO_BUILTIN_FLIP;
+    if (strcmp(name, "where") == 0)    return QO_BUILTIN_WHERE;
     return -1;
 }
 
@@ -84,6 +85,7 @@ const char *builtin_id_to_name(uint8_t id) {
         case QO_BUILTIN_NULL:     return "null";
         case QO_BUILTIN_STRING:   return "string";
         case QO_BUILTIN_FLIP:     return "flip";
+        case QO_BUILTIN_WHERE:    return "where";
         default:                  return NULL;
     }
 }
@@ -474,6 +476,66 @@ static Qo eval_builtin_til(Qo arg, Environment *env) {
 
     out = alloc_data_vec(QO_LONG_VEC, n);
     for (int64_t i = 0; i < n; i++) qo_long_data(out)[i] = i;
+    return out;
+}
+
+static Qo eval_builtin_where(Qo arg, Environment *env) {
+    (void)env;
+
+    if (arg == NULL) EVAL_ERROR("where expects an argument");
+
+    uint8_t t = qo_type(arg);
+    int is_vec = (t == QO_SHORT_VEC || t == QO_INT_VEC || t == QO_LONG_VEC || t == QO_BOOL_VEC);
+    int64_t n = is_vec ? qo_count(arg) : 1;
+
+    if (!is_vec && t != QO_SHORT && t != QO_INT && t != QO_LONG && t != QO_BOOL)
+        EVAL_ERROR("where expects a boolean or integer argument");
+
+    if (n == 0) return alloc_data_vec(QO_LONG_VEC, 0);
+
+    /* First pass: compute total result size */
+    int64_t total = 0;
+    for (int64_t i = 0; i < n; i++) {
+        int64_t v;
+        if      (t == QO_SHORT)     v = (int64_t)qo_short(arg);
+        else if (t == QO_SHORT_VEC) v = (int64_t)qo_short_data(arg)[i];
+        else if (t == QO_INT)       v = (int64_t)qo_int(arg);
+        else if (t == QO_INT_VEC)   v = (int64_t)qo_int_data(arg)[i];
+        else if (t == QO_LONG)      v = qo_long(arg);
+        else if (t == QO_LONG_VEC)  v = qo_long_data(arg)[i];
+        else if (t == QO_BOOL)      v = qo_bool(arg) ? 1 : 0;
+        else /* QO_BOOL_VEC */      v = qo_bool_data(arg)[i] ? 1 : 0;
+
+        if (v < 0) EVAL_ERROR("where expects non-negative values");
+        total += v;
+    }
+
+    /* Guard against overflow: alloc_data_vec multiplies count by sizeof(int64_t);
+       INT64_MAX * 8 overflows size_t and would crash. */
+    {
+        size_t needed = (size_t)total * sizeof(int64_t);
+        if (total > 0 && needed / sizeof(int64_t) != (size_t)total)
+            EVAL_ERROR("where result too large");
+    }
+
+    /* Second pass: fill the result with replicated indices */
+    Qo out = alloc_data_vec(QO_LONG_VEC, total);
+    int64_t pos = 0;
+    for (int64_t i = 0; i < n; i++) {
+        int64_t v;
+        if      (t == QO_SHORT)     v = (int64_t)qo_short(arg);
+        else if (t == QO_SHORT_VEC) v = (int64_t)qo_short_data(arg)[i];
+        else if (t == QO_INT)       v = (int64_t)qo_int(arg);
+        else if (t == QO_INT_VEC)   v = (int64_t)qo_int_data(arg)[i];
+        else if (t == QO_LONG)      v = qo_long(arg);
+        else if (t == QO_LONG_VEC)  v = qo_long_data(arg)[i];
+        else if (t == QO_BOOL)      v = qo_bool(arg) ? 1 : 0;
+        else /* QO_BOOL_VEC */      v = qo_bool_data(arg)[i] ? 1 : 0;
+
+        for (int64_t j = 0; j < v; j++)
+            qo_long_data(out)[pos++] = i;
+    }
+
     return out;
 }
 
@@ -1356,6 +1418,7 @@ static Qo eval_apply_keyword(Qo head, Qo *arg_values, int arg_count, Environment
                     case QO_BUILTIN_NULL:     return eval_builtin_null(arg_values[0], env);
                     case QO_BUILTIN_STRING:   return eval_builtin_string(arg_values[0], env);
                     case QO_BUILTIN_FLIP:     return eval_builtin_flip(arg_values[0], env);
+                    case QO_BUILTIN_WHERE:    return eval_builtin_where(arg_values[0], env);
                     default:
                         EVAL_ERROR_FMT("unknown builtin id %d", id);
                 }
@@ -1365,95 +1428,167 @@ static Qo eval_apply_keyword(Qo head, Qo *arg_values, int arg_count, Environment
     EVAL_ERROR("unknown keyword type");
 }
 
-/* Forward declaration for namespace helper used by eval_builtin_assign */
-static Qo eval_dot_assign(Qo left_raw, Qo key_raw, Qo val_raw, Environment *env);
-
 static Qo eval_builtin_assign(Qo *args, int arg_count, Environment *env) {
     if (arg_count != 2) EVAL_ERROR("assignment requires exactly 2 arguments");
     Qo target = args[0];
 
     if (target == NULL || qo_type(target) != QO_SYMBOL) EVAL_ERROR("assignment target must be a symbol");
 
-    /* Namespace assignment: a.b:5 — split target symbol on last dot */
+    /* Namespace assignment: a.b:5 — walk the dotted chain, creating nested dicts */
     const char *name = qo_symbol_name(target);
     const char *dot = strchr(name, '.');
     if (dot) {
-        const char *last_dot = strrchr(name, '.');
-        int ns_len = (int)(last_dot - name);
-        char *ns_name = strndup(name, (size_t)ns_len);
-        Qo ns_sym = qo_symbol_intern(ns_name);
-        free(ns_name);
+        int comp_count = 1;
+        for (const char *p = name; *p; p++) if (*p == '.') comp_count++;
 
-        const char *field_name = last_dot + 1;
-        if (strchr(field_name, '.'))
-            EVAL_ERROR("nested namespace assignment not supported");
+        Qo *comps = xmalloc(sizeof(Qo) * (size_t)comp_count);
+        const char *rest = name;
+        for (int i = 0; i < comp_count; i++) {
+            const char *d = strchr(rest, '.');
+            int len = d ? (int)(d - rest) : (int)strlen(rest);
+            char *buf = strndup(rest, (size_t)len);
+            comps[i] = qo_symbol_intern(buf);
+            free(buf);
+            rest = d ? d + 1 : rest + len;
+        }
 
-        Qo field_sym = qo_symbol_intern(field_name);
-        return eval_dot_assign(ns_sym, field_sym, args[1], env);
+        Qo *dict_stack = xmalloc(sizeof(Qo) * (size_t)comp_count);
+        int64_t *idx_stack = xmalloc(sizeof(int64_t) * (size_t)comp_count);
+        int depth = 0;
+
+        /* First component: get or create root dict */
+        int found;
+        Qo current = env_get(env, qo_symbol_id(comps[0]), &found);
+        if (!found || current == NULL) {
+            current = alloc_dict_block(0);
+            QO_DICT_KTYPE(current) = QO_SYMBOL;
+            QO_DICT_VTYPE(current) = QO_DICT;
+            env_set(env_root(env), qo_symbol_id(comps[0]), current);
+            qo_release(current);
+            current = env_get(env, qo_symbol_id(comps[0]), &found);
+        } else if (qo_type(current) != QO_DICT) {
+            qo_release(current);
+            free(comps); free(dict_stack); free(idx_stack);
+            EVAL_ERROR("namespace must be a dictionary");
+        }
+        dict_stack[0] = qo_retain(current);
+        idx_stack[0] = -1;
+        depth = 1;
+
+        /* Walk the chain */
+        for (int ci = 1; ci < comp_count; ci++) {
+            int64_t n = QO_DICT_COUNT(current);
+            int64_t kidx = -1;
+            for (int64_t j = 0; j < n; j++) {
+                if (value_equals(QO_DICT_KEYS(current)[j], comps[ci])) {
+                    kidx = j;
+                    break;
+                }
+            }
+
+            if (kidx < 0) {
+                /* Missing key: build the remaining chain and insert */
+                Qo val = eval_value(args[1], env);
+                if (evaluator_error_requested() || evaluator_exit_requested()) {
+                    for (int k = 0; k < depth; k++) qo_release(dict_stack[k]);
+                    free(comps); free(dict_stack); free(idx_stack);
+                    return val;
+                }
+
+                /* Build the value to insert at key comps[ci].
+                   If ci is the last component, the value is val itself.
+                   Otherwise, build a nested dict chain from comps[ci+1] down. */
+                Qo value_to_insert;
+                if (ci == comp_count - 1) {
+                    value_to_insert = qo_retain(val);
+                } else {
+                    /* Innermost leaf: {comps[-1]: val} */
+                    Qo leaf = alloc_dict_block(1);
+                    QO_DICT_KTYPE(leaf) = QO_SYMBOL;
+                    QO_DICT_VTYPE(leaf) = qo_type(val);
+                    QO_DICT_KEYS(leaf)[0] = qo_retain(comps[comp_count - 1]);
+                    QO_DICT_VALS(leaf)[0] = qo_retain(val);
+
+                    /* Wrap from right to left, stopping just before ci */
+                    Qo chain = leaf;
+                    for (int i = comp_count - 2; i > ci; i--) {
+                        Qo outer = alloc_dict_block(1);
+                        QO_DICT_KTYPE(outer) = QO_SYMBOL;
+                        QO_DICT_VTYPE(outer) = QO_DICT;
+                        QO_DICT_KEYS(outer)[0] = qo_retain(comps[i]);
+                        QO_DICT_VALS(outer)[0] = chain;
+                        chain = outer;
+                    }
+                    value_to_insert = chain;
+                }
+
+                /* Insert value_to_insert at key comps[ci] into current */
+                Qo new_current = alloc_dict_block(n + 1);
+                QO_DICT_KTYPE(new_current) = QO_DICT_KTYPE(current);
+                QO_DICT_VTYPE(new_current) = QO_DICT_VTYPE(current);
+                for (int64_t j = 0; j < n; j++) {
+                    QO_DICT_KEYS(new_current)[j] = qo_retain(QO_DICT_KEYS(current)[j]);
+                    QO_DICT_VALS(new_current)[j] = qo_retain(QO_DICT_VALS(current)[j]);
+                }
+                QO_DICT_KEYS(new_current)[n] = qo_retain(comps[ci]);
+                QO_DICT_VALS(new_current)[n] = value_to_insert;
+
+                /* Replace current in parent (or env if root) */
+                if (depth == 1) {
+                    env_set(env_root(env), qo_symbol_id(comps[0]), new_current);
+                } else {
+                    Qo parent = dict_stack[depth - 2];
+                    int64_t pidx = idx_stack[depth - 1];
+                    qo_release(QO_DICT_VALS(parent)[pidx]);
+                    QO_DICT_VALS(parent)[pidx] = qo_retain(new_current);
+                }
+
+                for (int k = 0; k < depth; k++) qo_release(dict_stack[k]);
+                free(comps); free(dict_stack); free(idx_stack);
+                return val;
+            }
+
+            /* Key exists */
+            Qo child = QO_DICT_VALS(current)[kidx];
+
+            if (ci == comp_count - 1) {
+                /* Last component: update existing value in place */
+                Qo val = eval_value(args[1], env);
+                if (evaluator_error_requested() || evaluator_exit_requested()) {
+                    for (int k = 0; k < depth; k++) qo_release(dict_stack[k]);
+                    free(comps); free(dict_stack); free(idx_stack);
+                    return val;
+                }
+                qo_release(QO_DICT_VALS(current)[kidx]);
+                QO_DICT_VALS(current)[kidx] = qo_retain(val);
+                for (int k = 0; k < depth; k++) qo_release(dict_stack[k]);
+                free(comps); free(dict_stack); free(idx_stack);
+                return val;
+            }
+
+            /* Middle: descend into child dict */
+            if (qo_type(child) != QO_DICT) {
+                for (int k = 0; k < depth; k++) qo_release(dict_stack[k]);
+                free(comps); free(dict_stack); free(idx_stack);
+                EVAL_ERROR("namespace must be a dictionary");
+            }
+
+            dict_stack[depth] = qo_retain(current);
+            idx_stack[depth] = kidx;
+            depth++;
+            current = child;
+        }
+
+        /* Should not reach here (handled above) */
+        for (int k = 0; k < depth; k++) qo_release(dict_stack[k]);
+        free(comps); free(dict_stack); free(idx_stack);
+        return NULL;
     }
 
     Qo result = eval_value(args[1], env);
     if (evaluator_error_requested() || evaluator_exit_requested()) return result;
     env_set(env, qo_symbol_id(target), result);
     return result;
-}
-
-/* Namespace assignment: a.b:val — set key_raw to val in the dict of left_raw */
-static Qo eval_dot_assign(Qo left_raw, Qo key_raw, Qo val_raw, Environment *env) {
-    if (qo_type(key_raw) != QO_SYMBOL)
-        EVAL_ERROR("namespace field must be a symbol");
-
-    int found;
-    Qo ns = env_get(env, qo_symbol_id(left_raw), &found);
-
-    Qo val = eval_value(val_raw, env);
-    if (evaluator_error_requested() || evaluator_exit_requested()) {
-        if (found) qo_release(ns);
-        return val;
-    }
-
-    if (!found || ns == NULL) {
-        Qo new_dict = alloc_dict_block(1);
-        QO_DICT_KTYPE(new_dict) = QO_SYMBOL;
-        QO_DICT_VTYPE(new_dict) = qo_type(val);
-        QO_DICT_KEYS(new_dict)[0] = qo_retain(key_raw);
-        QO_DICT_VALS(new_dict)[0] = qo_retain(val);
-
-        env_set(env_root(env), qo_symbol_id(left_raw), new_dict);
-        qo_release(new_dict);
-        return val;
-    }
-
-    if (qo_type(ns) != QO_DICT) {
-        qo_release(ns);
-        EVAL_ERROR("namespace must be a dictionary");
-    }
-
-    int64_t n = QO_DICT_COUNT(ns);
-    int64_t found_idx = -1;
-    for (int64_t i = 0; i < n; i++) {
-        if (value_equals(QO_DICT_KEYS(ns)[i], key_raw)) { found_idx = i; break; }
-    }
-
-    if (found_idx >= 0) {
-        qo_release(QO_DICT_VALS(ns)[found_idx]);
-        QO_DICT_VALS(ns)[found_idx] = qo_retain(val);
-    } else {
-        Qo new_dict = alloc_dict_block(n + 1);
-        QO_DICT_KTYPE(new_dict) = QO_DICT_KTYPE(ns);
-        QO_DICT_VTYPE(new_dict) = QO_DICT_VTYPE(ns);
-        for (int64_t i = 0; i < n; i++) {
-            QO_DICT_KEYS(new_dict)[i] = qo_retain(QO_DICT_KEYS(ns)[i]);
-            QO_DICT_VALS(new_dict)[i] = qo_retain(QO_DICT_VALS(ns)[i]);
-        }
-        QO_DICT_KEYS(new_dict)[n] = qo_retain(key_raw);
-        QO_DICT_VALS(new_dict)[n] = qo_retain(val);
-        env_set(env_root(env), qo_symbol_id(left_raw), new_dict);
-        qo_release(new_dict);
-    }
-
-    qo_release(ns);
-    return val;
 }
 
 /* Nested namespace read: a.b.c — walk dict chain */
