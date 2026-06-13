@@ -408,7 +408,8 @@ static int starts_factor(TokenType type) {
            type == TOKEN_STRING ||
            type == TOKEN_LPAREN ||
            type == TOKEN_LBRACE ||
-           type == TOKEN_EACH;
+           type == TOKEN_EACH ||
+           is_expression_operator(type);
 }
 
 
@@ -1174,21 +1175,34 @@ static Qo parse_expression(Parser *parser) {
     op_token = current_token(parser);
 
     if (op_token && is_expression_operator(op_token->type)) {
-        TokenType op_type = op_token->type;
-        advance(parser);
-        {
-            Qo right = parse_expression(parser);
-            if (is_parse_error(right)) {
-                qo_release(left);
-                fprintf(stderr, "Error: expected expression after operator\n");
-                return PARSE_ERROR;
-            }
+        /*
+         * @, ., and ? have bracket forms (@[x], .[x], ?[x]) that can also
+         * appear as a factor after an expression (juxtaposition).  When
+         * these operators are immediately followed by [, treat them as a
+         * factor start, not a binary operator.
+         */
+        int is_bracket_factor = (
+            parser->pos + 1 < parser->count
+            && parser->tokens[parser->pos + 1]->type == TOKEN_LBRACKET
+        );
+
+        if (!is_bracket_factor) {
+            TokenType op_type = op_token->type;
+            advance(parser);
             {
-                Qo *binop_elements = xmalloc(sizeof(Qo) * 3);
-                binop_elements[0] = make_operator_value(op_type);
-                binop_elements[1] = left;
-                binop_elements[2] = right;
-                return qo_make_list_take(binop_elements, 3);
+                Qo right = parse_expression(parser);
+                if (is_parse_error(right)) {
+                    qo_release(left);
+                    fprintf(stderr, "Error: expected expression after operator\n");
+                    return PARSE_ERROR;
+                }
+                {
+                    Qo *binop_elements = xmalloc(sizeof(Qo) * 3);
+                    binop_elements[0] = make_operator_value(op_type);
+                    binop_elements[1] = left;
+                    binop_elements[2] = right;
+                    return qo_make_list_take(binop_elements, 3);
+                }
             }
         }
     }

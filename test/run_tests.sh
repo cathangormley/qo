@@ -743,6 +743,25 @@ test_case "find_op_scalar_notfound"  "3 4 5 ? 6"            "3"
 test_case "find_op_vector_found"     "3 4 5 ? 4 5"          "1 2"
 test_case "find_op_vector_notfound"  "3 4 5 ? 3 6"          "0 3"
 
+# Bracket-form operator parsing: expr OP[args] should be expr applied
+# to OP[args], not a binary op.  Test all expression operators.
+test_case "bracket_plus"               "type +[3;4]"              "\`long"
+test_case "bracket_minus"              "type -[10;3]"             "\`long"
+test_case "bracket_star"               "type *[2;3]"              "\`long"
+test_case "bracket_bang"               "type ![\`a\`b;1 2]"       "\`dict"
+test_case "bracket_comma"              "type ,[1;2]"              "\`LONG"
+test_case "bracket_hash"               "type #[3;1 2 3]"          "\`LONG"
+test_case "bracket_underscore"         "type _[1;1 2 3]"          "\`LONG"
+test_case "bracket_equal"              "type =[1;1]"              "\`bool"
+test_case "bracket_less"               "type <[1;2]"              "\`bool"
+test_case "bracket_greater"            "type >[2;1]"              "\`bool"
+test_case "bracket_amp"                "type &[2;9]"              "\`long"
+test_case "bracket_pipe"               "type |[2;9]"              "\`long"
+test_case "bracket_dollar"             "type \$[\`float;42]"      "\`float"
+test_case "bracket_at"                 "type @[;1] 3 4 5"         "\`long"
+test_case "bracket_dot"                "type .[+;(3;5)]"          "\`long"
+test_case "bracket_question"           "type ?[1 2 3; 2]"         "\`long"
+
 # IPC tests (same-process via localhost)
 IPC_PORT=19101
 test_case "ipc_same_process_int"     "listen $IPC_PORT; h: hopen[\"127.0.0.1\";$IPC_PORT]; h[42]" "42"
