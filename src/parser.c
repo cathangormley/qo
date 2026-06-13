@@ -1246,22 +1246,29 @@ Qo parser_parse(Parser *parser) {
             break;
         }
 
-        statement = parse_expression(parser);
-        if (is_parse_error(statement)) {
-            Token *check = current_token(parser);
-            if (!check || check->type == TOKEN_EOF) {
-                if (count == 0) {
-                    free(statements);
-                    return PARSE_ERROR;
+        /* Allow empty statements (bare `;` or consecutive `;;`).
+           Don't advance — the separator check below will consume
+           the `;`, handling all cases uniformly. */
+        if (token->type == TOKEN_SEMICOLON) {
+            statement = make_null_value();
+        } else {
+            statement = parse_expression(parser);
+            if (is_parse_error(statement)) {
+                Token *check = current_token(parser);
+                if (!check || check->type == TOKEN_EOF) {
+                    if (count == 0) {
+                        free(statements);
+                        return PARSE_ERROR;
+                    }
+                    break;
                 }
-                break;
-            }
 
-            for (int i = 0; i < count; i++) {
-                qo_release(statements[i]);
+                for (int i = 0; i < count; i++) {
+                    qo_release(statements[i]);
+                }
+                free(statements);
+                return PARSE_ERROR;
             }
-            free(statements);
-            return PARSE_ERROR;
         }
 
         if (count >= capacity) {
