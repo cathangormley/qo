@@ -1529,7 +1529,9 @@ static Qo eval_builtin_assign(Qo *args, int arg_count, Environment *env) {
                 /* Insert value_to_insert at key comps[ci] into current */
                 Qo new_current = alloc_dict_block(n + 1);
                 QO_DICT_KTYPE(new_current) = QO_DICT_KTYPE(current);
-                QO_DICT_VTYPE(new_current) = QO_DICT_VTYPE(current);
+                /* When parent is empty, derive VTYPE from the inserted value;
+                   otherwise copy the existing VTYPE (all values share one type). */
+                QO_DICT_VTYPE(new_current) = (n > 0) ? QO_DICT_VTYPE(current) : qo_type(value_to_insert);
                 for (int64_t j = 0; j < n; j++) {
                     QO_DICT_KEYS(new_current)[j] = qo_retain(QO_DICT_KEYS(current)[j]);
                     QO_DICT_VALS(new_current)[j] = qo_retain(QO_DICT_VALS(current)[j]);

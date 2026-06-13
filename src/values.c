@@ -558,11 +558,15 @@ Qo extract_dict_side(Qo dict, int want_keys) {
     }
 
     if (type_storage(side_type) != SC_PTR) {
+        if (type_has_flag(side_type, TF_SCALAR))
+            side_type = type_base_type(side_type);
         Qo result = alloc_data_vec(side_type, n);
         for (int64_t i = 0; i < n; i++) set_vec_elem_from_scalar(result, i, elems[i]);
         return result;
     }
 
+    if (type_has_flag(side_type, TF_SCALAR))
+        side_type = type_base_type(side_type);
     Qo result = alloc_ptr_vec(side_type, n);
     for (int64_t i = 0; i < n; i++) QO_LIST_DATA(result)[i] = qo_clone(elems[i]);
     return result;

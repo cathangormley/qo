@@ -914,6 +914,8 @@ test_case "ns_nested_overwrite"      "a.b.c:5; a.b.c:7; a.b.c" "7"
 test_case "ns_nested_extend"         "a.x:1; a.b.c:5; a.x" "1"
 test_case "ns_nested_deep_read_write" "a.b.c.d:9; a.b.c.d" "9"
 test_case "ns_nested_undefined_var"  "a.b.c"               "Error: undefined variable 'a'"
+test_case "ns_key_keyword"      "c.d:5; key c"   "\`d"
+test_case "ns_value_keyword"    "c.d:5; value c" "5"
 
 # ── Where keyword tests ──────────────────────────────────────────────
 test_case "where_bool_vec"             "where 0101b"         "1 3"
