@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include "evaluator.h"
 #include "evaluator_internal.h"
+#include "random.h"
 #include "internal.h"
 #include "lexer.h"
 #include "parser.h"
@@ -136,10 +137,13 @@ int main(int argc, char **argv) {
     ipc_init();
     Environment *env = env_new();
 
-    /* Set sys.argv — command-line arguments (excluding program name) as a list of strings */
-    Qo sys_dict = alloc_dict_block(1);
+    /* initialize PRNG with seed 0 */
+    random_init(0);
+
+    /* Set sys.argv, sys.hostname, sys.seed */
+    Qo sys_dict = alloc_dict_block(3);
     QO_DICT_KTYPE(sys_dict) = QO_SYMBOL;
-    QO_DICT_VTYPE(sys_dict) = QO_LIST;
+    QO_DICT_VTYPE(sys_dict) = 0;
 
     Qo argv_sym = qo_symbol_intern("argv");
     int argv_count = argc > 0 ? argc - 1 : 0;
@@ -155,6 +159,32 @@ int main(int argc, char **argv) {
     QO_DICT_VALS(sys_dict)[0] = qo_retain(argv_list);
     qo_release(argv_sym);
     qo_release(argv_list);
+
+    /* sys.hostname */
+    {
+        Qo hn_sym = qo_symbol_intern("hostname");
+        char hnbuf[256];
+        if (gethostname(hnbuf, sizeof(hnbuf)) == 0) {
+            hnbuf[sizeof(hnbuf) - 1] = '\0';
+        } else {
+            strcpy(hnbuf, "localhost");
+        }
+        int64_t hn_len = (int64_t)strlen(hnbuf);
+        Qo hn_val = alloc_charlike(QO_CHAR_VEC, hn_len);
+        memcpy(qo_char_data(hn_val), hnbuf, (size_t)hn_len);
+        QO_DICT_KEYS(sys_dict)[1] = qo_retain(hn_sym);
+        QO_DICT_VALS(sys_dict)[1] = qo_retain(hn_val);
+        qo_release(hn_sym);
+        qo_release(hn_val);
+    }
+
+    /* sys.seed — PRNG seed, writable via sys.seed: N */
+    {
+        Qo seed_sym = qo_symbol_intern("seed");
+        QO_DICT_KEYS(sys_dict)[2] = qo_retain(seed_sym);
+        QO_DICT_VALS(sys_dict)[2] = qo_retain(make_long_value((int64_t)random_current_seed()));
+        qo_release(seed_sym);
+    }
 
     {
         Qo sys_sym = qo_symbol_intern("sys");

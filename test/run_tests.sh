@@ -789,6 +789,32 @@ test_case "find_op_scalar_notfound"  "3 4 5 ? 6"            "3"
 test_case "find_op_vector_found"     "3 4 5 ? 4 5"          "1 2"
 test_case "find_op_vector_notfound"  "3 4 5 ? 3 6"          "0 3"
 
+# ── Random number generation (?) ───────────────────────────────────────
+# Type checks
+test_case "rand_type_long"       "type 5 ? 0j"              "\`LONG"
+test_case "rand_type_int"        "type 5 ? 0i"              "\`INT"
+test_case "rand_type_short"      "type 5 ? 0h"              "\`SHORT"
+test_case "rand_type_byte"       "type 5 ? 0x00"            "\`BYTE"
+test_case "rand_type_bool"       "type 5 ? 0b"              "\`BOOL"
+test_case "rand_type_float"      "type 5 ? 1.0f"            "\`FLOAT"
+test_case "rand_type_default"    "type 5 ? 0"               "\`LONG"
+# Count checks
+test_case "rand_count"           "count (10 ? 0j)"          "10"
+test_case "rand_count_empty"     "count (0 ? 0j)"           "0"
+# Scalar result for n=1
+test_case "rand_scalar_type"     "type 1 ? 100"             "\`long"
+# Bounded range (values in [0, bound))
+test_case "rand_bounded_max"     "max[(1000 ? 10)] < 10"    "1b"
+test_case "rand_bounded_short"   "max[(500 ? 5h)] < 5h"     "1b"
+# Zero RHS for float → zeros
+test_case "rand_zero_float"      "max[(5 ? 0f)]"            "0f"
+# Bracket form with scalar count
+test_case "rand_bracket_form"    "type ?[3;0j]"             "\`LONG"
+# Seed determinism
+test_case "rand_seed_deterministic" "sys.seed: 12345; a:5?100; sys.seed: 0; 1?0; sys.seed: 12345; a=5?100" "11111b"
+# Seed readable via sys.seed
+test_case "rand_seed_type"       "type sys.seed"            "\`long"
+
 # Bracket-form operator parsing: expr OP[args] should be expr applied
 # to OP[args], not a binary op.  Test all expression operators.
 test_case "bracket_plus"               "type +[3;4]"              "\`long"
@@ -986,6 +1012,10 @@ test_case_file_args "sys_argv_with_args"    "count sys.argv"  "4"       "a" "b" 
 test_case_file_args "sys_argv_index_one"    "sys.argv[1]"     "\"a\""   "a" "b" "c"
 test_case_file_args "sys_argv_index_two"    "sys.argv[2]"     "\"b\""   "a" "b" "c"
 test_case_file_args "sys_argv_dash_first"   "sys.argv[1]"     "\"-opt\"" "-opt" "val"
+
+# ── sys.hostname tests ─────────────────────────────────────────────────
+test_case "sys_hostname_type"    "type sys.hostname"    "\`CHAR"
+test_case "sys_hostname_exists"  "0 < count sys.hostname" "1b"
 
 echo ""
 echo "Passed: $PASS, Failed: $FAIL"
