@@ -45,8 +45,10 @@ static int read_all(int fd, void *buf, size_t count) {
 static size_t ipc_block_size(Qo q) {
     if (q == NULL) return 0;
     uint8_t t = qo_type(q);
+    if (t == QO_SYMBOL) return 2 + strlen(qo_symbol_name(q)) + 1;
     if (type_has_flag(t, TF_SCALAR)) return 2 + type_elem_size(t);
-    if (type_has_flag(t, TF_VECTOR) && !type_has_flag(t, TF_COMPLEX))
+    if (type_has_flag(t, TF_VECTOR) && !type_has_flag(t, TF_COMPLEX)
+        && t != QO_SYM_VEC)
         return 10 + (size_t)qo_count(q) * type_elem_size(t);
     return 0;
 }
@@ -60,7 +62,9 @@ Qo ipc_serialize(Qo arg) {
     uint8_t *out = qo_byte_data(result);
     out[0] = t;
     out[1] = qo_attrs(arg);
-    if (type_has_flag(t, TF_SCALAR)) {
+    if (t == QO_SYMBOL) {
+        memcpy(out + 2, qo_symbol_name(arg), sz - 2);
+    } else if (type_has_flag(t, TF_SCALAR)) {
         memcpy(out + 2, &arg->long_val, type_elem_size(t));
     } else {
         int64_t n = qo_count(arg);
@@ -72,9 +76,6 @@ Qo ipc_serialize(Qo arg) {
 
 static Qo deserialize_scalar(uint8_t t, const uint8_t *data, size_t len) {
     (void)len;
-    if (t == QO_SYMBOL) {
-        int64_t id; memcpy(&id, data, 8); return qo_symbol_by_id(id);
-    }
     return make_scalar_value(t, data);
 }
 
@@ -97,11 +98,17 @@ Qo ipc_deserialize(const uint8_t *data, size_t len) {
     uint8_t t = data[0];
     data += 2;
     len -= 2;
+    if (t == QO_SYMBOL) {
+        size_t name_len = strnlen((const char *)data, len);
+        if (name_len == len) return NULL;
+        return qo_symbol_intern((const char *)data);
+    }
     if (type_has_flag(t, TF_SCALAR)) {
         if (len < type_elem_size(t)) return NULL;
         return deserialize_scalar(t, data, len);
     }
-    if (type_has_flag(t, TF_VECTOR) && !type_has_flag(t, TF_COMPLEX))
+    if (type_has_flag(t, TF_VECTOR) && !type_has_flag(t, TF_COMPLEX)
+        && t != QO_SYM_VEC)
         return deserialize_vector(t, data, len);
     return NULL;
 }
