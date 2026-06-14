@@ -61,7 +61,7 @@ Qo alloc_atom(uint8_t type) {
     return q;
 }
 
-static Qo make_scalar_value(uint8_t type, const void *value) {
+Qo make_scalar_value(uint8_t type, const void *value) {
     Qo q = alloc_atom(type);
     size_t sz = type_elem_size(type);
     if (sz > 0) memcpy(&q->long_val, value, sz);

@@ -44,30 +44,11 @@ static int read_all(int fd, void *buf, size_t count) {
 
 static size_t ipc_block_size(Qo q) {
     if (q == NULL) return 0;
-    switch (qo_type(q)) {
-        case QO_SHORT: return 4;
-        case QO_INT: return 6;
-        case QO_LONG:
-        case QO_TIMESTAMP:
-        case QO_TIMESPAN:
-        case QO_FLOAT: return 10;
-        case QO_CHAR:
-        case QO_BOOL:
-        case QO_BYTE: return 3;
-        case QO_SYMBOL: return 10;
-        case QO_OPERATOR:
-        case QO_BUILTIN: return 3;
-        case QO_CHAR_VEC: return (size_t)(10 + qo_count(q));
-        case QO_SHORT_VEC: return (size_t)(10 + qo_count(q) * 2);
-        case QO_INT_VEC: return (size_t)(10 + qo_count(q) * 4);
-        case QO_LONG_VEC:
-        case QO_TIMESTAMP_VEC:
-        case QO_TIMESPAN_VEC:
-        case QO_FLOAT_VEC: return (size_t)(10 + qo_count(q) * 8);
-        case QO_BOOL_VEC:
-        case QO_BYTE_VEC: return (size_t)(10 + qo_count(q));
-        default: return 0;
-    }
+    uint8_t t = qo_type(q);
+    if (type_has_flag(t, TF_SCALAR)) return 2 + type_elem_size(t);
+    if (type_has_flag(t, TF_VECTOR) && !type_has_flag(t, TF_COMPLEX))
+        return 10 + (size_t)qo_count(q) * type_elem_size(t);
+    return 0;
 }
 
 Qo ipc_serialize(Qo arg) {
@@ -77,66 +58,24 @@ Qo ipc_serialize(Qo arg) {
     if (sz == 0) { EVAL_ERROR("cannot serialize this type"); }
     Qo result = alloc_data_vec(QO_BYTE_VEC, (int64_t)sz);
     uint8_t *out = qo_byte_data(result);
-    int64_t n;
-
     out[0] = t;
     out[1] = qo_attrs(arg);
-
-    switch (t) {
-        case QO_SHORT: { int16_t v = qo_short(arg); memcpy(out + 2, &v, 2); break; }
-        case QO_INT: { int32_t v = qo_int(arg); memcpy(out + 2, &v, 4); break; }
-        case QO_LONG:
-        case QO_TIMESTAMP:
-        case QO_TIMESPAN:
-        case QO_SYMBOL: {
-            int64_t v = (t == QO_SYMBOL) ? qo_symbol_id(arg) : qo_long(arg);
-            memcpy(out + 2, &v, 8); break;
-        }
-        case QO_FLOAT: { double v = qo_float(arg); memcpy(out + 2, &v, 8); break; }
-        case QO_CHAR: out[2] = (uint8_t)qo_char(arg); break;
-        case QO_BOOL: out[2] = qo_bool(arg); break;
-        case QO_BYTE: out[2] = qo_byte(arg); break;
-        case QO_OPERATOR:
-            out[2] = QO_OPERATOR_OP(arg);
-            break;
-        case QO_BUILTIN:
-            out[2] = QO_BUILTIN_ID(arg);
-            break;
-        case QO_CHAR_VEC:
-        case QO_SHORT_VEC:
-        case QO_INT_VEC:
-        case QO_LONG_VEC:
-        case QO_TIMESTAMP_VEC:
-        case QO_TIMESPAN_VEC:
-        case QO_FLOAT_VEC:
-        case QO_BOOL_VEC:
-        case QO_BYTE_VEC:
-            n = qo_count(arg);
-            memcpy(out + 2, &n, 8);
-            memcpy(out + 10, qo_byte_data(arg), (size_t)n * type_elem_size(t));
-            break;
-        default:
-            qo_release(result);
-            EVAL_ERROR("cannot serialize this type");
+    if (type_has_flag(t, TF_SCALAR)) {
+        memcpy(out + 2, &arg->long_val, type_elem_size(t));
+    } else {
+        int64_t n = qo_count(arg);
+        memcpy(out + 2, &n, 8);
+        memcpy(out + 10, qo_byte_data(arg), (size_t)n * type_elem_size(t));
     }
     return result;
 }
 
 static Qo deserialize_scalar(uint8_t t, const uint8_t *data, size_t len) {
     (void)len;
-    switch (t) {
-        case QO_SHORT: { int16_t v; memcpy(&v, data, 2); return make_short_value(v); }
-        case QO_INT: { int32_t v; memcpy(&v, data, 4); return make_int_value(v); }
-        case QO_LONG: { int64_t v; memcpy(&v, data, 8); return make_long_value(v); }
-        case QO_TIMESTAMP: { int64_t v; memcpy(&v, data, 8); return make_timestamp_value(v); }
-        case QO_TIMESPAN: { int64_t v; memcpy(&v, data, 8); return make_timespan_value(v); }
-        case QO_FLOAT: { double v; memcpy(&v, data, 8); return make_float_value(v); }
-        case QO_CHAR: return make_char_value((char)data[0]);
-        case QO_BOOL: return make_bool_value(data[0]);
-        case QO_BYTE: return make_byte_value(data[0]);
-        case QO_SYMBOL: { int64_t id; memcpy(&id, data, 8); return qo_symbol_by_id(id); }
-        default: return NULL;
+    if (t == QO_SYMBOL) {
+        int64_t id; memcpy(&id, data, 8); return qo_symbol_by_id(id);
     }
+    return make_scalar_value(t, data);
 }
 
 static Qo deserialize_vector(uint8_t t, const uint8_t *data, size_t len) {
@@ -158,33 +97,13 @@ Qo ipc_deserialize(const uint8_t *data, size_t len) {
     uint8_t t = data[0];
     data += 2;
     len -= 2;
-
-    switch (t) {
-        case QO_SHORT: return (len < 2)  ? NULL : deserialize_scalar(t, data, len);
-        case QO_INT:   return (len < 4)  ? NULL : deserialize_scalar(t, data, len);
-        case QO_LONG:
-        case QO_TIMESTAMP:
-        case QO_TIMESPAN:
-        case QO_FLOAT:
-        case QO_SYMBOL: return (len < 8)  ? NULL : deserialize_scalar(t, data, len);
-        case QO_CHAR:
-        case QO_BOOL:
-        case QO_BYTE: return (len < 1)  ? NULL : deserialize_scalar(t, data, len);
-        case QO_OPERATOR: return (len < 1) ? NULL : make_operator_value((TokenType)data[0]);
-        case QO_BUILTIN:  return (len < 1) ? NULL : make_builtin_value(data[0]);
-        case QO_CHAR_VEC:
-        case QO_SHORT_VEC:
-        case QO_INT_VEC:
-        case QO_LONG_VEC:
-        case QO_TIMESTAMP_VEC:
-        case QO_TIMESPAN_VEC:
-        case QO_FLOAT_VEC:
-        case QO_BOOL_VEC:
-        case QO_BYTE_VEC:
-            return (len < 8) ? NULL : deserialize_vector(t, data, len);
-        default:
-            return NULL;
+    if (type_has_flag(t, TF_SCALAR)) {
+        if (len < type_elem_size(t)) return NULL;
+        return deserialize_scalar(t, data, len);
     }
+    if (type_has_flag(t, TF_VECTOR) && !type_has_flag(t, TF_COMPLEX))
+        return deserialize_vector(t, data, len);
+    return NULL;
 }
 
 void ipc_init(void) {

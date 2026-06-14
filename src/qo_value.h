@@ -21,10 +21,7 @@ typedef struct QoObject {
         int32_t int_val;
         int64_t long_val;
         double double_val;
-        char char_val;
         uint8_t byte_val;
-        uint8_t bool_val;
-        int64_t symbol_id;
         struct {
             int64_t count;
             _Alignas(int64_t) uint8_t data[];
@@ -122,7 +119,7 @@ static inline int64_t *qo_timespan_data(Qo q) {
 }
 
 static inline int64_t qo_symbol_id(Qo q) {
-    return q->symbol_id;
+    return q->long_val;
 }
 
 static inline double qo_float(Qo q) {
@@ -130,11 +127,11 @@ static inline double qo_float(Qo q) {
 }
 
 static inline char qo_char(Qo q) {
-    return q->char_val;
+    return (char)q->byte_val;
 }
 
 static inline uint8_t qo_bool(Qo q) {
-    return q->bool_val;
+    return q->byte_val;
 }
 
 static inline uint8_t qo_byte(Qo q) {
@@ -158,7 +155,7 @@ static inline void qo_set_long(Qo q, int64_t value) {
 }
 
 static inline void qo_set_symbol_id(Qo q, int64_t value) {
-    q->symbol_id = value;
+    q->long_val = value;
 }
 
 static inline void qo_set_float(Qo q, double value) {
@@ -166,11 +163,11 @@ static inline void qo_set_float(Qo q, double value) {
 }
 
 static inline void qo_set_char(Qo q, char value) {
-    q->char_val = value;
+    q->byte_val = (uint8_t)value;
 }
 
 static inline void qo_set_bool(Qo q, uint8_t value) {
-    q->bool_val = value;
+    q->byte_val = value;
 }
 
 static inline void qo_set_byte(Qo q, uint8_t value) {

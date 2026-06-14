@@ -26,6 +26,7 @@ Qo make_builtin_value(uint8_t id);
 int builtin_name_to_id(const char *name);
 const char *builtin_id_to_name(uint8_t id);
 Qo make_null_value(void);
+Qo make_scalar_value(uint8_t type, const void *value);
 Qo make_short_value(int16_t value);
 Qo make_int_value(int32_t value);
 Qo make_long_value(int64_t value);
