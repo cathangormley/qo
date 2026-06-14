@@ -54,6 +54,15 @@ static size_t ipc_block_size(Qo q) {
         }
         return sz;
     }
+    if (t == QO_DICT) {
+        int64_t n = QO_DICT_COUNT(q);
+        size_t sz = 12; /* 2 header + 8 count + 1 ktype + 1 vtype */
+        for (int64_t i = 0; i < n; i++) {
+            sz += ipc_block_size(QO_DICT_KEYS(q)[i]);
+            sz += ipc_block_size(QO_DICT_VALS(q)[i]);
+        }
+        return sz;
+    }
     if (type_has_flag(t, TF_SCALAR)) return 2 + type_elem_size(t);
     if (type_has_flag(t, TF_VECTOR) && !type_has_flag(t, TF_COMPLEX))
         return 10 + (size_t)qo_count(q) * type_elem_size(t);
@@ -81,6 +90,26 @@ Qo ipc_serialize(Qo arg) {
             memcpy(out + offset, name, name_len);
             offset += name_len;
         }
+    } else if (t == QO_DICT) {
+        int64_t n = QO_DICT_COUNT(arg);
+        memcpy(out + 2, &n, 8);
+        out[10] = QO_DICT_KTYPE(arg);
+        out[11] = QO_DICT_VTYPE(arg);
+        size_t offset = 12;
+        for (int64_t i = 0; i < n; i++) {
+            Qo ser = ipc_serialize(QO_DICT_KEYS(arg)[i]);
+            size_t ser_len = (size_t)qo_count(ser);
+            memcpy(out + offset, qo_byte_data(ser), ser_len);
+            offset += ser_len;
+            qo_release(ser);
+        }
+        for (int64_t i = 0; i < n; i++) {
+            Qo ser = ipc_serialize(QO_DICT_VALS(arg)[i]);
+            size_t ser_len = (size_t)qo_count(ser);
+            memcpy(out + offset, qo_byte_data(ser), ser_len);
+            offset += ser_len;
+            qo_release(ser);
+        }
     } else if (type_has_flag(t, TF_SCALAR)) {
         memcpy(out + 2, &arg->long_val, type_elem_size(t));
     } else {
@@ -94,6 +123,94 @@ Qo ipc_serialize(Qo arg) {
 static Qo deserialize_scalar(uint8_t t, const uint8_t *data, size_t len) {
     (void)len;
     return make_scalar_value(t, data);
+}
+
+/*
+ * Compute the total byte length of a single serialized value in the wire
+ * (type + attrs + payload).  Returns 0 for unknown or malformed input.
+ * This is needed for compound types (dicts) whose serialization interleaves
+ * recursively-serialized sub-values: the parser must know each sub-value's
+ * extent in order to advance the data pointer.
+ */
+static size_t ipc_wire_parse_size(const uint8_t *data, size_t max_len) {
+    if (max_len < 2) return 0;
+    uint8_t t = data[0];
+    if (t == QO_SYMBOL) {
+        size_t name_len = strnlen((const char *)(data + 2), max_len - 2);
+        if (name_len + 2 >= max_len) return 0;
+        return 2 + name_len + 1;
+    }
+    if (t == QO_SYM_VEC) {
+        if (max_len < 10) return 0;
+        int64_t n;
+        memcpy(&n, data + 2, 8);
+        size_t offset = 10;
+        for (int64_t i = 0; i < n && offset < max_len; i++) {
+            size_t name_len = strnlen((const char *)(data + offset), max_len - offset);
+            if (name_len + offset >= max_len) return 0;
+            offset += name_len + 1;
+        }
+        return offset;
+    }
+    if (type_has_flag(t, TF_SCALAR)) {
+        return 2 + type_elem_size(t);
+    }
+    if (type_has_flag(t, TF_VECTOR) && !type_has_flag(t, TF_COMPLEX)) {
+        if (max_len < 10) return 0;
+        int64_t n;
+        memcpy(&n, data + 2, 8);
+        return 10 + (size_t)n * type_elem_size(t);
+    }
+    if (t == QO_DICT) {
+        if (max_len < 12) return 0;
+        int64_t n;
+        memcpy(&n, data + 2, 8);
+        size_t offset = 12;
+        for (int64_t i = 0; i < n && offset < max_len; i++) {
+            size_t sz = ipc_wire_parse_size(data + offset, max_len - offset);
+            if (sz == 0) return 0;
+            offset += sz;
+        }
+        for (int64_t i = 0; i < n && offset < max_len; i++) {
+            size_t sz = ipc_wire_parse_size(data + offset, max_len - offset);
+            if (sz == 0) return 0;
+            offset += sz;
+        }
+        return offset;
+    }
+    return 0;
+}
+
+static Qo deserialize_dict(const uint8_t *data, size_t len) {
+    if (len < 10) return NULL; /* 8 count + 1 ktype + 1 vtype */
+    int64_t n;
+    memcpy(&n, data, 8);
+    uint8_t ktype = data[8];
+    uint8_t vtype = data[9];
+    data += 10;
+    len -= 10;
+    Qo result = alloc_dict_block(n);
+    QO_DICT_KTYPE(result) = ktype;
+    QO_DICT_VTYPE(result) = vtype;
+    for (int64_t i = 0; i < n; i++) {
+        size_t sz = ipc_wire_parse_size(data, len);
+        if (sz == 0 || sz > len) { qo_release(result); return NULL; }
+        Qo key = ipc_deserialize(data, sz);
+        if (key == NULL) { qo_release(result); return NULL; }
+        QO_DICT_KEYS(result)[i] = key;
+        data += sz;
+        len -= sz;
+    }
+    for (int64_t i = 0; i < n; i++) {
+        size_t sz = ipc_wire_parse_size(data, len);
+        if (sz == 0 || sz > len) { qo_release(result); return NULL; }
+        Qo val = ipc_deserialize(data, sz);
+        if (val == NULL) { qo_release(result); return NULL; }
+        QO_DICT_VALS(result)[i] = val;
+        data += sz;
+        len -= sz;
+    }
+    return result;
 }
 
 static Qo deserialize_symbol_vector(const uint8_t *data, size_t len) {
@@ -144,6 +261,8 @@ Qo ipc_deserialize(const uint8_t *data, size_t len) {
     }
     if (t == QO_SYM_VEC)
         return deserialize_symbol_vector(data, len);
+    if (t == QO_DICT)
+        return deserialize_dict(data, len);
     if (type_has_flag(t, TF_VECTOR) && !type_has_flag(t, TF_COMPLEX))
         return deserialize_vector(t, data, len);
     return NULL;
