@@ -49,6 +49,7 @@ int builtin_name_to_id(const char *name) {
     if (strcmp(name, "string") == 0)   return QO_BUILTIN_STRING;
     if (strcmp(name, "flip") == 0)     return QO_BUILTIN_FLIP;
     if (strcmp(name, "where") == 0)    return QO_BUILTIN_WHERE;
+    if (strcmp(name, "neg") == 0)      return QO_BUILTIN_NEG;
     return -1;
 }
 
@@ -86,6 +87,7 @@ const char *builtin_id_to_name(uint8_t id) {
         case QO_BUILTIN_STRING:   return "string";
         case QO_BUILTIN_FLIP:     return "flip";
         case QO_BUILTIN_WHERE:    return "where";
+        case QO_BUILTIN_NEG:      return "neg";
         default:                  return NULL;
     }
 }
@@ -274,6 +276,107 @@ static Qo eval_builtin_not(Qo arg, Environment *env) {
     }
     
     EVAL_ERROR("not expects a numeric argument");
+}
+
+static Qo eval_builtin_neg(Qo arg, Environment *env) {
+    (void)env;
+    if (arg == NULL) EVAL_ERROR("neg expects a numeric argument");
+
+    uint8_t t = qo_type(arg);
+
+    if (is_numeric_scalar_type(t)) {
+        switch (t) {
+            case QO_SHORT: {
+                int16_t v = qo_short(arg);
+                return make_short_value(v == QO_SHORT_NULL ? QO_SHORT_NULL : -v);
+            }
+            case QO_INT: {
+                int32_t v = qo_int(arg);
+                return make_int_value(v == QO_INT_NULL ? QO_INT_NULL : -v);
+            }
+            case QO_LONG: {
+                int64_t v = qo_long(arg);
+                return make_long_value(v == QO_LONG_NULL ? QO_LONG_NULL : -v);
+            }
+            case QO_FLOAT: {
+                double v = qo_float(arg);
+                return make_float_value(-v);
+            }
+            default:
+                EVAL_ERROR("neg: unsupported scalar type");
+        }
+    }
+
+    if (is_numeric_vector_type(t)) {
+        int64_t n = qo_count(arg);
+        Qo result = alloc_data_vec(t, n);
+        for (int64_t i = 0; i < n; i++) {
+            switch (type_storage(t)) {
+                case SC_I16: {
+                    int16_t v = qo_short_data(arg)[i];
+                    qo_short_data(result)[i] = v == QO_SHORT_NULL ? QO_SHORT_NULL : -v;
+                    break;
+                }
+                case SC_I32: {
+                    int32_t v = qo_int_data(arg)[i];
+                    qo_int_data(result)[i] = v == QO_INT_NULL ? QO_INT_NULL : -v;
+                    break;
+                }
+                case SC_I64: {
+                    int64_t v = qo_long_data(arg)[i];
+                    qo_long_data(result)[i] = v == QO_LONG_NULL ? QO_LONG_NULL : -v;
+                    break;
+                }
+                case SC_F64: {
+                    double v = qo_float_data(arg)[i];
+                    qo_float_data(result)[i] = -v;
+                    break;
+                }
+                default:
+                    qo_release(result);
+                    EVAL_ERROR("neg: unsupported vector storage class");
+            }
+        }
+        return result;
+    }
+
+    if (t == QO_LIST) {
+        int64_t n = qo_count(arg);
+        Qo result = alloc_ptr_vec(QO_LIST, n);
+        for (int64_t i = 0; i < n; i++) {
+            Qo elem = qo_ptr_data(arg)[i];
+            if (elem == NULL) { qo_release(result); EVAL_ERROR("neg: list element cannot be null"); }
+            uint8_t et = qo_type(elem);
+            switch (et) {
+                case QO_SHORT: {
+                    int16_t v = qo_short(elem);
+                    qo_ptr_data(result)[i] = make_short_value(v == QO_SHORT_NULL ? QO_SHORT_NULL : -v);
+                    break;
+                }
+                case QO_INT: {
+                    int32_t v = qo_int(elem);
+                    qo_ptr_data(result)[i] = make_int_value(v == QO_INT_NULL ? QO_INT_NULL : -v);
+                    break;
+                }
+                case QO_LONG: {
+                    int64_t v = qo_long(elem);
+                    qo_ptr_data(result)[i] = make_long_value(v == QO_LONG_NULL ? QO_LONG_NULL : -v);
+                    break;
+                }
+                case QO_FLOAT: {
+                    double v = qo_float(elem);
+                    qo_ptr_data(result)[i] = make_float_value(-v);
+                    break;
+                }
+                default:
+                    qo_release(result);
+                    EVAL_ERROR("neg: list element must be numeric");
+            }
+        }
+        return result;
+    }
+
+    EVAL_ERROR("neg expects a numeric argument");
 }
 
 static Qo eval_builtin_null(Qo arg, Environment *env) {
@@ -1321,6 +1424,7 @@ static Qo eval_builtin_dispatch(Qo head, Qo *arg_values, int arg_count, Environm
                 case QO_BUILTIN_STRING:   return eval_builtin_string(arg_values[0], env);
                 case QO_BUILTIN_FLIP:     return eval_builtin_flip(arg_values[0], env);
                 case QO_BUILTIN_WHERE:    return eval_builtin_where(arg_values[0], env);
+                case QO_BUILTIN_NEG:      return eval_builtin_neg(arg_values[0], env);
                 default:
                     EVAL_ERROR_FMT("unknown builtin id %d", id);
             }

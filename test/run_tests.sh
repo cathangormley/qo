@@ -815,6 +815,51 @@ test_case "rand_seed_deterministic" "sys.seed: 12345; a:5?100; sys.seed: 0; 1?0;
 # Seed readable via sys.seed
 test_case "rand_seed_type"       "type sys.seed"            "\`long"
 
+# ── neg keyword ────────────────────────────────────────────────────────
+test_case "neg_pos_long"       "neg[5]"                "-5"
+test_case "neg_neg_long"       "neg[-5]"               "5"
+test_case "neg_zero_long"      "neg[0]"                "0"
+test_case "neg_pos_int"        "neg[5i]"               "-5i"
+test_case "neg_neg_int"        "neg[-5i]"              "5i"
+test_case "neg_pos_short"      "neg[5h]"               "-5h"
+test_case "neg_neg_short"      "neg[-5h]"              "5h"
+test_case "neg_pos_float"      "neg[5.5f]"             "-5.5f"
+test_case "neg_neg_float"      "neg[-3.25f]"           "3.25f"
+test_case "neg_zero_float"     "neg[0f]"               "-0f"
+test_case "neg_type_long"      "type neg[5]"           "\`long"
+test_case "neg_type_int"       "type neg[5i]"          "\`int"
+test_case "neg_type_short"     "type neg[5h]"          "\`short"
+test_case "neg_type_float"     "type neg[5.5f]"        "\`float"
+# Vectors
+test_case "neg_long_vec"       "neg[1 2 3]"            "-1 -2 -3"
+test_case "neg_int_vec"        "neg[1 2 3i]"           "-1 -2 -3i"
+test_case "neg_short_vec"      "neg[1 2 3h]"           "-1 -2 -3h"
+test_case "neg_float_vec"      "neg[1.5 2.5 3.5f]"     "-1.5 -2.5 -3.5f"
+test_case "neg_neg_vec"        "neg[-1 -2 -3]"         "1 2 3"
+test_case "neg_mixed_vec"      "neg[0 -5 3]"           "0 5 -3"
+test_case "neg_vec_type_eq"    "type neg[1 2 3i]"      "\`INT"
+# Lists
+test_case "neg_list"           "neg[(1;-2;3)]"         "-1 2 -3"
+# Mixed list prints multi-line at top-level; test via enlist to force single-line
+test_case "neg_list_mixed"     "enlist neg[(1;-2i;3.5f)]"  "(-1;2i;-3.5f)"
+test_case "neg_empty_list"     "count neg[()]"              "0"
+# Nulls
+test_case "neg_null_long"      "neg[0N]"               "0N"
+test_case "neg_null_int"       "neg[0Ni]"              "0Ni"
+test_case "neg_null_float"     "neg[0Nf]"              "0Nf"
+test_case "neg_null_vec"       "neg[0N 5 0N]"          "0N -5 0N"
+test_case "neg_type_null_float" "type neg[0Nf]"          "\`float"
+# Inf
+test_case "neg_inf_long"       "neg[0W]"               "-0W"
+test_case "neg_neginf_long"    "neg[-0W]"              "0W"
+test_case "neg_inf_int"        "neg[0Wi]"              "-0Wi"
+test_case "neg_neginf_int"     "neg[-0Wi]"             "0Wi"
+test_case "neg_inf_float"      "neg[0Wf]"              "-0Wf"
+test_case "neg_neginf_float"   "neg[-0Wf]"             "0Wf"
+# Bracket/keyword form
+test_case "neg_bracket"        "neg[10]"               "-10"
+test_case "neg_type_builtin"   "type neg"              "\`builtin"
+
 # Bracket-form operator parsing: expr OP[args] should be expr applied
 # to OP[args], not a binary op.  Test all expression operators.
 test_case "bracket_plus"               "type +[3;4]"              "\`long"
