@@ -693,6 +693,11 @@ test_case "deser_symbol_empty" "deser ser \`" "\`"
 test_case "deser_symbol_underscore" "type deser ser \`_XY" "\`symbol"
 test_case "deser_string" "deser ser \"hello\"" "\"hello\""
 test_case "deser_not_byte_vec" "deser 42" "Error: deser expects a byte vector"
+test_case "ser_sym_vec" "ser \`a\`b\`c" "0x17000300000000000000610062006300"
+test_case "deser_sym_vec" "deser ser \`a\`b\`c" "\`a\`b\`c"
+test_case "deser_sym_vec_empty_sym" "deser ser \`" "\`"
+test_case "deser_sym_vec_underscore" "deser ser \`_x\`y2" "\`_x\`y2"
+test_case "ipc_sym_vec" "ser deser ser \`foo\`bar" "0x17000200000000000000666f6f0062617200"
 test_case "parse_bool" "parse\"1b\"" "1b"
 test_case "parse_bool_vector" "parse\"1010011b\"" "1010011b"
 test_case "bool_in_list" "(0b; 1b; 1b; 0b)" "0110b"
@@ -808,6 +813,8 @@ IPC_PORT=19107
 test_case "ipc_hclose"               "listen $IPC_PORT; h: hopen[\"127.0.0.1\";$IPC_PORT]; hclose h" ""
 IPC_PORT=19108
 test_case "ipc_same_process_ser_roundtrip" "listen $IPC_PORT; h: hopen[\"127.0.0.1\";$IPC_PORT]; ser h[42]" "0x03002a00000000000000"
+IPC_PORT=19109
+test_case "ipc_sym_vec_roundtrip" "listen $IPC_PORT; h: hopen[\"127.0.0.1\";$IPC_PORT]; h[\`abc\`def\`xyz]" "\`abc\`def\`xyz"
 
 # Range operator tests
 test_case "range_basic"          "0..5"      "0 1 2 3 4"
