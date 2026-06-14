@@ -89,3 +89,4 @@ Qo eval_multiply(Qo left, Qo right);
 Qo eval_divide(Qo left, Qo right);
 Qo eval_power(Qo left, Qo right);
 const char *token_type_to_operator(TokenType op);
+Qo parse_source_to_value(const char *input);

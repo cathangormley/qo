@@ -105,7 +105,7 @@ static Qo normalize_parsed_tree(Qo tree) {
     return result;
 }
 
-static Qo parse_source_to_value(const char *input) {
+Qo parse_source_to_value(const char *input) {
     TokenBuffer buffer = tokenize_input(input);
     Parser *parser = parser_new(buffer.tokens, buffer.count, input);
     Qo tree = parser_parse(parser);

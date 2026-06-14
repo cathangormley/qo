@@ -14,6 +14,7 @@
 #include "evaluator_internal.h"
 #include "internal.h"
 #include "symbol_intern.h"
+#include "parser.h"
 
 static int g_server_fd = -1;
 static int g_conn_fd = -1;
@@ -60,6 +61,19 @@ static size_t ipc_block_size(Qo q) {
         for (int64_t i = 0; i < n; i++) {
             sz += ipc_block_size(QO_DICT_KEYS(q)[i]);
             sz += ipc_block_size(QO_DICT_VALS(q)[i]);
+        }
+        return sz;
+    }
+    if (t == QO_FUNCTION) {
+        /* Serialize the function's source text (e.g. "{x+y}"), always null-terminated. */
+        return 2 + (size_t)QO_FN_SL(q) + 1;
+    }
+    if (t == QO_LIST) {
+        /* recursively compute size of each element */
+        int64_t n = qo_count(q);
+        size_t sz = 10; /* 2 header + 8 count */
+        for (int64_t i = 0; i < n; i++) {
+            sz += ipc_block_size(QO_LIST_DATA(q)[i]);
         }
         return sz;
     }
@@ -110,6 +124,21 @@ Qo ipc_serialize(Qo arg) {
             offset += ser_len;
             qo_release(ser);
         }
+    } else if (t == QO_FUNCTION) {
+        /* emit the function's original source text (including braces) */
+        memcpy(out + 2, QO_FN_SOURCE(arg), (size_t)QO_FN_SL(arg) + 1);
+    } else if (t == QO_LIST) {
+        /* recursively serialize each element in the list */
+        int64_t n = qo_count(arg);
+        memcpy(out + 2, &n, 8);
+        size_t offset = 10;
+        for (int64_t i = 0; i < n; i++) {
+            Qo ser = ipc_serialize(QO_LIST_DATA(arg)[i]);
+            size_t ser_len = (size_t)qo_count(ser);
+            memcpy(out + offset, qo_byte_data(ser), ser_len);
+            offset += ser_len;
+            qo_release(ser);
+        }
     } else if (type_has_flag(t, TF_SCALAR)) {
         memcpy(out + 2, &arg->long_val, type_elem_size(t));
     } else {
@@ -139,6 +168,25 @@ static size_t ipc_wire_parse_size(const uint8_t *data, size_t max_len) {
         size_t name_len = strnlen((const char *)(data + 2), max_len - 2);
         if (name_len + 2 >= max_len) return 0;
         return 2 + name_len + 1;
+    }
+    if (t == QO_FUNCTION) {
+        /* function source is a null-terminated string after the header */
+        size_t src_len = strnlen((const char *)(data + 2), max_len - 2);
+        if (src_len + 2 >= max_len) return 0;
+        return 2 + src_len + 1;
+    }
+    if (t == QO_LIST) {
+        /* walk recursively-serialized elements */
+        if (max_len < 10) return 0;
+        int64_t n;
+        memcpy(&n, data + 2, 8);
+        size_t offset = 10;
+        for (int64_t i = 0; i < n && offset < max_len; i++) {
+            size_t sz = ipc_wire_parse_size(data + offset, max_len - offset);
+            if (sz == 0) return 0;
+            offset += sz;
+        }
+        return offset;
     }
     if (t == QO_SYM_VEC) {
         if (max_len < 10) return 0;
@@ -213,6 +261,26 @@ static Qo deserialize_dict(const uint8_t *data, size_t len) {
     return result;
 }
 
+static Qo deserialize_list(const uint8_t *data, size_t len) {
+    if (len < 8) return NULL;
+    int64_t n;
+    memcpy(&n, data, 8);
+    data += 8;
+    len -= 8;
+    /* recursively deserialize each element */
+    Qo result = alloc_ptr_vec(QO_LIST, n);
+    for (int64_t i = 0; i < n; i++) {
+        size_t sz = ipc_wire_parse_size(data, len);
+        if (sz == 0 || sz > len) { qo_release(result); return NULL; }
+        Qo elem = ipc_deserialize(data, sz);
+        if (elem == NULL) { qo_release(result); return NULL; }
+        QO_LIST_DATA(result)[i] = elem;
+        data += sz;
+        len -= sz;
+    }
+    return result;
+}
+
 static Qo deserialize_symbol_vector(const uint8_t *data, size_t len) {
     int64_t n;
     if (len < 8) return NULL;
@@ -255,6 +323,29 @@ Qo ipc_deserialize(const uint8_t *data, size_t len) {
         if (name_len == len) return NULL;
         return qo_symbol_intern((const char *)data);
     }
+    if (t == QO_FUNCTION) {
+        /* re-parse the source text (e.g. "{x+y}") into a function object.
+         * parser_parse may return a single value (for one statement) or a
+         * QO_LIST (for multiple statements); handle both. */
+        size_t src_len = strnlen((const char *)data, len);
+        if (src_len == len) return NULL;
+        Qo parsed = parse_source_to_value((const char *)data);
+        if (is_parse_error(parsed)) return NULL;
+        if (parsed == NULL) return NULL;
+        Qo result;
+        if (qo_type(parsed) == QO_LIST) {
+            if (qo_count(parsed) == 0) { qo_release(parsed); return NULL; }
+            result = qo_retain(qo_ptr_data(parsed)[0]);
+            qo_release(parsed);
+        } else {
+            result = parsed; /* single statement, already owned */
+        }
+        if (qo_type(result) != QO_FUNCTION) {
+            qo_release(result);
+            return NULL;
+        }
+        return result;
+    }
     if (type_has_flag(t, TF_SCALAR)) {
         if (len < type_elem_size(t)) return NULL;
         return deserialize_scalar(t, data, len);
@@ -263,6 +354,8 @@ Qo ipc_deserialize(const uint8_t *data, size_t len) {
         return deserialize_symbol_vector(data, len);
     if (t == QO_DICT)
         return deserialize_dict(data, len);
+    if (t == QO_LIST)
+        return deserialize_list(data, len);
     if (type_has_flag(t, TF_VECTOR) && !type_has_flag(t, TF_COMPLEX))
         return deserialize_vector(t, data, len);
     return NULL;
