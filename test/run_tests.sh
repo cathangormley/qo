@@ -860,6 +860,26 @@ test_case "neg_neginf_float"   "neg[-0Wf]"             "0Wf"
 test_case "neg_bracket"        "neg[10]"               "-10"
 test_case "neg_type_builtin"   "type neg"              "\`builtin"
 
+# ── distinct keyword ───────────────────────────────────────────────────
+test_case "distinct_long_vec"         "distinct[1 2 3 1 2]"         "1 2 3"
+test_case "distinct_long_vec_nodup"   "distinct[1 2 3]"             "1 2 3"
+test_case "distinct_long_vec_all_same" "distinct[5 5 5 5]"          "5"
+test_case "distinct_int_vec"          "distinct[1 2 1i]"            "1 2i"
+test_case "distinct_short_vec"        "distinct[1 2 1h]"            "1 2h"
+test_case "distinct_float_vec"        "distinct[1.5 2.5 1.5f]"      "1.5 2.5f"
+test_case "distinct_bool_vec"         "distinct[1011b]"             "10b"
+test_case "distinct_byte_vec"         "distinct[enlist[0x01;0x02;0x01]]"    "0x0102"
+test_case "distinct_char_vec"         "distinct[\"hello\"]"          "\"helo\""
+test_case "distinct_sym_vec"          "distinct[\`a\`b\`a\`c]"      "\`a\`b\`c"
+test_case "distinct_list"             "distinct[(1;2;3;1;2)]"      "1 2 3"
+test_case "distinct_list_mixed"       "enlist distinct[(1;2i;1;3f)]" "(1;2i;3f)"
+test_case "distinct_empty_vec"        "distinct[()]"               ""
+test_case "distinct_empty_long"       "count distinct[0#0]"        "0"
+test_case "distinct_type_preserved"   "type distinct[1 2 3i]"      "\`INT"
+test_case "distinct_type_builtin"     "type distinct"              "\`builtin"
+test_case "distinct_null_in_vec"      "distinct[0N 5 0N 5]"        "0N 5"
+test_case "distinct_inf"              "distinct[0W -0W 0W]"        "0W -0W"
+
 # Bracket-form operator parsing: expr OP[args] should be expr applied
 # to OP[args], not a binary op.  Test all expression operators.
 test_case "bracket_plus"               "type +[3;4]"              "\`long"

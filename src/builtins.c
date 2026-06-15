@@ -50,6 +50,7 @@ int builtin_name_to_id(const char *name) {
     if (strcmp(name, "flip") == 0)     return QO_BUILTIN_FLIP;
     if (strcmp(name, "where") == 0)    return QO_BUILTIN_WHERE;
     if (strcmp(name, "neg") == 0)      return QO_BUILTIN_NEG;
+    if (strcmp(name, "distinct") == 0) return QO_BUILTIN_DISTINCT;
     return -1;
 }
 
@@ -88,6 +89,7 @@ const char *builtin_id_to_name(uint8_t id) {
         case QO_BUILTIN_FLIP:     return "flip";
         case QO_BUILTIN_WHERE:    return "where";
         case QO_BUILTIN_NEG:      return "neg";
+        case QO_BUILTIN_DISTINCT: return "distinct";
         default:                  return NULL;
     }
 }
@@ -644,6 +646,56 @@ static Qo eval_builtin_where(Qo arg, Environment *env) {
     }
 
     return out;
+}
+
+static Qo eval_builtin_distinct(Qo arg, Environment *env) {
+    (void)env;
+    if (arg == NULL) EVAL_ERROR("distinct expects a vector or list");
+
+    uint8_t t = qo_type(arg);
+    int64_t n = qo_count(arg);
+
+    if (!is_vector_type(t)) EVAL_ERROR("distinct expects a vector or list");
+
+    if (n == 0) {
+        return type_storage(t) == SC_PTR ? alloc_ptr_vec(t, 0) : alloc_data_vec(t, 0);
+    }
+
+    Qo *unique_elems = xmalloc(sizeof(Qo) * (size_t)n);
+    int64_t unique_count = 0;
+
+    for (int64_t i = 0; i < n; i++) {
+        Qo elem = dict_elem_copy(arg, i);
+        int is_dup = 0;
+        for (int64_t j = 0; j < unique_count; j++) {
+            if (value_equals(unique_elems[j], elem)) {
+                is_dup = 1;
+                break;
+            }
+        }
+        if (is_dup) {
+            qo_release(elem);
+        } else {
+            unique_elems[unique_count++] = elem;
+        }
+    }
+
+    Qo result;
+    if (type_storage(t) == SC_PTR) {
+        result = alloc_ptr_vec(t, unique_count);
+        for (int64_t i = 0; i < unique_count; i++) {
+            QO_LIST_DATA(result)[i] = unique_elems[i];
+        }
+    } else {
+        result = alloc_data_vec(t, unique_count);
+        for (int64_t i = 0; i < unique_count; i++) {
+            set_vec_elem_from_scalar(result, i, unique_elems[i]);
+            qo_release(unique_elems[i]);
+        }
+    }
+
+    free(unique_elems);
+    return result;
 }
 
 static Qo eval_builtin_range_impl(Qo a, Qo b, Environment *env, int inclusive) {
@@ -1425,6 +1477,7 @@ static Qo eval_builtin_dispatch(Qo head, Qo *arg_values, int arg_count, Environm
                 case QO_BUILTIN_FLIP:     return eval_builtin_flip(arg_values[0], env);
                 case QO_BUILTIN_WHERE:    return eval_builtin_where(arg_values[0], env);
                 case QO_BUILTIN_NEG:      return eval_builtin_neg(arg_values[0], env);
+                case QO_BUILTIN_DISTINCT: return eval_builtin_distinct(arg_values[0], env);
                 default:
                     EVAL_ERROR_FMT("unknown builtin id %d", id);
             }
