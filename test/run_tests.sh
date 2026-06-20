@@ -1051,6 +1051,16 @@ test_case_multiline "table_one_row" "([x:10] y:20)" $'x y\n- -\n10 20'
 test_case_multiline "table_expr_cols" "([a:1+1 2+2] b:3+3 4+4)" $'a b\n- -\n4 10\n5 11'
 test_case "table_empty" "([])" "()"
 
+# ── Table indexing tests ─────────────────────────────────────────────
+test_case "table_index_column_sym" "([]a:1 2 3;b:4 5 6)[\`a]" "1 2 3"
+test_case "table_index_column_sym_other" "([]a:1 2 3;b:4 5 6)[\`b]" "4 5 6"
+test_case_multiline "table_index_row_zero" "([]a:1 2 3;b:4 5 6) 0" $'`a | 1\n`b | 4'
+test_case_multiline "table_index_row_one" "([]a:1 2 3;b:4 5 6) 1" $'`a | 2\n`b | 5'
+test_case_multiline "table_index_row_last" "([]a:1 2 3;b:4 5 6) 2" $'`a | 3\n`b | 6'
+test_case_multiline "table_index_subtable" "([]a:1 2 3;b:4 5 6) 0 2" $'a b\n- -\n1 4\n3 6'
+test_case_multiline "table_index_subtable_reverse" "([]a:1 2 3;b:4 5 6) 2 0" $'a b\n- -\n3 6\n1 4'
+test_case_multiline "table_index_subtable_single" "([]a:1 2 3;b:4 5 6) 1 1" $'a b\n- -\n2 5\n2 5'
+
 # ── Flip builtin tests ───────────────────────────────────────────────
 test_case "flip_table_to_dict_type" "type flip ([]a:1 2 3;b:4 5 6)" "\`dict"
 test_case_multiline "flip_table_to_dict" "flip ([]a:1 2 3;b:4 5 6)" \

@@ -1940,7 +1940,94 @@ static Qo eval_apply_multi_index(Qo head, Qo indices, Environment *env) {
     (void)env;
     if (head == NULL) EVAL_ERROR("cannot index null");
     uint8_t ht = qo_type(head);
-    if (!is_vector_type(ht) && ht != QO_DICT) EVAL_ERROR("value is not indexable");
+    if (!is_vector_type(ht) && ht != QO_DICT && ht != QO_TABLE) EVAL_ERROR("value is not indexable");
+
+    /* Table multi-index → subtable */
+    if (ht == QO_TABLE) {
+        Qo dict = QO_TABLE_DICT(head);
+        int64_t ncols = QO_DICT_COUNT(dict);
+        int64_t nrows = QO_TABLE_ROWS(head);
+        int64_t n = qo_count(indices);
+        uint8_t it = qo_type(indices);
+        if (it == QO_FLOAT_VEC) EVAL_ERROR("index must be numeric");
+
+        Qo new_dict = alloc_dict_block(ncols);
+        QO_DICT_KTYPE(new_dict) = QO_SYMBOL;
+        QO_DICT_VTYPE(new_dict) = 0;
+
+        for (int64_t c = 0; c < ncols; c++) {
+            QO_DICT_KEYS(new_dict)[c] = qo_retain(QO_DICT_KEYS(dict)[c]);
+            Qo src_col = QO_DICT_VALS(dict)[c];
+            uint8_t ct = qo_type(src_col);
+
+            int col_is_ptr = (ct == QO_LIST || ct == QO_SYM_VEC);
+            Qo new_col;
+            if (col_is_ptr) {
+                new_col = alloc_ptr_vec(ct, n);
+                memset(qo_ptr_data(new_col), 0, (size_t)n * sizeof(Qo));
+            } else if (ct == QO_CHAR_VEC) {
+                new_col = alloc_charlike(QO_CHAR_VEC, n);
+            } else {
+                new_col = alloc_data_vec(ct, n);
+            }
+            QO_DICT_VALS(new_dict)[c] = new_col;
+
+            for (int64_t i = 0; i < n; i++) {
+                int64_t idx;
+                switch (it) {
+                    case QO_SHORT_VEC: idx = qo_short_data(indices)[i]; break;
+                    case QO_INT_VEC:   idx = qo_int_data(indices)[i];   break;
+                    case QO_LONG_VEC:  idx = qo_long_data(indices)[i];  break;
+                    case QO_BOOL_VEC:  idx = qo_bool_data(indices)[i];  break;
+                    default: {
+                        Qo e = qo_ptr_data(indices)[i];
+                        uint8_t et;
+                        if (e == NULL || (et = qo_type(e)) == QO_FLOAT || !is_numeric_scalar_type(et)) {
+                            qo_release(new_dict);
+                            EVAL_ERROR("index must be numeric");
+                        }
+                        switch (et) {
+                            case QO_SHORT: idx = qo_short(e); break;
+                            case QO_INT:   idx = qo_int(e);   break;
+                            case QO_LONG:  idx = qo_long(e);  break;
+                            default:       idx = qo_bool(e);  break;
+                        }
+                        break;
+                    }
+                }
+
+                if (idx < 0 || idx >= nrows) {
+                    Qo null_val = null_for_vector_type(ct);
+                    if (col_is_ptr) {
+                        qo_ptr_data(new_col)[i] = null_val;
+                    } else if (ct == QO_CHAR_VEC) {
+                        qo_char_data(new_col)[i] = qo_char(null_val);
+                        qo_release(null_val);
+                    } else {
+                        set_vec_elem_from_scalar(new_col, i, null_val);
+                        qo_release(null_val);
+                    }
+                    continue;
+                }
+
+                Qo elem = dict_elem_copy(src_col, idx);
+                if (col_is_ptr) {
+                    qo_ptr_data(new_col)[i] = elem;
+                } else if (ct == QO_CHAR_VEC) {
+                    qo_char_data(new_col)[i] = qo_char(elem);
+                    qo_release(elem);
+                } else {
+                    set_vec_elem_from_scalar(new_col, i, elem);
+                    qo_release(elem);
+                }
+            }
+        }
+
+        Qo result = alloc_table_block();
+        QO_SET_COUNT(result, n);
+        QO_TABLE_DICT(result) = new_dict;
+        return result;
+    }
 
     uint8_t it = qo_type(indices);
     int64_t n = qo_count(indices);
@@ -2042,6 +2129,18 @@ static Qo eval_apply_single_index(Qo head, Qo index, Environment *env) {
             }
             EVAL_ERROR("dictionary key not found");
         }
+        /* Table column lookup by symbol */
+        if (head != NULL && qo_type(head) == QO_TABLE) {
+            Qo dict = QO_TABLE_DICT(head);
+            if (dict != NULL) {
+                int64_t n = QO_DICT_COUNT(dict);
+                for (int64_t i = 0; i < n; i++) {
+                    if (value_equals(QO_DICT_KEYS(dict)[i], index))
+                        return qo_clone(QO_DICT_VALS(dict)[i]);
+                }
+            }
+            EVAL_ERROR("table column not found");
+        }
         EVAL_ERROR("index must be an int");
     }
 
@@ -2054,6 +2153,22 @@ static Qo eval_apply_single_index(Qo head, Qo index, Environment *env) {
 
     if (head == NULL) EVAL_ERROR("cannot index null");
     uint8_t ht = qo_type(head);
+
+    /* Table row lookup by integer index → row dict */
+    if (ht == QO_TABLE) {
+        int64_t nrows = QO_TABLE_ROWS(head);
+        if ((int64_t)idx >= nrows) EVAL_ERROR("row index out of bounds");
+        Qo dict = QO_TABLE_DICT(head);
+        int64_t ncols = QO_DICT_COUNT(dict);
+        Qo result = alloc_dict_block(ncols);
+        QO_DICT_KTYPE(result) = QO_SYMBOL;
+        QO_DICT_VTYPE(result) = 0;
+        for (int64_t i = 0; i < ncols; i++) {
+            QO_DICT_KEYS(result)[i] = qo_retain(QO_DICT_KEYS(dict)[i]);
+            QO_DICT_VALS(result)[i] = dict_elem_copy(QO_DICT_VALS(dict)[i], (int64_t)idx);
+        }
+        return result;
+    }
 
     if (is_vector_type(ht)) {
         int64_t n = qo_count(head);
