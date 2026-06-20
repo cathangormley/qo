@@ -884,6 +884,52 @@ static Qo eval_dict_scalar_binop(Qo left, Qo right, TokenType op) {
     return result;
 }
 
+static Qo handle_list_binop(Qo left, Qo right, Qo (*op)(Qo, Qo)) {
+    uint8_t lt = QO_TYPE(left);
+    uint8_t rt = QO_TYPE(right);
+
+    if (lt == QO_LIST && rt == QO_LIST) {
+        int64_t n = qo_count(left);
+        if (qo_count(right) != n)
+            EVAL_ERROR("list arithmetic: length mismatch");
+        Qo result = alloc_ptr_vec(QO_LIST, n);
+        Qo *rd = QO_LIST_DATA(result);
+        for (int64_t i = 0; i < n; i++)
+            rd[i] = op(QO_LIST_DATA(left)[i], QO_LIST_DATA(right)[i]);
+        return result;
+    }
+
+    if (lt == QO_LIST) {
+        int64_t n = qo_count(left);
+        int broadcast = !is_vector_type(rt);
+        if (!broadcast && qo_count(right) != n)
+            EVAL_ERROR("list arithmetic: length mismatch");
+        Qo result = alloc_ptr_vec(QO_LIST, n);
+        Qo *rd = QO_LIST_DATA(result);
+        for (int64_t i = 0; i < n; i++) {
+            Qo r_elem = broadcast ? right : dict_elem_copy(right, i);
+            rd[i] = op(QO_LIST_DATA(left)[i], r_elem);
+            if (!broadcast) qo_release(r_elem);
+        }
+        return result;
+    }
+
+    {
+        int64_t n = qo_count(right);
+        int broadcast = !is_vector_type(lt);
+        if (!broadcast && qo_count(left) != n)
+            EVAL_ERROR("list arithmetic: length mismatch");
+        Qo result = alloc_ptr_vec(QO_LIST, n);
+        Qo *rd = QO_LIST_DATA(result);
+        for (int64_t i = 0; i < n; i++) {
+            Qo l_elem = broadcast ? left : dict_elem_copy(left, i);
+            rd[i] = op(l_elem, QO_LIST_DATA(right)[i]);
+            if (!broadcast) qo_release(l_elem);
+        }
+        return result;
+    }
+}
+
 Qo eval_add(Qo left, Qo right) {
     if (left == NULL || right == NULL) EVAL_ERROR("arithmetic operations require non-null operands");
     uint8_t lt = QO_TYPE(left);
@@ -893,11 +939,11 @@ Qo eval_add(Qo left, Qo right) {
         (rt == QO_DICT && is_numeric_scalar_type(lt))) {
         return eval_dict_scalar_binop(left, right, TOKEN_PLUS);
     }
+    if (lt == QO_LIST || rt == QO_LIST) {
+        return handle_list_binop(left, right, eval_add);
+    }
     if (!is_numeric_operand(left) || !is_numeric_operand(right)) {
         EVAL_ERROR("arithmetic operations require numeric operands");
-    }
-    if (lt == QO_LIST || rt == QO_LIST) {
-        EVAL_ERROR("list arithmetic is not supported");
     }
     if (is_numeric_vector_type(lt) || is_numeric_vector_type(rt)) {
         return eval_numeric_vector_binop(left, right, TOKEN_PLUS);
@@ -918,11 +964,11 @@ Qo eval_subtract(Qo left, Qo right) {
         (rt == QO_DICT && is_numeric_scalar_type(lt))) {
         return eval_dict_scalar_binop(left, right, TOKEN_MINUS);
     }
+    if (lt == QO_LIST || rt == QO_LIST) {
+        return handle_list_binop(left, right, eval_subtract);
+    }
     if (!is_numeric_operand(left) || !is_numeric_operand(right)) {
         EVAL_ERROR("arithmetic operations require numeric operands");
-    }
-    if (lt == QO_LIST || rt == QO_LIST) {
-        EVAL_ERROR("list arithmetic is not supported");
     }
     if (is_numeric_vector_type(lt) || is_numeric_vector_type(rt)) {
         return eval_numeric_vector_binop(left, right, TOKEN_MINUS);
@@ -943,11 +989,11 @@ Qo eval_multiply(Qo left, Qo right) {
         (rt == QO_DICT && is_numeric_scalar_type(lt))) {
         return eval_dict_scalar_binop(left, right, TOKEN_STAR);
     }
+    if (lt == QO_LIST || rt == QO_LIST) {
+        return handle_list_binop(left, right, eval_multiply);
+    }
     if (!is_numeric_operand(left) || !is_numeric_operand(right)) {
         EVAL_ERROR("arithmetic operations require numeric operands");
-    }
-    if (lt == QO_LIST || rt == QO_LIST) {
-        EVAL_ERROR("list arithmetic is not supported");
     }
     if (is_numeric_vector_type(lt) || is_numeric_vector_type(rt)) {
         return eval_numeric_vector_binop(left, right, TOKEN_STAR);
@@ -968,11 +1014,11 @@ Qo eval_divide(Qo left, Qo right) {
         (rt == QO_DICT && is_numeric_scalar_type(lt))) {
         return eval_dict_scalar_binop(left, right, TOKEN_DIVIDE);
     }
+    if (lt == QO_LIST || rt == QO_LIST) {
+        return handle_list_binop(left, right, eval_divide);
+    }
     if (!is_numeric_operand(left) || !is_numeric_operand(right)) {
         EVAL_ERROR("arithmetic operations require numeric operands");
-    }
-    if (lt == QO_LIST || rt == QO_LIST) {
-        EVAL_ERROR("list arithmetic is not supported");
     }
     if (is_numeric_vector_type(lt) || is_numeric_vector_type(rt)) {
         return eval_numeric_vector_binop(left, right, TOKEN_DIVIDE);
@@ -990,11 +1036,11 @@ Qo eval_power(Qo left, Qo right) {
         (rt == QO_DICT && is_numeric_scalar_type(lt))) {
         return eval_dict_scalar_binop(left, right, TOKEN_STAR_STAR);
     }
+    if (lt == QO_LIST || rt == QO_LIST) {
+        return handle_list_binop(left, right, eval_power);
+    }
     if (!is_numeric_operand(left) || !is_numeric_operand(right)) {
         EVAL_ERROR("arithmetic operations require numeric operands");
-    }
-    if (lt == QO_LIST || rt == QO_LIST) {
-        EVAL_ERROR("list arithmetic is not supported");
     }
     if (is_numeric_vector_type(lt) || is_numeric_vector_type(rt)) {
         return eval_numeric_vector_binop(left, right, TOKEN_STAR_STAR);

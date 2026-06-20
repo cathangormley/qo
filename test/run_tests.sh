@@ -204,6 +204,38 @@ test_case_multiline "list_of_vectors_prints_newlines" "(3#1;2#2)" $'1 1 1\n2 2'
 test_case_multiline "top_level_row_list_nested_list_old_style" "(5#1;(2#3;4#5))" $'1 1 1 1 1\n(3 3;5 5 5 5)'
 test_case_multiline "output_exactly_25_lines" "(1#1;1#2;1#3;1#4;1#5;1#6;1#7;1#8;1#9;1#10;1#11;1#12;1#13;1#14;1#15;1#16;1#17;1#18;1#19;1#20;1#21;1#22;1#23;1#24;1#25)" "$OUT25_LINES_EXACT"
 test_case_multiline "output_truncates_after_25_lines" "(1#1;1#2;1#3;1#4;1#5;1#6;1#7;1#8;1#9;1#10;1#11;1#12;1#13;1#14;1#15;1#16;1#17;1#18;1#19;1#20;1#21;1#22;1#23;1#24;1#25;1#26)" "$OUT25_LINES"
+
+# List arithmetic (nested lists of differing sizes)
+test_case_multiline "nested_list_plus_atom" "(1 2;3;4 5 6) + 1" $'2 3\n4\n5 6 7'
+test_case_multiline "nested_list_plus_vector" "(1 2;3;4 5 6) + 1 2 3" $'2 3\n5\n7 8 9'
+test_case_multiline "nested_list_plus_list" "(1 2;3;4 5 6) + (1 2;3;4)" $'2 4\n6\n8 9 10'
+test_case "nested_list_plus_list_inner_mismatch" "(1 2;3;4 5 6) + (1 2;3;4 5)" "Error: cannot operate on vectors of different lengths"
+test_case "nested_list_len_mismatch" "(1 2;3) + (1;2;3)" "Error: list arithmetic: length mismatch"
+
+test_case_multiline "nested_list_minus_atom" "(1 2;3;4 5 6) - 1" $'0 1\n2\n3 4 5'
+test_case_multiline "nested_list_minus_vector" "(1 2;3;4 5 6) - 1 2 3" $'0 1\n1\n1 2 3'
+test_case_multiline "nested_list_minus_list" "(1 2;3;4 5 6) - (1 2;3;4)" $'0 0\n0\n0 1 2'
+test_case "nested_list_minus_list_inner_mismatch" "(1 2;3;4 5 6) - (1 2;3;4 5)" "Error: cannot operate on vectors of different lengths"
+test_case "nested_list_minus_len_mismatch" "(1 2;3) - (1;2;3)" "Error: list arithmetic: length mismatch"
+
+test_case_multiline "nested_list_mul_atom" "(1 2;3;4 5 6) * 2" $'2 4\n6\n8 10 12'
+test_case_multiline "nested_list_mul_vector" "(1 2;3;4 5 6) * 1 2 3" $'1 2\n6\n12 15 18'
+test_case_multiline "nested_list_mul_list" "(1 2;3;4 5 6) * (1 2;3;4)" $'1 4\n9\n16 20 24'
+test_case "nested_list_mul_list_inner_mismatch" "(1 2;3;4 5 6) * (1 2;3;4 5)" "Error: cannot operate on vectors of different lengths"
+test_case "nested_list_mul_len_mismatch" "(1 2;3) * (1;2;3)" "Error: list arithmetic: length mismatch"
+
+test_case_multiline "nested_list_div_atom" "(4 6;9;12 15 18) % 2" $'2 3f\n4.5f\n6 7.5 9f'
+test_case_multiline "nested_list_div_vector" "(4 6;9;12 15 18) % 2 3 4" $'2 3f\n3f\n3 3.75 4.5f'
+test_case_multiline "nested_list_div_list" "(4 6;9;12 15 18) % (2 3;3;4 5 6)" $'2 2f\n3f\n3 3 3f'
+test_case "nested_list_div_list_inner_mismatch" "(4 6;9;12 15 18) % (2 3;3;4 5)" "Error: cannot operate on vectors of different lengths"
+test_case "nested_list_div_len_mismatch" "(4 6;9) % (2;3;4)" "Error: list arithmetic: length mismatch"
+
+test_case_multiline "nested_list_pow_atom" "(2 3;4;5 6 7) ** 2" $'4 9f\n16f\n25 36 49f'
+test_case_multiline "nested_list_pow_vector" "(2 3;4;5 6 7) ** 1 2 3" $'2 3f\n16f\n125 216 343f'
+test_case_multiline "nested_list_pow_list" "(2 3;4;5 6 7) ** (2 3;3;4 5 6)" $'4 27f\n64f\n625 7776 117649f'
+test_case "nested_list_pow_list_inner_mismatch" "(2 3;4;5 6 7) ** (2 3;3;4 5)" "Error: cannot operate on vectors of different lengths"
+test_case "nested_list_pow_len_mismatch" "(2 3;4) ** (2;3;4)" "Error: list arithmetic: length mismatch"
+
 test_case "take_list_wrap" "5#(1;2;3)" "1 2 3 1 2"
 test_case "take_negative_from_back" "-2#(1;2;3;4)" "3 4"
 test_case "take_negative_wrap_from_back" "-5#(1;2;3)" "2 3 1 2 3"
