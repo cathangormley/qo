@@ -51,6 +51,7 @@ int builtin_name_to_id(const char *name) {
     if (strcmp(name, "where") == 0)    return QO_BUILTIN_WHERE;
     if (strcmp(name, "neg") == 0)      return QO_BUILTIN_NEG;
     if (strcmp(name, "distinct") == 0) return QO_BUILTIN_DISTINCT;
+    if (strcmp(name, "reverse") == 0)  return QO_BUILTIN_REVERSE;
     return -1;
 }
 
@@ -90,6 +91,7 @@ const char *builtin_id_to_name(uint8_t id) {
         case QO_BUILTIN_WHERE:    return "where";
         case QO_BUILTIN_NEG:      return "neg";
         case QO_BUILTIN_DISTINCT: return "distinct";
+        case QO_BUILTIN_REVERSE:  return "reverse";
         default:                  return NULL;
     }
 }
@@ -709,6 +711,30 @@ static Qo eval_builtin_distinct(Qo arg, Environment *env) {
     }
 
     free(unique_elems);
+    return result;
+}
+
+static Qo eval_builtin_reverse(Qo arg, Environment *env) {
+    (void)env;
+    if (arg == NULL) EVAL_ERROR("reverse expects a non-null argument");
+    uint8_t t = qo_type(arg);
+    if (!is_vector_type(t)) return qo_clone(arg);
+    int64_t n = qo_count(arg);
+    if (n == 0) {
+        return type_storage(t) == SC_PTR ? alloc_ptr_vec(t, 0) : alloc_data_vec(t, 0);
+    }
+    if (type_storage(t) == SC_PTR) {
+        Qo result = alloc_ptr_vec(t, n);
+        for (int64_t i = 0; i < n; i++)
+            QO_LIST_DATA(result)[i] = dict_elem_copy(arg, n - 1 - i);
+        return result;
+    }
+    Qo result = alloc_data_vec(t, n);
+    for (int64_t i = 0; i < n; i++) {
+        Qo elem = dict_elem_copy(arg, n - 1 - i);
+        set_vec_elem_from_scalar(result, i, elem);
+        qo_release(elem);
+    }
     return result;
 }
 
@@ -1492,6 +1518,7 @@ static Qo eval_builtin_dispatch(Qo head, Qo *arg_values, int arg_count, Environm
                 case QO_BUILTIN_WHERE:    return eval_builtin_where(arg_values[0], env);
                 case QO_BUILTIN_NEG:      return eval_builtin_neg(arg_values[0], env);
                 case QO_BUILTIN_DISTINCT: return eval_builtin_distinct(arg_values[0], env);
+                case QO_BUILTIN_REVERSE:  return eval_builtin_reverse(arg_values[0], env);
                 default:
                     EVAL_ERROR_FMT("unknown builtin id %d", id);
             }

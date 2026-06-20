@@ -948,6 +948,22 @@ test_case "distinct_type_builtin"     "type distinct"              "\`builtin"
 test_case "distinct_null_in_vec"      "distinct[0N 5 0N 5]"        "0N 5"
 test_case "distinct_inf"              "distinct[0W -0W 0W]"        "0W -0W"
 
+# ── reverse keyword ────────────────────────────────────────────────────
+test_case "reverse_long_vec"     "reverse[1 2 3]"            "3 2 1"
+test_case "reverse_int_vec"      "reverse[1 2 3i]"           "3 2 1i"
+test_case "reverse_short_vec"    "reverse[1 2 3h]"           "3 2 1h"
+test_case "reverse_float_vec"    "reverse[1.5 2.5 3.5f]"     "3.5 2.5 1.5f"
+test_case "reverse_bool_vec"     "reverse[1011b]"            "1101b"
+test_case "reverse_byte_vec"     "reverse[0x010203]"         "0x030201"
+test_case "reverse_char_vec"     "reverse[\"hello\"]"         "\"olleh\""
+test_case "reverse_list"         "enlist reverse[(1;2i;\"a\")]" "(\"a\";2i;1)"
+test_case "reverse_scalar"       "reverse 42"                "42"
+test_case "reverse_empty"        "count reverse[()]"         "0"
+test_case "reverse_single"       "reverse[enlist[42]]"       "42"
+test_case "reverse_type_vec"     "type reverse[1 2 3]"       "\`LONG"
+test_case "reverse_type_list"    "type reverse[(1;2i)]"      "\`list"
+test_case "reverse_type_builtin" "type reverse"              "\`builtin"
+
 # Bracket-form operator parsing: expr OP[args] should be expr applied
 # to OP[args], not a binary op.  Test all expression operators.
 test_case "bracket_plus"               "type +[3;4]"              "\`long"

@@ -146,3 +146,4 @@ static inline int type_has_flag(uint8_t t, uint8_t f) { return (type_flags(t) & 
 #define QO_BUILTIN_WHERE        31
 #define QO_BUILTIN_NEG          32
 #define QO_BUILTIN_DISTINCT     33
+#define QO_BUILTIN_REVERSE      34
