@@ -582,7 +582,7 @@ test_case "each_last_on_list" "last' (\"cat\";\"dog\")" "\"tg\""
 test_case "each_count_on_list" "count' (\"cat\";\"dog\")" "3 3"
 test_case_multiline "each_til_on_multi" "til' 3 4 5" $'0 1 2\n0 1 2 3\n0 1 2 3 4'
 test_case "each_func_alias" "f:first'; f (\"cat\";\"dog\")" "\"cd\""
-test_case "each_type" "type first'" "\`each"
+test_case "each_type" "type first'" "\`adverbfunc"
 
 # Adverb (') as first-class value
 test_case "adverb_standalone" "'" "'"

@@ -756,7 +756,7 @@ static Qo eval_builtin_type(Qo arg, Environment *env) {
         case QO_BUILTIN:    tag = "builtin";   break;
         case QO_LIST:       tag = "list";      break;
         case QO_FUNCTION:   tag = "function";  break;
-        case QO_EACHED:     tag = "each";      break;
+        case QO_ADVERBED:   tag = "adverbfunc"; break;
         case QO_ADVERB:     tag = "adverb";    break;
         case QO_TABLE:      tag = "table";     break;
         default: break;
@@ -2198,13 +2198,13 @@ static Qo eval_apply_value(Qo head, Qo *args, int arg_count, Environment *env) {
     if (qo_type(head) == QO_ADVERB) {
         if (arg_count != 1) EVAL_ERROR("adverb expects 1 argument");
         uint8_t kind = QO_ADVERB_KIND(head);
-        if (kind == QO_ADVERB_EACH) return make_eached_value(args[0]);
+        if (kind == QO_ADVERB_EACH) return make_adverbed_value(args[0], kind);
         EVAL_ERROR("unknown adverb");
     }
 
-    if (qo_type(head) == QO_EACHED) {
-        if (arg_count != 1) EVAL_ERROR("each expects 1 argument");
-        Qo func = QO_EACHED_FUNC(head);
+    if (qo_type(head) == QO_ADVERBED) {
+        if (arg_count != 1) EVAL_ERROR("adverbed expects 1 argument");
+        Qo func = QO_ADVERBED_FUNC(head);
         Qo arg = args[0];
         if (arg == NULL) return eval_apply_value(func, args, arg_count, env);
         uint8_t at = qo_type(arg);

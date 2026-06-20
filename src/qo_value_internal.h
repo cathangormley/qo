@@ -91,8 +91,9 @@ static inline int type_has_flag(uint8_t t, uint8_t f) { return (type_flags(t) & 
 #define QO_PROJ_FUNC(q)     (*(Qo *)((q)->data + 8))
 #define QO_PROJ_ARGS(q)     ((Qo *)((q)->data + 16))
 
-/* eached payload: [0..7] wrapped function */
-#define QO_EACHED_FUNC(q)   (*(Qo *)((q)->data))
+/* adverbed payload: [0] adverb kind [8..15] wrapped function */
+#define QO_ADVERBED_KIND(q)  ((q)->data[0])
+#define QO_ADVERBED_FUNC(q)  (*(Qo *)((q)->data + 8))
 
 /* adverb payload: kind byte */
 #define QO_ADVERB_KIND(q)   ((q)->byte_val)

@@ -41,7 +41,7 @@ const TypeInfo type_table[256] = {
     [QO_DICT]        = {0, SC_PTR, TF_COMPLEX,                          0},
     [QO_FUNCTION]    = {0, SC_PTR, TF_COMPLEX,                          0},
     [QO_PROJECTION]  = {0, SC_PTR, TF_COMPLEX,                          0},
-    [QO_EACHED]      = {0, SC_PTR, TF_COMPLEX,                          0},
+    [QO_ADVERBED]    = {0, SC_PTR, TF_COMPLEX,                          0},
     [QO_TABLE]       = {0, SC_PTR, TF_COMPLEX,                          0},
 };
 
@@ -187,10 +187,11 @@ Qo make_projector_value(void) {
     return alloc_atom(QO_PROJECTOR);
 }
 
-Qo make_eached_value(Qo func) {
-    Qo q = alloc_block(sizeof(Qo));
-    q->type_tag = QO_EACHED;
-    QO_EACHED_FUNC(q) = qo_retain(func);
+Qo make_adverbed_value(Qo func, uint8_t kind) {
+    Qo q = alloc_block(sizeof(Qo) + sizeof(Qo));
+    q->type_tag = QO_ADVERBED;
+    QO_ADVERBED_KIND(q) = kind;
+    QO_ADVERBED_FUNC(q) = qo_retain(func);
     return q;
 }
 
@@ -255,11 +256,12 @@ Qo qo_clone(Qo q) {
     uint8_t t = QO_TYPE(q);
 
     if (t == QO_SYMBOL) return qo_retain(q);
-    if (t == QO_EACHED) {
-        Qo c = alloc_block(sizeof(Qo));
-        c->type_tag = QO_EACHED;
+    if (t == QO_ADVERBED) {
+        Qo c = alloc_block(sizeof(Qo) + sizeof(Qo));
+        c->type_tag = QO_ADVERBED;
         c->attribute = q->attribute;
-        QO_EACHED_FUNC(c) = qo_clone(QO_EACHED_FUNC(q));
+        QO_ADVERBED_KIND(c) = QO_ADVERBED_KIND(q);
+        QO_ADVERBED_FUNC(c) = qo_clone(QO_ADVERBED_FUNC(q));
         return c;
     }
     if (type_has_flag(t, TF_SCALAR)) {
@@ -349,8 +351,8 @@ static void qo_destroy(Qo q) {
 
     if (t == QO_SYMBOL) {
         qo_symbol_intern_remove(q);
-    } else if (t == QO_EACHED) {
-        qo_release(QO_EACHED_FUNC(q));
+    } else if (t == QO_ADVERBED) {
+        qo_release(QO_ADVERBED_FUNC(q));
     } else if (type_has_flag(t, TF_COMPLEX)) {
         switch (t) {
             case QO_DICT: {
@@ -416,6 +418,9 @@ int value_equals(Qo a, Qo b) {
             return QO_BYTE_VAL(a) == QO_BYTE_VAL(b);
         case QO_PROJECTOR:
             return 1;
+        case QO_ADVERBED:
+            return QO_ADVERBED_KIND(a) == QO_ADVERBED_KIND(b) &&
+                   value_equals(QO_ADVERBED_FUNC(a), QO_ADVERBED_FUNC(b));
         case QO_ADVERB:
             return QO_ADVERB_KIND(a) == QO_ADVERB_KIND(b);
         case QO_SYMBOL:

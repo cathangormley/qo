@@ -37,7 +37,7 @@ Qo make_char_value(char c);
 Qo make_bool_value(int v);
 Qo make_byte_value(uint8_t v);
 Qo make_projector_value(void);
-Qo make_eached_value(Qo func);
+Qo make_adverbed_value(Qo func, uint8_t kind);
 Qo make_adverb_value(uint8_t kind);
 Qo qo_alloc_raw(size_t size);
 Qo alloc_atom(uint8_t type);
