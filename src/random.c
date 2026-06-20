@@ -59,6 +59,7 @@ static void random_sync_seed(Environment *env) {
             break;
         }
     }
+    qo_release(seed_sym);
     qo_release(sys_val);
 }
 

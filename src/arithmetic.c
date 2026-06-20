@@ -332,7 +332,9 @@ static Qo negate_bool_result(Qo result) {
     if (result == NULL) return result;
     uint8_t t = qo_type(result);
     if (t == QO_BOOL) {
-        return make_bool_value(!qo_bool(result));
+        Qo negated = make_bool_value(!qo_bool(result));
+        qo_release(result);
+        return negated;
     }
     if (t == QO_BOOL_VEC) {
         Qo negated = alloc_data_vec(QO_BOOL_VEC, qo_count(result));
