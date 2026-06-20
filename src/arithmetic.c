@@ -10,6 +10,7 @@ static int64_t get_integer_value(Qo q) {
         case SC_I64: return qo_long(q);
         case SC_I32: return (int64_t)qo_int(q);
         case SC_I16: return (int64_t)qo_short(q);
+        case SC_U8:  return (int64_t)qo_byte(q);
         default: return 0;
     }
 }
@@ -20,34 +21,37 @@ static int64_t int_elem_value(Qo q, int64_t i) {
         case SC_I64: return is_vec ? qo_long_data(q)[i] : qo_long(q);
         case SC_I32: return is_vec ? (int64_t)qo_int_data(q)[i] : (int64_t)qo_int(q);
         case SC_I16: return is_vec ? (int64_t)qo_short_data(q)[i] : (int64_t)qo_short(q);
+        case SC_U8:  return is_vec ? (int64_t)qo_byte_data(q)[i] : (int64_t)qo_byte(q);
         default: return 0;
     }
 }
 
 static int int_rank_from_type(uint8_t t) {
     switch (type_storage(t)) {
-        case SC_I16: return 0;
-        case SC_I32: return 1;
-        case SC_I64: return 2;
+        case SC_U8:  return 0;
+        case SC_I16: return 1;
+        case SC_I32: return 2;
+        case SC_I64: return 3;
         default: return -1;
     }
 }
 
-static const uint8_t scalar_by_rank[] = {QO_SHORT, QO_INT, QO_LONG};
-static const uint8_t vector_by_rank[] = {QO_SHORT_VEC, QO_INT_VEC, QO_LONG_VEC};
+static const uint8_t scalar_by_rank[] = {QO_BYTE, QO_SHORT, QO_INT, QO_LONG};
+static const uint8_t vector_by_rank[] = {QO_BYTE_VEC, QO_SHORT_VEC, QO_INT_VEC, QO_LONG_VEC};
 
 static uint8_t scalar_type_from_int_rank(int rank) {
-    if (rank < 0 || rank > 2) return QO_LONG;
+    if (rank < 0 || rank > 3) return QO_LONG;
     return scalar_by_rank[rank];
 }
 
 static uint8_t vector_type_from_int_rank(int rank) {
-    if (rank < 0 || rank > 2) return QO_LONG_VEC;
+    if (rank < 0 || rank > 3) return QO_LONG_VEC;
     return vector_by_rank[rank];
 }
 
 static void store_int_vec_elem(Qo v, int64_t i, int64_t value) {
     switch (type_storage(qo_type(v))) {
+        case SC_U8:  qo_byte_data(v)[i] = (uint8_t)value;  break;
         case SC_I16: qo_short_data(v)[i] = (int16_t)value; break;
         case SC_I32: qo_int_data(v)[i] = (int32_t)value;  break;
         default:     qo_long_data(v)[i] = value;           break;
@@ -58,6 +62,7 @@ static Qo make_int_scalar_of_type(uint8_t t, int64_t value) {
     if (t == QO_TIMESTAMP) return make_timestamp_value(value);
     if (t == QO_TIMESPAN) return make_timespan_value(value);
     switch (type_storage(t)) {
+        case SC_U8:  return make_byte_value((uint8_t)value);
         case SC_I16: return make_short_value((int16_t)value);
         case SC_I32: return make_int_value((int32_t)value);
         default:     return make_long_value(value);
@@ -296,7 +301,7 @@ static Qo eval_order_compare(Qo left, Qo right, int want_less) {
 
     if ((lv && !is_order_vector_type(lt)) || (!lv && !is_order_scalar_type(lt)) ||
         (rv && !is_order_vector_type(rt)) || (!rv && !is_order_scalar_type(rt))) {
-        EVAL_ERROR("comparison requires int/float/bool/char operands");
+        EVAL_ERROR("comparison requires int/float/bool/char/byte operands");
     }
 
     if (!lv && !rv) {
@@ -642,6 +647,21 @@ static IntBinaryScalarKernel select_int_scalar_kernel(TokenType op) {
 static void int_vec_binop_same_type(Qo result, Qo left, Qo right, TokenType op) {
     int64_t n = QO_COUNT(left);
     switch (QO_TYPE(left)) {
+    case QO_BYTE_VEC: {
+        uint8_t * __restrict__ ld = qo_byte_data(left);
+        uint8_t * __restrict__ rs = qo_byte_data(right);
+        if (QO_TYPE(result) == QO_BYTE_VEC) {
+            uint8_t * __restrict__ rd = qo_byte_data(result);
+            if (op == TOKEN_PLUS)  for (int64_t i = 0; i < n; i++) rd[i] = ld[i] + rs[i];
+            else                   for (int64_t i = 0; i < n; i++) rd[i] = ld[i] - rs[i];
+        } else {
+            int64_t * __restrict__ rd = qo_long_data(result);
+            if (op == TOKEN_PLUS)       for (int64_t i = 0; i < n; i++) rd[i] = (int64_t)ld[i] + rs[i];
+            else if (op == TOKEN_MINUS) for (int64_t i = 0; i < n; i++) rd[i] = (int64_t)ld[i] - rs[i];
+            else                        for (int64_t i = 0; i < n; i++) rd[i] = (int64_t)ld[i] * rs[i];
+        }
+        return;
+    }
     case QO_SHORT_VEC: {
         int16_t * __restrict__ ld = qo_short_data(left);
         int16_t * __restrict__ rs = qo_short_data(right);

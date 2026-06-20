@@ -300,6 +300,10 @@ static Qo eval_builtin_neg(Qo arg, Environment *env) {
                 int64_t v = qo_long(arg);
                 return make_long_value(v == QO_LONG_NULL ? QO_LONG_NULL : -v);
             }
+            case QO_BYTE: {
+                int32_t v = (uint8_t)qo_byte(arg);
+                return make_int_value(-v);
+            }
             case QO_FLOAT: {
                 double v = qo_float(arg);
                 return make_float_value(-v);
@@ -307,6 +311,16 @@ static Qo eval_builtin_neg(Qo arg, Environment *env) {
             default:
                 EVAL_ERROR("neg: unsupported scalar type");
         }
+    }
+
+    if (t == QO_BYTE_VEC) {
+        int64_t n = qo_count(arg);
+        Qo result = alloc_data_vec(QO_INT_VEC, n);
+        for (int64_t i = 0; i < n; i++) {
+            int32_t v = (uint8_t)qo_byte_data(arg)[i];
+            qo_int_data(result)[i] = -v;
+        }
+        return result;
     }
 
     if (is_numeric_vector_type(t)) {

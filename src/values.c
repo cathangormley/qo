@@ -18,7 +18,7 @@ const TypeInfo type_table[256] = {
     [QO_FLOAT]       = {8, SC_F64, TF_SCALAR | TF_NUMERIC,              QO_FLOAT_VEC},
     [QO_CHAR]        = {1, SC_U8,  TF_SCALAR,                           QO_CHAR_VEC},
     [QO_BOOL]        = {1, SC_U8,  TF_SCALAR | TF_NUMERIC,              QO_BOOL_VEC},
-    [QO_BYTE]        = {1, SC_U8,  TF_SCALAR,                           QO_BYTE_VEC},
+    [QO_BYTE]        = {1, SC_U8,  TF_SCALAR | TF_NUMERIC | TF_INTEGER, QO_BYTE_VEC},
     [QO_SYMBOL]      = {8, SC_PTR, TF_SCALAR,                           QO_SYM_VEC},
     [QO_OPERATOR]    = {1, SC_U8,  TF_SCALAR,                           0},
     [QO_PROJECTOR]   = {1, SC_U8,  TF_SCALAR,                           0},
@@ -33,7 +33,7 @@ const TypeInfo type_table[256] = {
     [QO_FLOAT_VEC]   = {8, SC_F64, TF_VECTOR | TF_NUMERIC,              QO_FLOAT},
     [QO_CHAR_VEC]    = {1, SC_U8,  TF_VECTOR,                           QO_CHAR},
     [QO_BOOL_VEC]    = {1, SC_U8,  TF_VECTOR | TF_NUMERIC,              QO_BOOL},
-    [QO_BYTE_VEC]    = {1, SC_U8,  TF_VECTOR,                           QO_BYTE},
+    [QO_BYTE_VEC]    = {1, SC_U8,  TF_VECTOR | TF_NUMERIC | TF_INTEGER, QO_BYTE},
     [QO_SYM_VEC]     = {8, SC_PTR, TF_VECTOR,                           QO_SYMBOL},
     /* pointer vectors */
     [QO_LIST]        = {8, SC_PTR, TF_VECTOR | TF_COMPLEX,              0},
