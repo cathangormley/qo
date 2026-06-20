@@ -2217,51 +2217,72 @@ static Qo eval_apply_value(Qo head, Qo *args, int arg_count, Environment *env) {
     }
 
     if (qo_type(head) == QO_ADVERBED) {
-        if (arg_count != 1) EVAL_ERROR("adverbed expects 1 argument");
         Qo func = QO_ADVERBED_FUNC(head);
-        Qo arg = args[0];
-        if (arg == NULL) return eval_apply_value(func, args, arg_count, env);
-        uint8_t at = qo_type(arg);
-        if (is_vector_type(at)) {
-            int64_t n = qo_count(arg);
-            Qo *results = xmalloc(sizeof(Qo) * (n > 0 ? (size_t)n : 1));
-            for (int64_t i = 0; i < n; i++) {
-                Qo elem = dict_elem_copy(arg, i);
-                results[i] = eval_apply_value(func, &elem, 1, env);
-                qo_release(elem);
-                if (evaluator_error_requested() || evaluator_exit_requested()) {
-                    for (int64_t j = 0; j <= i; j++) qo_release(results[j]);
-                    free(results);
-                    return NULL;
-                }
+        if (arg_count == 0) return eval_apply_value(func, args, arg_count, env);
+        {
+            int any_null = 0;
+            for (int a = 0; a < arg_count; a++) {
+                if (args[a] == NULL) { any_null = 1; break; }
             }
-            return pack_results(results, (int)n);
+            if (any_null) return eval_apply_value(func, args, arg_count, env);
         }
-        if (at == QO_DICT) {
-            int64_t n = QO_DICT_COUNT(arg);
-            Qo *results = xmalloc(sizeof(Qo) * (n > 0 ? (size_t)n : 1));
-            for (int64_t i = 0; i < n; i++) {
-                Qo val = qo_clone(QO_DICT_VALS(arg)[i]);
-                results[i] = eval_apply_value(func, &val, 1, env);
-                qo_release(val);
-                if (evaluator_error_requested() || evaluator_exit_requested()) {
-                    for (int64_t j = 0; j <= i; j++) qo_release(results[j]);
-                    free(results);
-                    return NULL;
+
+        int64_t n = -1;
+        for (int a = 0; a < arg_count; a++) {
+            uint8_t at = qo_type(args[a]);
+            if (is_vector_type(at)) { n = qo_count(args[a]); break; }
+            if (at == QO_DICT)      { n = QO_DICT_COUNT(args[a]); break; }
+        }
+
+        if (n < 0) return eval_apply_value(func, args, arg_count, env);
+
+        Qo *results = xmalloc(sizeof(Qo) * (n > 0 ? (size_t)n : 1));
+        Qo *elem_args = xmalloc(sizeof(Qo) * (size_t)arg_count);
+
+        for (int64_t i = 0; i < n; i++) {
+            for (int a = 0; a < arg_count; a++) {
+                uint8_t at = qo_type(args[a]);
+                if (is_vector_type(at)) {
+                    if (qo_count(args[a]) != n)
+                        EVAL_ERROR("each: vector length mismatch");
+                    elem_args[a] = dict_elem_copy(args[a], i);
+                } else if (at == QO_DICT) {
+                    if (QO_DICT_COUNT(args[a]) != n)
+                        EVAL_ERROR("each: dict length mismatch");
+                    elem_args[a] = qo_clone(QO_DICT_VALS(args[a])[i]);
+                } else {
+                    elem_args[a] = args[a];
+                    qo_retain(elem_args[a]);
                 }
             }
-            /* build dictionary with same keys, mapped values */
+
+            results[i] = eval_apply_value(func, elem_args, arg_count, env);
+
+            for (int a = 0; a < arg_count; a++) qo_release(elem_args[a]);
+
+            if (evaluator_error_requested() || evaluator_exit_requested()) {
+                for (int64_t j = 0; j <= i; j++) qo_release(results[j]);
+                free(results);
+                free(elem_args);
+                return NULL;
+            }
+        }
+
+        free(elem_args);
+
+        if (arg_count == 1 && qo_type(args[0]) == QO_DICT) {
             Qo dict = alloc_dict_block(n);
-            QO_DICT_KTYPE(dict) = QO_DICT_KTYPE(arg);
-            QO_DICT_VTYPE(dict) = QO_DICT_VTYPE(arg);
+            QO_DICT_KTYPE(dict) = QO_DICT_KTYPE(args[0]);
+            QO_DICT_VTYPE(dict) = QO_DICT_VTYPE(args[0]);
             for (int64_t i = 0; i < n; i++) {
-                QO_DICT_KEYS(dict)[i] = qo_clone(QO_DICT_KEYS(arg)[i]);
+                QO_DICT_KEYS(dict)[i] = qo_clone(QO_DICT_KEYS(args[0])[i]);
                 QO_DICT_VALS(dict)[i] = results[i];
             }
             free(results);
             return dict;
         }
-        return eval_apply_value(func, args, arg_count, env);
+
+        return pack_results(results, (int)n);
     }
 
     if (qo_type(head) == QO_PROJECTION) {

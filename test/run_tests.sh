@@ -597,6 +597,15 @@ test_case "adverb_parse_roundtrip" "eval[parse[\"'\"]]" "'"
 test_case "adverb_greedy_postfix" "(type) '" "type'"
 test_case "adverb_func_alias" "f:first'; f (1 2 3;4 5 6)" "1 4"
 
+# Each with multi-argument functions
+test_case "each_multiarg_two_vecs" "f:{[x;y] x+y}; f'[1 2 3;4 5 6]" "5 7 9"
+test_case "each_multiarg_scalar_vec" "f:{[x;y] x+y}; f'[10;1 2 3]" "11 12 13"
+test_case "each_multiarg_vec_scalar" "f:{[x;y] x**y}; f'[2 3 4;3]" "8 27 64f"
+test_case "each_multiarg_nested" "f:{[x;y] first[x]+last[y]}; f'[(1 2;3 4);(5 6;7 8)]" "7 11"
+test_case "each_multiarg_len_mismatch" "f:{[x;y] x+y}; f'[1 2;3 4 5]" "Error: each: vector length mismatch"
+test_case "each_multiarg_list_list" "f:{[x;y] sum x+y}; f'[(1 2;3 4);(5 6;7 8)]" "14 22"
+test_case "each_multiarg_three" "f:{[x;y;z] x+y+z}; f'[1 2;3 4;5 6]" "9 12"
+
 # Symbol vector literal (`a`b`c)
 test_case "sym_vec_literal_two" "\`a\`b" "\`a\`b"
 test_case "sym_vec_literal_three" "\`a\`b\`c" "\`a\`b\`c"
