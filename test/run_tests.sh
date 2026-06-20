@@ -605,6 +605,10 @@ test_case "each_multiarg_nested" "f:{[x;y] first[x]+last[y]}; f'[(1 2;3 4);(5 6;
 test_case "each_multiarg_len_mismatch" "f:{[x;y] x+y}; f'[1 2;3 4 5]" "Error: each: vector length mismatch"
 test_case "each_multiarg_list_list" "f:{[x;y] sum x+y}; f'[(1 2;3 4);(5 6;7 8)]" "14 22"
 test_case "each_multiarg_three" "f:{[x;y;z] x+y+z}; f'[1 2;3 4;5 6]" "9 12"
+test_case "each_multiarg_projector" "f:{[x;y;z] x+y*z}; (f'[1 2 3;4 5 6;])[7]" "29 37 45"
+test_case "each_multiarg_partial" "f:{[x;y;z] x+y+z}; (f'[1;2])[3]" "6"
+test_case "each_multiarg_too_many" "f:{[x;y] x+y}; f'[1;2;3]" "Error: function expects 2 args, got 3"
+test_case "each_multiarg_projector_no_vec" "f:{[x;y] x * y}; (f'[2;])[3]" "6"
 
 # Symbol vector literal (`a`b`c)
 test_case "sym_vec_literal_two" "\`a\`b" "\`a\`b"

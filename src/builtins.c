@@ -2227,6 +2227,18 @@ static Qo eval_apply_value(Qo head, Qo *args, int arg_count, Environment *env) {
             if (any_null) return eval_apply_value(func, args, arg_count, env);
         }
 
+        {
+            int has_projector = 0;
+            for (int a = 0; a < arg_count; a++) {
+                if (args[a] != NULL && qo_type(args[a]) == QO_PROJECTOR) {
+                    has_projector = 1;
+                    break;
+                }
+            }
+            if (has_projector)
+                return eval_apply_value(func, args, arg_count, env);
+        }
+
         int64_t n = -1;
         for (int a = 0; a < arg_count; a++) {
             uint8_t at = qo_type(args[a]);
