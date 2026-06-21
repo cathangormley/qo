@@ -1081,6 +1081,16 @@ test_case "cast_char_longvec_to_boolvec" "\"b\"\$0 1 2" "011b"
 test_case "cast_char_longvec_to_bytevec" "\"x\"\$255 0 1" "0xff0001"
 test_case "cast_char_shortvec_to_longvec" "\"j\"\$1 2 3h" "1 2 3"
 
+# Date casting
+test_case "cast_char_d_date"             "\"d\"\$4i"          "1970.01.05"
+test_case "cast_sym_date"                "\`date\$4i"         "1970.01.05"
+test_case "cast_date_to_long"            "\"j\"\$2026.01.01"  "20454"
+test_case "cast_date_to_long_char"       "\"j\"\$2026.01.01"  "20454"
+test_case "cast_date_to_int"             "\"i\"\$2026.01.01"  "20454i"
+test_case "cast_long_vec_to_date"        "\"d\"\$20454 20455" "2026.01.01 2026.01.02"
+test_case "cast_date_char_unknown_err"   "\"z\"\$4i"          "Error: cast: left argument must be a type symbol or type character"
+test_case "cast_timestamp_to_date"        "\"d\"\$2026.06.21T12:00:00.000000000"  "2026.06.21"
+
 # Operator projection
 test_case "op_projection_plus_left" "(+[2;])3" "5"
 test_case "op_projection_plus_right" "(+[;3])2" "5"
