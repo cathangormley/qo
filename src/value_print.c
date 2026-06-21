@@ -23,6 +23,14 @@ static void format_timestamp_ns(int64_t ns, char *out, size_t outlen) {
              tm.tm_hour, tm.tm_min, tm.tm_sec, (long)nanos);
 }
 
+static void format_date_days(int32_t days, char *out, size_t outlen) {
+    time_t t = (time_t)days * 86400;
+    struct tm tm;
+    gmtime_r(&t, &tm);
+    snprintf(out, outlen, "%04d.%02d.%02d",
+             tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday);
+}
+
 static void format_timespan_ns(int64_t ns, char *out, size_t outlen) {
     int neg = (ns < 0);
     if (neg) ns = -ns;
@@ -178,6 +186,14 @@ static void qo_print_internal(Qo q, int depth) {
             qo_printf("%s", buf);
             break;
         }
+        case QO_DATE: {
+            int32_t d = qo_date(q);
+            if (d == QO_INT_NULL) { qo_printf("0Nd"); break; }
+            char buf[16];
+            format_date_days(d, buf, sizeof buf);
+            qo_printf("%s", buf);
+            break;
+        }
         case QO_FLOAT: {
             double fv = QO_FLOAT_VAL(q);
             if (isnan(fv)) qo_printf("0Nf");
@@ -310,6 +326,19 @@ static void qo_print_internal(Qo q, int depth) {
                 if (v == QO_LONG_NULL) { qo_printf("0N"); continue; }
                 char buf[64];
                 format_timespan_ns(v, buf, sizeof buf);
+                qo_printf("%s", buf);
+            }
+            break;
+        }
+        case QO_DATE_VEC: {
+            int64_t n = QO_COUNT(q);
+            if (n == 0) { qo_printf("[]"); break; }
+            for (int64_t i = 0; i < n; i++) {
+                if (i > 0) qo_printf(" ");
+                int32_t v = QO_DATE_DATA(q)[i];
+                if (v == QO_INT_NULL) { qo_printf("0Nd"); continue; }
+                char buf[16];
+                format_date_days(v, buf, sizeof buf);
                 qo_printf("%s", buf);
             }
             break;

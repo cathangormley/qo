@@ -774,11 +774,13 @@ static Qo eval_builtin_type(Qo arg, Environment *env) {
         case QO_LONG:       tag = "long";      break;
         case QO_TIMESTAMP:  tag = "timestamp"; break;
         case QO_TIMESPAN:   tag = "timespan";  break;
+        case QO_DATE:       tag = "date";      break;
         case QO_SHORT_VEC:  tag = "SHORT";     break;
         case QO_INT_VEC:    tag = "INT";       break;
         case QO_LONG_VEC:   tag = "LONG";      break;
         case QO_TIMESTAMP_VEC: tag = "TIMESTAMP"; break;
         case QO_TIMESPAN_VEC:  tag = "TIMESPAN";  break;
+        case QO_DATE_VEC:       tag = "DATE";       break;
         case QO_FLOAT:      tag = "float";     break;
         case QO_FLOAT_VEC:  tag = "FLOAT";     break;
         case QO_CHAR:       tag = "char";      break;

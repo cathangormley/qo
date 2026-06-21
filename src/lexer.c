@@ -184,11 +184,32 @@ Token* lexer_next_token(Lexer *lexer) {
         return t;
     }
 
-    /* Timestamp literal: required prefix YYYY.MM.DDT, then optional
-       HH, :MM, :SS, .<1..9 fractional digits> appended greedily. */
+    /* Date literal: YYYY.MM.DD without trailing 'T' */
     if (isdigit((unsigned char)ch)) {
         const char *in = lexer->input;
         int p = lexer->pos;
+        int date_ok =
+            isdigit((unsigned char)in[p+0]) && isdigit((unsigned char)in[p+1]) &&
+            isdigit((unsigned char)in[p+2]) && isdigit((unsigned char)in[p+3]) &&
+            in[p+4] == '.' &&
+            isdigit((unsigned char)in[p+5]) && isdigit((unsigned char)in[p+6]) &&
+            in[p+7] == '.' &&
+            isdigit((unsigned char)in[p+8]) && isdigit((unsigned char)in[p+9]) &&
+            !(isdigit((unsigned char)in[p+10]) || in[p+10] == 'T');
+        if (date_ok) {
+            int end = p + 10;
+            int len = end - p;
+            char *value = xmalloc((size_t)len + 1);
+            memcpy(value, in + p, (size_t)len);
+            value[len] = '\0';
+            lexer->pos = end;
+            Token *t = token_new(TOKEN_DATE, value, false, '\0', start_pos);
+            free(value);
+            return t;
+        }
+
+        /* Timestamp literal: required prefix YYYY.MM.DDT, then optional
+           HH, :MM, :SS, .<1..9 fractional digits> appended greedily. */
         int prefix_ok =
             isdigit((unsigned char)in[p+0]) && isdigit((unsigned char)in[p+1]) &&
             isdigit((unsigned char)in[p+2]) && isdigit((unsigned char)in[p+3]) &&

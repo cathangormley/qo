@@ -48,6 +48,7 @@ static inline int type_has_flag(uint8_t t, uint8_t f) { return (type_flags(t) & 
 #define QO_CHAR_VAL(q)      qo_char(q)
 #define QO_BOOL_VAL(q)      qo_bool(q)
 #define QO_BYTE_VAL(q)      qo_byte(q)
+#define QO_DATE_VAL(q)      qo_date(q)
 #define QO_SYMBOL_ID(q)     qo_symbol_id(q)
 #define QO_SET_SHORT_VAL(q, v)  qo_set_short((q), (v))
 #define QO_SET_INT_VAL(q, v)    qo_set_int((q), (v))
@@ -63,6 +64,7 @@ static inline int type_has_flag(uint8_t t, uint8_t f) { return (type_flags(t) & 
 
 #define QO_SHORT_DATA(q)    ((int16_t *)((q)->data))
 #define QO_INT_DATA(q)      ((int32_t *)((q)->data))
+#define QO_DATE_DATA(q)     ((int32_t *)((q)->data))
 #define QO_LONG_DATA(q)     ((int64_t *)((q)->data))
 #define QO_FLOAT_DATA(q)    ((double *)((q)->data))
 #define QO_BOOL_DATA(q)     ((uint8_t *)((q)->data))
