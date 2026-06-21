@@ -64,6 +64,7 @@ typedef QoObject *Qo;
 #define QO_ADVERBED    0x24
 #define QO_ADVERB      0x25
 #define QO_TABLE       0x26
+#define QO_COMPOSITION 0x27
 
 /* ── Sentinel values for null and infinity ──────────────────────────── */
 #define QO_SHORT_NULL    INT16_MIN

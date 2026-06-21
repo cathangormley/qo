@@ -380,6 +380,16 @@ static void qo_print_internal(Qo q, int depth) {
             qo_print_internal(QO_ADVERBED_FUNC(q), depth);
             if (QO_ADVERBED_KIND(q) == QO_ADVERB_EACH) qo_printf("'");
             break;
+        case QO_COMPOSITION: {
+            int64_t n = QO_COUNT(q);
+            qo_printf("(");
+            for (int64_t i = 0; i < n; i++) {
+                if (i > 0) qo_printf(";");
+                qo_print_internal(QO_LIST_DATA(q)[i], depth + 1);
+            }
+            qo_printf(")");
+            break;
+        }
         case QO_DICT: {
             int64_t n = QO_DICT_COUNT(q);
             for (int64_t i = 0; i < n; i++) {

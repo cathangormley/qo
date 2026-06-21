@@ -45,6 +45,7 @@ const TypeInfo type_table[256] = {
     [QO_PROJECTION]  = {0, SC_PTR, TF_COMPLEX,                          0},
     [QO_ADVERBED]    = {0, SC_PTR, TF_COMPLEX,                          0},
     [QO_TABLE]       = {0, SC_PTR, TF_COMPLEX,                          0},
+    [QO_COMPOSITION] = {0, SC_PTR, TF_COMPLEX,                          0},
 };
 
 static Qo alloc_block(size_t payload_size) {
@@ -346,6 +347,13 @@ Qo qo_clone(Qo q) {
             if (d) QO_TABLE_DICT(clone) = qo_clone(d);
             return clone;
         }
+        case QO_COMPOSITION: {
+            int64_t n = QO_COUNT(q);
+            Qo c = alloc_ptr_vec(QO_COMPOSITION, n);
+            for (int64_t i = 0; i < n; i++)
+                QO_LIST_DATA(c)[i] = qo_clone(QO_LIST_DATA(q)[i]);
+            return c;
+        }
         default:
             return NULL;
     }
@@ -385,6 +393,12 @@ static void qo_destroy(Qo q) {
             case QO_TABLE: {
                 Qo d = QO_TABLE_DICT(q);
                 if (d) qo_release(d);
+                break;
+            }
+            case QO_COMPOSITION: {
+                int64_t n = QO_COUNT(q);
+                for (int64_t i = 0; i < n; i++)
+                    qo_release(QO_LIST_DATA(q)[i]);
                 break;
             }
             default:
@@ -518,6 +532,15 @@ int value_equals(Qo a, Qo b) {
             if (!da && !db) return 1;
             if (!da || !db) return 0;
             return value_equals(da, db);
+        }
+        case QO_COMPOSITION: {
+            int64_t na = QO_COUNT(a);
+            int64_t nb = QO_COUNT(b);
+            if (na != nb) return 0;
+            for (int64_t i = 0; i < na; i++) {
+                if (!value_equals(QO_LIST_DATA(a)[i], QO_LIST_DATA(b)[i])) return 0;
+            }
+            return 1;
         }
         default:
             return 0;

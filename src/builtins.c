@@ -52,6 +52,7 @@ int builtin_name_to_id(const char *name) {
     if (strcmp(name, "neg") == 0)      return QO_BUILTIN_NEG;
     if (strcmp(name, "distinct") == 0) return QO_BUILTIN_DISTINCT;
     if (strcmp(name, "reverse") == 0)  return QO_BUILTIN_REVERSE;
+    if (strcmp(name, "compose") == 0)  return QO_BUILTIN_COMPOSE;
     return -1;
 }
 
@@ -92,6 +93,7 @@ const char *builtin_id_to_name(uint8_t id) {
         case QO_BUILTIN_NEG:      return "neg";
         case QO_BUILTIN_DISTINCT: return "distinct";
         case QO_BUILTIN_REVERSE:  return "reverse";
+        case QO_BUILTIN_COMPOSE: return "compose";
         default:                  return NULL;
     }
 }
@@ -801,6 +803,7 @@ static Qo eval_builtin_type(Qo arg, Environment *env) {
         case QO_ADVERBED:   tag = "adverbfunc"; break;
         case QO_ADVERB:     tag = "adverb";    break;
         case QO_TABLE:      tag = "table";     break;
+        case QO_COMPOSITION: tag = "composition"; break;
         default: break;
     }
     return make_symbol_value(tag);
@@ -914,6 +917,19 @@ static Qo eval_builtin_enlist(Qo *args, int arg_count, Environment *env) {
         for (int i = 0; i < arg_count; i++) QO_LIST_DATA(result)[i] = qo_clone(args[i]);
         return result;
     }
+}
+
+static Qo eval_builtin_compose(Qo *args, int arg_count, Environment *env) {
+    (void)env;
+    if (arg_count != 1) EVAL_ERROR("compose expects exactly 1 argument (a list)");
+    Qo arg = args[0];
+    if (qo_type(arg) != QO_LIST) EVAL_ERROR("compose expects a list");
+    int64_t n = qo_count(arg);
+    if (n == 0) EVAL_ERROR("compose expects a non-empty list");
+    Qo result = alloc_ptr_vec(QO_COMPOSITION, n);
+    for (int64_t i = 0; i < n; i++)
+        QO_LIST_DATA(result)[i] = qo_clone(QO_LIST_DATA(arg)[i]);
+    return result;
 }
 
 static Qo make_charvec_from_buf(const char *buf, size_t n) {
@@ -1498,6 +1514,8 @@ static Qo eval_builtin_dispatch(Qo head, Qo *arg_values, int arg_count, Environm
             return eval_builtin_find(arg_values[0], arg_values[1], env);
         case QO_BUILTIN_ENLIST:
             return eval_builtin_enlist(arg_values, arg_count, env);
+        case QO_BUILTIN_COMPOSE:
+            return eval_builtin_compose(arg_values, arg_count, env);
         case QO_BUILTIN_SEMICOLON:
             EVAL_ERROR("unexpected semicolon in apply");
         default:
@@ -2374,6 +2392,29 @@ static Qo eval_apply_value(Qo head, Qo *args, int arg_count, Environment *env) {
         for (int64_t i = 0; i < slot_count; i++) qo_release(merged[i]);
         free(merged);
         return result;
+    }
+
+    if (qo_type(head) == QO_COMPOSITION) {
+        int64_t n = QO_COUNT(head);
+        if (n == 0) return NULL;
+        Qo *cur_args = xmalloc(sizeof(Qo) * (size_t)arg_count);
+        for (int i = 0; i < arg_count; i++) cur_args[i] = args[i] ? qo_retain(args[i]) : NULL;
+        for (int64_t i = (int)(n - 1); i >= 0; i--) {
+            Qo fn = QO_LIST_DATA(head)[i];
+            Qo result = eval_apply_value(fn, cur_args, i == (int)(n - 1) ? arg_count : 1, env);
+            for (int j = 0; j < arg_count; j++) if (cur_args[j]) qo_release(cur_args[j]);
+            if (evaluator_error_requested() || evaluator_exit_requested()) {
+                if (result) qo_release(result);
+                free(cur_args);
+                return NULL;
+            }
+            cur_args[0] = result ? qo_retain(result) : NULL;
+            for (int j = 1; j < arg_count; j++) cur_args[j] = NULL;
+            if (result) qo_release(result);
+        }
+        Qo final = cur_args[0];
+        free(cur_args);
+        return final;
     }
 
     if (qo_type(head) == QO_FUNCTION) {

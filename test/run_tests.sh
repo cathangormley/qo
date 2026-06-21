@@ -1108,6 +1108,17 @@ test_case "op_projection_power" "(**[2;])3" "8f"
 test_case "op_projection_div" "(%[10;])3" "3.33333f"
 test_case "op_projection_bare" "+[;]" "+[;]"
 
+# ── compose keyword ─────────────────────────────────────────────────────
+test_case "compose_type"             "type compose"            "\`builtin"
+test_case "compose_double_sum"       "twicesum:compose({[x] 2*x};+); twicesum[5;2]"  "14"
+test_case "compose_single_func"      "f:compose enlist {[x] x*x}; f[5]"    "25"
+test_case "compose_neg_abs"          "f:compose(neg;{[x] x}); f[-5]" "5"
+test_case "compose_empty_err"        "compose()"               "Error: compose expects a non-empty list"
+test_case "compose_type_value"       "type compose(+;{[x] 2*x})"   "\`composition"
+test_case "compose_print"            "compose(+;{[x] 2*x})"    "(+;{[x] 2*x})"
+test_case "compose_three"            "f:compose(neg;{[x] x+1};{[x] x*2}); f[3]" "-7"
+test_case "compose_projection"       "f:compose (*[2];+); f[3;4]" "14"
+
 # Parse error tests (verify no crash, just error message)
 test_case "bare_open_paren"               "("       "Error: Failed to parse expression"
 test_case "bare_close_paren"              ")"       "Error: Failed to parse expression"
