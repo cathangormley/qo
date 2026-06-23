@@ -135,7 +135,8 @@ Token* lexer_next_token(Lexer *lexer) {
         int len = 0;
         char *value = xmalloc(capacity);
 
-        while (isalnum(lexer->input[lexer->pos]) || lexer->input[lexer->pos] == '_') {
+        while (isalnum(lexer->input[lexer->pos]) || lexer->input[lexer->pos] == '_'
+               || lexer->input[lexer->pos] == '.') {
             if ((size_t)len + 1 >= capacity) {
                 capacity *= 2;
                 value = xrealloc(value, capacity);

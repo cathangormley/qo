@@ -613,6 +613,11 @@ test_case "lex_symbol" "lex \"\`foo\"" "\"\`foo\""
 test_case_multiline "lex_empty_symbol_plus" "lex \"\`+\"" $'"`"\n"+"'
 test_case_multiline "lex_empty_symbol_amp" "lex \"\`&\"" $'"`"\n"&"'
 test_case_multiline "lex_empty_symbol_semicolon" "lex \"\`;\"" $'"`"\n";"'
+test_case "lex_dotted_symbol" "lex \"\`a.b\""         "\"\`a.b\""
+test_case "lex_nested_dotted_symbol" "lex \"\`a.b.c\"" "\"\`a.b.c\""
+test_case "dotted_symbol_equality" "\`a.b=\`a.b"     "1b"
+test_case "dotted_symbol_inequality" "\`a.b=\`a.c"    "0b"
+test_case "dotted_symbol_type" "type \`a.b"           "\`symbol"
 test_case "parse_generic_call_head_type" "type first parse\"f[2;3]\"" "\`symbol"
 test_case_multiline "parse_projection_holes" "parse \"f[;x;;y]\"" $'`f\nP\n`x\nP\n`y'
 test_case "parse_unclosed_paren_errors"   "parse \" (\""  "Error: parse: failed to parse expression"
@@ -1220,6 +1225,15 @@ test_case "ns_nested_deep_read_write" "a.b.c.d:9; a.b.c.d" "9"
 test_case "ns_nested_undefined_var"  "a.b.c"               "Error: undefined variable 'a'"
 test_case "ns_key_keyword"      "c.d:5; key c"   "\`d"
 test_case "ns_value_keyword"    "c.d:5; value c" "5"
+
+# ── Get keyword tests ──────────────────────────────────────────────────
+test_case "get_variable"          "a:5; get \`a"                  "5"
+test_case "get_undefined"         "get \`x"                       "Error: undefined variable 'x'"
+test_case "get_not_symbol"        "get 42"                        "Error: get expects a symbol argument"
+test_case "get_namespace_basic"   "a.b:10; get \`a.b"            "10"
+test_case "get_nested_namespace"  "a.b.c:7; get \`a.b.c"        "7"
+test_case "get_expression"        "a:5; b:a+2; get \`b"         "7"
+test_case "get_type"              "a:5; type get \`a"            "\`long"
 
 # ── Where keyword tests ──────────────────────────────────────────────
 test_case "where_bool_vec"             "where 0101b"         "1 3"

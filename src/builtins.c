@@ -54,6 +54,7 @@ int builtin_name_to_id(const char *name) {
     if (strcmp(name, "reverse") == 0)  return QO_BUILTIN_REVERSE;
     if (strcmp(name, "compose") == 0)  return QO_BUILTIN_COMPOSE;
     if (strcmp(name, "::") == 0)       return QO_BUILTIN_NULL_OP;
+    if (strcmp(name, "get") == 0)      return QO_BUILTIN_GET;
     return -1;
 }
 
@@ -96,6 +97,7 @@ const char *builtin_id_to_name(uint8_t id) {
         case QO_BUILTIN_REVERSE:  return "reverse";
         case QO_BUILTIN_COMPOSE:  return "compose";
         case QO_BUILTIN_NULL_OP:  return "::";
+        case QO_BUILTIN_GET:      return "get";
         default:                  return NULL;
     }
 }
@@ -1451,6 +1453,24 @@ static Qo eval_cast(Qo type_sym, Qo value, Environment *env) {
 
 #undef VEC_CAST
 
+static Qo eval_nested_read(Qo full_sym, Environment *env);
+
+static Qo eval_builtin_get(Qo arg, Environment *env) {
+    if (qo_type(arg) != QO_SYMBOL) EVAL_ERROR("get expects a symbol argument");
+
+    const char *name = qo_symbol_name(arg);
+    if (strchr(name, '.'))
+        return eval_nested_read(arg, env);
+
+    int found;
+    Qo v = env_get(env, arg, &found);
+    if (!found) {
+        qo_release(v);
+        EVAL_ERROR_FMT("undefined variable '%s'", name);
+    }
+    return v;
+}
+
 static Qo eval_builtin_dispatch(Qo head, Qo *arg_values, int arg_count, Environment *env) {
     uint8_t id = QO_BUILTIN_ID(head);
     switch (id) {
@@ -1528,6 +1548,7 @@ static Qo eval_builtin_dispatch(Qo head, Qo *arg_values, int arg_count, Environm
                 case QO_BUILTIN_REVERSE:  return eval_builtin_reverse(arg_values[0], env);
                 case QO_BUILTIN_NULL_OP:
                     return qo_clone(arg_values[0]);
+                case QO_BUILTIN_GET:      return eval_builtin_get(arg_values[0], env);
                 default:
                     EVAL_ERROR_FMT("unknown builtin id %d", id);
             }
