@@ -67,7 +67,6 @@ static inline int is_numeric_int_type(uint8_t t) {
     return type_has_flag(t, TF_INTEGER) && !type_has_flag(t, TF_VECTOR);
 }
 static inline int is_numeric_operand(Qo q) {
-    if (q == NULL) return 0;
     return type_has_flag(qo_type(q), TF_NUMERIC);
 }
 double value_as_double(Qo value);

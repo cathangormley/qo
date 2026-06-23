@@ -209,7 +209,7 @@ Qo make_adverb_value(uint8_t kind) {
 }
 
 Qo make_null_value(void) {
-    return NULL;
+    return make_builtin_value(QO_BUILTIN_NULL_OP);
 }
 
 Qo make_symbol_value(const char *text) {
@@ -413,8 +413,6 @@ static void qo_destroy(Qo q) {
 }
 
 int value_equals(Qo a, Qo b) {
-    if (a == NULL && b == NULL) return 1;
-    if (a == NULL || b == NULL) return 0;
     if (QO_TYPE(a) != QO_TYPE(b)) return 0;
 
     switch (QO_TYPE(a)) {

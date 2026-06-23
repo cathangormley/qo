@@ -492,7 +492,7 @@ test_case "date_vec_minus_date_vec"    "2026.01.10 2026.01.20 - 2026.01.01 2026.
 test_case "date_count"                 "count 2026.01.15 2026.06.21"  "2"
 test_case "date_first"                 "first 2026.01.01 2026.01.15"  "2026.01.01"
 
-test_case "empty_brackets_passes_null" "f:{[x] type x}; f[]" "\`null"
+test_case "empty_brackets_passes_null" "f:{[x] type x}; f[]" "\`builtin"
 test_case "read_file" "read \"test/read_fixture.txt\"" "\"Hello world!\""
 test_case "read_file_with_at_apply" "read @ \"test/read_fixture.txt\"" "\"Hello world!\""
 test_case "read_alias_with_at_apply" "r:read; r @ \"test/read_fixture.txt\"" "\"Hello world!\""

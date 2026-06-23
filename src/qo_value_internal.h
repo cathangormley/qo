@@ -151,3 +151,8 @@ static inline int type_has_flag(uint8_t t, uint8_t f) { return (type_flags(t) & 
 #define QO_BUILTIN_REVERSE      34
 #define QO_BUILTIN_COMPOSE     35
 #define QO_BUILTIN_NULL_OP     36
+
+static inline int qo_is_null(Qo q) {
+    return q != NULL && q->type_tag == QO_BUILTIN
+        && QO_BUILTIN_ID(q) == QO_BUILTIN_NULL_OP;
+}

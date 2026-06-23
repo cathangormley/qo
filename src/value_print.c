@@ -145,7 +145,7 @@ static void qo_print_projection_style(Qo q, int depth) {
 
 /* Recursive dispatcher that renders every Qo runtime type. */
 static void qo_print_internal(Qo q, int depth) {
-    if (q == NULL) return;
+    if (q == NULL || qo_is_null(q)) return;
 
     switch (QO_TYPE(q)) {
         case QO_SHORT: {

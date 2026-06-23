@@ -1,6 +1,8 @@
 #include <stdlib.h>
 #include "environment.h"
 #include "qo_value.h"
+#include "qo_value_internal.h"
+#include "evaluator_internal.h"
 #include "internal.h"
 
 Environment *env_new(void) {
@@ -59,5 +61,5 @@ Qo env_get(Environment *env, int64_t symbol_id, int *found) {
     }
 
     *found = 0;
-    return NULL;
+    return make_null_value();
 }

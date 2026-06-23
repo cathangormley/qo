@@ -77,10 +77,6 @@ typedef QoObject *Qo;
 #define QO_FLOAT_NULL    NAN
 
 /* ── Stable external accessor API ───────────────────────────────────────── */
-static inline int qo_is_null(Qo q) {
-    return q == NULL;
-}
-
 static inline uint8_t qo_type(Qo q) {
     return q->type_tag;
 }

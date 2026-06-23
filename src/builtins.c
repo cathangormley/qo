@@ -138,7 +138,6 @@ static char *charvec_to_cstr(Qo arg) {
 
 static Qo eval_builtin_sum(Qo arg, Environment *env) {
     (void)env;
-    if (arg == NULL) EVAL_ERROR("sum expects a number or numeric vector");
     uint8_t t = qo_type(arg);
     if (type_has_flag(t, TF_SCALAR)) return qo_clone(arg);
     switch (type_storage(t)) {
@@ -174,7 +173,6 @@ static Qo eval_builtin_sum(Qo arg, Environment *env) {
         int64_t n = qo_count(arg);
         for (int64_t i = 0; i < n; i++) {
             Qo e = qo_ptr_data(arg)[i];
-            if (e == NULL) EVAL_ERROR("sum expects a number or numeric vector");
             uint8_t et = qo_type(e);
             if (et == QO_SHORT)      total += (double)qo_short(e);
             else if (et == QO_INT)   total += (double)qo_int(e);
@@ -189,7 +187,7 @@ static Qo eval_builtin_sum(Qo arg, Environment *env) {
 
 static Qo eval_builtin_parse(Qo arg, Environment *env) {
     (void)env;
-    if (arg == NULL || qo_type(arg) != QO_CHAR_VEC) EVAL_ERROR("parse expects a CHAR vector argument");
+    if (qo_type(arg) != QO_CHAR_VEC) EVAL_ERROR("parse expects a CHAR vector argument");
     char *input = charvec_to_cstr(arg);
     Qo result = parse_source_to_value(input);
     free(input);
@@ -204,7 +202,7 @@ static Qo eval_builtin_parse(Qo arg, Environment *env) {
 
 static Qo eval_builtin_lex(Qo arg, Environment *env) {
     (void)env;
-    if (arg == NULL || qo_type(arg) != QO_CHAR_VEC) EVAL_ERROR("lex expects a CHAR vector argument");
+    if (qo_type(arg) != QO_CHAR_VEC) EVAL_ERROR("lex expects a CHAR vector argument");
     char *input = charvec_to_cstr(arg);
     TokenBuffer buffer = tokenize_input(input);
     free(input);
@@ -243,7 +241,6 @@ static Qo eval_builtin_lex(Qo arg, Environment *env) {
 
 static Qo eval_builtin_not(Qo arg, Environment *env) {
     (void)env;
-    if (arg == NULL) EVAL_ERROR("not expects a numeric argument");
     
     uint8_t t = qo_type(arg);
     if (is_numeric_scalar_type(t)) {
@@ -273,10 +270,6 @@ static Qo eval_builtin_not(Qo arg, Environment *env) {
         Qo result = alloc_data_vec(QO_BOOL_VEC, n);
         for (int64_t i = 0; i < n; i++) {
             Qo elem = qo_ptr_data(arg)[i];
-            if (elem == NULL) {
-                qo_release(result);
-                EVAL_ERROR("not expects numeric arguments");
-            }
             double val = value_as_double(elem);
             qo_bool_data(result)[i] = (val == 0.0) ? 1 : 0;
         }
@@ -288,7 +281,6 @@ static Qo eval_builtin_not(Qo arg, Environment *env) {
 
 static Qo eval_builtin_neg(Qo arg, Environment *env) {
     (void)env;
-    if (arg == NULL) EVAL_ERROR("neg expects a numeric argument");
 
     uint8_t t = qo_type(arg);
 
@@ -367,7 +359,6 @@ static Qo eval_builtin_neg(Qo arg, Environment *env) {
         Qo result = alloc_ptr_vec(QO_LIST, n);
         for (int64_t i = 0; i < n; i++) {
             Qo elem = qo_ptr_data(arg)[i];
-            if (elem == NULL) { qo_release(result); EVAL_ERROR("neg: list element cannot be null"); }
             uint8_t et = qo_type(elem);
             switch (et) {
                 case QO_SHORT: {
@@ -403,7 +394,6 @@ static Qo eval_builtin_neg(Qo arg, Environment *env) {
 
 static Qo eval_builtin_null(Qo arg, Environment *env) {
     (void)env;
-    if (arg == NULL) return make_bool_value(1);
 
     uint8_t t = qo_type(arg);
 
@@ -453,7 +443,7 @@ static Qo eval_builtin_null(Qo arg, Environment *env) {
             for (int64_t i = 0; i < n; i++) {
                 Qo elem = qo_ptr_data(arg)[i];
                 int is_null = 0;
-                if (elem == NULL) {
+                if (qo_is_null(elem)) {
                     is_null = 1;
                 } else {
                     uint8_t et = qo_type(elem);
@@ -476,7 +466,6 @@ static Qo eval_builtin_null(Qo arg, Environment *env) {
 
 static Qo eval_builtin_count(Qo arg, Environment *env) {
     (void)env;
-    if (arg == NULL) return make_long_value(0);
     uint8_t t = qo_type(arg);
     if (is_vector_type(t) || t == QO_DICT || t == QO_TABLE || t == QO_COMPOSITION)
         return make_long_value(qo_count(arg));
@@ -485,7 +474,6 @@ static Qo eval_builtin_count(Qo arg, Environment *env) {
 
 static Qo eval_builtin_min(Qo arg, Environment *env) {
     (void)env;
-    if (arg == NULL) EVAL_ERROR("min expects a number or numeric vector");
     uint8_t t = qo_type(arg);
     if (type_has_flag(t, TF_SCALAR)) return qo_clone(arg);
     if (t == QO_LIST) {
@@ -496,7 +484,6 @@ static Qo eval_builtin_min(Qo arg, Environment *env) {
         for (int64_t i = 0; i < n; i++) {
             Qo e = qo_ptr_data(arg)[i];
             double v;
-            if (e == NULL) EVAL_ERROR("min expects a number or numeric vector");
             if (qo_type(e) == QO_SHORT) v = (double)qo_short(e);
             else if (qo_type(e) == QO_INT) v = (double)qo_int(e);
             else if (qo_type(e) == QO_LONG) v = (double)qo_long(e);
@@ -539,7 +526,6 @@ static Qo eval_builtin_min(Qo arg, Environment *env) {
 
 static Qo eval_builtin_max(Qo arg, Environment *env) {
     (void)env;
-    if (arg == NULL) EVAL_ERROR("max expects a number or numeric vector");
     uint8_t t = qo_type(arg);
     if (type_has_flag(t, TF_SCALAR)) return qo_clone(arg);
     if (t == QO_LIST) {
@@ -550,7 +536,6 @@ static Qo eval_builtin_max(Qo arg, Environment *env) {
         for (int64_t i = 0; i < n; i++) {
             Qo e = qo_ptr_data(arg)[i];
             double v;
-            if (e == NULL) EVAL_ERROR("max expects a number or numeric vector");
             if (qo_type(e) == QO_SHORT) v = (double)qo_short(e);
             else if (qo_type(e) == QO_INT) v = (double)qo_int(e);
             else if (qo_type(e) == QO_LONG) v = (double)qo_long(e);
@@ -596,7 +581,6 @@ static Qo eval_builtin_til(Qo arg, Environment *env) {
     Qo out;
     (void)env;
 
-    if (arg == NULL) EVAL_ERROR("til expects a numeric argument");
     if (qo_type(arg) == QO_SHORT) n = (int64_t)qo_short(arg);
     else if (qo_type(arg) == QO_INT) n = (int64_t)qo_int(arg);
     else if (qo_type(arg) == QO_LONG) n = qo_long(arg);
@@ -611,8 +595,6 @@ static Qo eval_builtin_til(Qo arg, Environment *env) {
 
 static Qo eval_builtin_where(Qo arg, Environment *env) {
     (void)env;
-
-    if (arg == NULL) EVAL_ERROR("where expects an argument");
 
     uint8_t t = qo_type(arg);
     int is_vec = (t == QO_SHORT_VEC || t == QO_INT_VEC || t == QO_LONG_VEC || t == QO_BOOL_VEC);
@@ -671,8 +653,6 @@ static Qo eval_builtin_where(Qo arg, Environment *env) {
 
 static Qo eval_builtin_distinct(Qo arg, Environment *env) {
     (void)env;
-    if (arg == NULL) EVAL_ERROR("distinct expects a vector or list");
-
     uint8_t t = qo_type(arg);
     int64_t n = qo_count(arg);
 
@@ -721,7 +701,6 @@ static Qo eval_builtin_distinct(Qo arg, Environment *env) {
 
 static Qo eval_builtin_reverse(Qo arg, Environment *env) {
     (void)env;
-    if (arg == NULL) EVAL_ERROR("reverse expects a non-null argument");
     uint8_t t = qo_type(arg);
     if (!is_vector_type(t)) return qo_clone(arg);
     int64_t n = qo_count(arg);
@@ -746,7 +725,7 @@ static Qo eval_builtin_reverse(Qo arg, Environment *env) {
 static Qo eval_builtin_range_impl(Qo a, Qo b, Environment *env, int inclusive) {
     (void)env;
     const char *op = inclusive ? "..=" : "..";
-    if (a == NULL || b == NULL) EVAL_ERROR_FMT("%s expects two arguments", op);
+    (void)op;
     int64_t start = (int64_t)value_as_double(a);
     int64_t end = (int64_t)value_as_double(b);
     if (inclusive ? (end < start) : (end <= start)) return alloc_data_vec(QO_LONG_VEC, 0);
@@ -762,7 +741,6 @@ static Qo eval_builtin_range_inclusive(Qo a, Qo b, Environment *env) { return ev
 static Qo eval_builtin_refcount(Qo arg, Environment *env) {
     uint32_t rc;
     (void)env;
-    if (arg == NULL) return make_long_value(0);
     rc = qo_refcount(arg);
     /* Expose stable ownership count, excluding the transient call argument ref. */
     if (rc > 0) rc -= 1;
@@ -772,8 +750,7 @@ static Qo eval_builtin_refcount(Qo arg, Environment *env) {
 static Qo eval_builtin_type(Qo arg, Environment *env) {
     (void)env;
     const char *tag = "unknown";
-    if (arg == NULL) { tag = "null"; }
-    else switch (qo_type(arg)) {
+    switch (qo_type(arg)) {
         case QO_SHORT:      tag = "short";     break;
         case QO_INT:        tag = "int";       break;
         case QO_LONG:       tag = "long";      break;
@@ -814,20 +791,19 @@ static Qo eval_builtin_type(Qo arg, Environment *env) {
 
 static Qo eval_builtin_key(Qo arg, Environment *env) {
     (void)env;
-    if (arg == NULL || qo_type(arg) != QO_DICT) EVAL_ERROR("key expects a dictionary");
+    if (qo_type(arg) != QO_DICT) EVAL_ERROR("key expects a dictionary");
     return extract_dict_side(arg, 1);
 }
 
 static Qo eval_builtin_value(Qo arg, Environment *env) {
     (void)env;
-    if (arg == NULL || qo_type(arg) != QO_DICT) EVAL_ERROR("value expects a dictionary");
+    if (qo_type(arg) != QO_DICT) EVAL_ERROR("value expects a dictionary");
     return extract_dict_side(arg, 0);
 }
 
 static Qo eval_builtin_exit(Qo arg, Environment *env) {
     (void)env;
     Qo a = arg;
-    if (a == NULL) EVAL_ERROR("exit expects a numeric argument");
     if (qo_type(a) == QO_SHORT) { evaluator_request_exit(qo_short(a));       return qo_clone(a); }
     if (qo_type(a) == QO_INT)   { evaluator_request_exit(qo_int(a));         return qo_clone(a); }
     if (qo_type(a) == QO_LONG)  { evaluator_request_exit((long)qo_long(a));  return qo_clone(a); }
@@ -849,7 +825,7 @@ static Qo eval_builtin_enlist(Qo *args, int arg_count, Environment *env) {
         int all_same = 1;
 
         for (int i = 1; i < arg_count; i++) {
-            if (args[i] == NULL || qo_type(args[i]) != scalar_type) {
+            if (qo_type(args[i]) != scalar_type) {
                 all_same = 0;
                 break;
             }
@@ -1042,7 +1018,6 @@ static Qo format_scalar_as_string(Qo q) {
 
 static Qo eval_builtin_string(Qo arg, Environment *env) {
     (void)env;
-    if (arg == NULL) return alloc_charlike(QO_CHAR_VEC, 0);
 
     uint8_t t = qo_type(arg);
 
@@ -1140,7 +1115,6 @@ static Qo eval_builtin_eval(Qo arg, Environment *env) {
 
 static Qo eval_builtin_first(Qo arg, Environment *env) {
     (void)env;
-    if (arg == NULL) EVAL_ERROR("first on null");
     if (is_vector_type(qo_type(arg))) {
         if (qo_count(arg) == 0) EVAL_ERROR("first on empty vector");
         return dict_elem_copy(arg, 0);
@@ -1150,7 +1124,6 @@ static Qo eval_builtin_first(Qo arg, Environment *env) {
 
 static Qo eval_builtin_last(Qo arg, Environment *env) {
     (void)env;
-    if (arg == NULL) EVAL_ERROR("last on null");
     if (is_vector_type(qo_type(arg))) {
         int64_t n = qo_count(arg);
         if (n == 0) EVAL_ERROR("last on empty vector");
@@ -1170,11 +1143,11 @@ static Qo eval_builtin_now(Qo arg, Environment *env) {
 
 static Qo eval_builtin_read(Qo arg, Environment *env) {
     (void)env;
-    if (arg == NULL || qo_type(arg) != QO_CHAR_VEC) EVAL_ERROR("read expects a string argument");
+    if (qo_type(arg) != QO_CHAR_VEC) EVAL_ERROR("read expects a string argument");
     char *path = charvec_to_cstr(arg);
     char *contents = read_file_contents(path);
     free(path);
-    if (!contents) { evaluator_request_error(); return NULL; }
+    if (!contents) { evaluator_request_error(); return make_null_value(); }
     int64_t len = (int64_t)strlen(contents);
     Qo result = alloc_charlike(QO_CHAR_VEC, len);
     memcpy(qo_char_data(result), contents, (size_t)len);
@@ -1184,7 +1157,7 @@ static Qo eval_builtin_read(Qo arg, Environment *env) {
 
 static Qo eval_builtin_shell(Qo arg, Environment *env) {
     (void)env;
-    if (arg == NULL || qo_type(arg) != QO_CHAR_VEC) EVAL_ERROR("shell expects a string argument");
+    if (qo_type(arg) != QO_CHAR_VEC) EVAL_ERROR("shell expects a string argument");
     char *command = charvec_to_cstr(arg);
     FILE *fp = popen(command, "r");
     free(command);
@@ -1214,7 +1187,7 @@ static Qo eval_builtin_ser(Qo arg, Environment *env) {
 
 static Qo eval_builtin_deser(Qo arg, Environment *env) {
     (void)env;
-    if (arg == NULL || qo_type(arg) != QO_BYTE_VEC) EVAL_ERROR("deser expects a byte vector");
+    if (qo_type(arg) != QO_BYTE_VEC) EVAL_ERROR("deser expects a byte vector");
     Qo result = ipc_deserialize(qo_byte_data(arg), (size_t)qo_count(arg));
     if (result == NULL) EVAL_ERROR("failed to deserialize value");
     return result;
@@ -1222,7 +1195,7 @@ static Qo eval_builtin_deser(Qo arg, Environment *env) {
 
 static Qo eval_builtin_listen(Qo arg, Environment *env) {
     (void)env;
-    if (arg == NULL || (!is_numeric_scalar_type(qo_type(arg)))) EVAL_ERROR("listen expects a numeric port");
+    if (!is_numeric_scalar_type(qo_type(arg))) EVAL_ERROR("listen expects a numeric port");
     int port = (int)value_as_double(arg);
     if (ipc_listen(port) < 0) EVAL_ERROR("failed to listen on port");
     return make_null_value();
@@ -1230,7 +1203,7 @@ static Qo eval_builtin_listen(Qo arg, Environment *env) {
 
 static Qo eval_builtin_hclose(Qo arg, Environment *env) {
     (void)env;
-    if (arg == NULL || qo_type(arg) != QO_INT) EVAL_ERROR("hclose expects an int handle");
+    if (qo_type(arg) != QO_INT) EVAL_ERROR("hclose expects an int handle");
     ipc_close(qo_int(arg));
     return make_null_value();
 }
@@ -1239,7 +1212,6 @@ static Qo eval_builtin_hclose(Qo arg, Environment *env) {
 
 static Qo eval_builtin_find(Qo haystack, Qo needles, Environment *env) {
     (void)env;
-    if (haystack == NULL) EVAL_ERROR("find: haystack cannot be null");
     uint8_t ht = qo_type(haystack);
     if (!is_vector_type(ht)) EVAL_ERROR("find: haystack must be a vector");
 
@@ -1417,8 +1389,6 @@ static Qo eval_cast(Qo type_sym, Qo value, Environment *env) {
     }
     if (tt == 0) EVAL_ERROR("cast: left argument must be a type symbol or type character");
 
-    if (value == NULL) EVAL_ERROR("cast: cannot cast null");
-
     uint8_t st = qo_type(value);
 
     /* symbol <-> string */
@@ -1488,16 +1458,16 @@ static Qo eval_builtin_dispatch(Qo head, Qo *arg_values, int arg_count, Environm
             int fd;
             if (arg_count == 1) {
                 Qo port_val = arg_values[0];
-                if (port_val == NULL || !is_numeric_scalar_type(qo_type(port_val)))
+                if (!is_numeric_scalar_type(qo_type(port_val)))
                     EVAL_ERROR("hopen expects a numeric port");
                 int port = (int)value_as_double(port_val);
                 fd = ipc_connect("127.0.0.1", port);
             } else if (arg_count == 2) {
                 Qo host_val = arg_values[0];
                 Qo port_val = arg_values[1];
-                if (host_val == NULL || qo_type(host_val) != QO_CHAR_VEC)
+                if (qo_type(host_val) != QO_CHAR_VEC)
                     EVAL_ERROR("hopen expects a string host");
-                if (port_val == NULL || !is_numeric_scalar_type(qo_type(port_val)))
+                if (!is_numeric_scalar_type(qo_type(port_val)))
                     EVAL_ERROR("hopen expects a numeric port");
                 char *host = charvec_to_cstr(host_val);
                 int port = (int)value_as_double(port_val);
@@ -1682,7 +1652,7 @@ static Qo eval_builtin_assign(Qo *args, int arg_count, Environment *env) {
     if (arg_count != 2) EVAL_ERROR("assignment requires exactly 2 arguments");
     Qo target = args[0];
 
-    if (target == NULL || qo_type(target) != QO_SYMBOL) EVAL_ERROR("assignment target must be a symbol");
+    if (qo_type(target) != QO_SYMBOL) EVAL_ERROR("assignment target must be a symbol");
 
     /* Namespace assignment: a.b:5 — walk the dotted chain, creating nested dicts */
     const char *name = qo_symbol_name(target);

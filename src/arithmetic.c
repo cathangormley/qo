@@ -166,10 +166,9 @@ static Qo alloc_same_type(uint8_t t, int64_t count) {
 Qo eval_take(Qo lhs, Qo rhs) {
     int64_t take_count;
     int64_t output_count;
-    if (lhs == NULL || !is_numeric_int_type(qo_type(lhs))) EVAL_ERROR("take count must be an integer");
+    if (!is_numeric_int_type(qo_type(lhs))) EVAL_ERROR("take count must be an integer");
     take_count = get_integer_value(lhs);
     output_count = (take_count < 0) ? -take_count : take_count;
-    if (rhs == NULL) EVAL_ERROR("take right argument must be a list, vector, or atom");
     if (qo_type(rhs) == QO_DICT || qo_type(rhs) == QO_OPERATOR || qo_type(rhs) == QO_BUILTIN) {
         EVAL_ERROR("take right argument must be a list, vector, or atom");
     }
@@ -216,9 +215,8 @@ Qo eval_take(Qo lhs, Qo rhs) {
 
 Qo eval_drop(Qo lhs, Qo rhs) {
     int64_t drop_count;
-    if (lhs == NULL || !is_numeric_int_type(qo_type(lhs))) EVAL_ERROR("drop count must be an integer");
+    if (!is_numeric_int_type(qo_type(lhs))) EVAL_ERROR("drop count must be an integer");
     drop_count = get_integer_value(lhs);
-    if (rhs == NULL) EVAL_ERROR("drop right argument must be a list, vector, or atom");
     if (qo_type(rhs) == QO_DICT || qo_type(rhs) == QO_OPERATOR || qo_type(rhs) == QO_BUILTIN) {
         EVAL_ERROR("drop right argument must be a list, vector, or atom");
     }
@@ -406,8 +404,6 @@ static void store_extrema_elem(Qo result, int64_t i, double value) {
 }
 
 static Qo eval_order_extrema(Qo left, Qo right, int want_greater) {
-    if (left == NULL || right == NULL) EVAL_ERROR("operator requires non-null operands");
-
     uint8_t lt = qo_type(left);
     uint8_t rt = qo_type(right);
     int lv = is_vector_type(lt);
@@ -609,7 +605,6 @@ static JoinFamily join_family(uint8_t t) {
 }
 
 Qo eval_comma_binop(Qo left, Qo right) {
-    if (left == NULL || right == NULL) EVAL_ERROR("comma operator requires non-null operands");
     uint8_t lt = QO_TYPE(left);
     uint8_t rt = QO_TYPE(right);
     JoinFamily lf = join_family(lt);
@@ -984,7 +979,6 @@ static Qo handle_list_binop(Qo left, Qo right, Qo (*op)(Qo, Qo)) {
 }
 
 Qo eval_add(Qo left, Qo right) {
-    if (left == NULL || right == NULL) EVAL_ERROR("arithmetic operations require non-null operands");
     uint8_t lt = QO_TYPE(left);
     uint8_t rt = QO_TYPE(right);
 
@@ -1009,7 +1003,6 @@ Qo eval_add(Qo left, Qo right) {
 }
 
 Qo eval_subtract(Qo left, Qo right) {
-    if (left == NULL || right == NULL) EVAL_ERROR("arithmetic operations require non-null operands");
     uint8_t lt = QO_TYPE(left);
     uint8_t rt = QO_TYPE(right);
 
@@ -1034,7 +1027,6 @@ Qo eval_subtract(Qo left, Qo right) {
 }
 
 Qo eval_multiply(Qo left, Qo right) {
-    if (left == NULL || right == NULL) EVAL_ERROR("arithmetic operations require non-null operands");
     uint8_t lt = QO_TYPE(left);
     uint8_t rt = QO_TYPE(right);
 
@@ -1059,7 +1051,6 @@ Qo eval_multiply(Qo left, Qo right) {
 }
 
 Qo eval_divide(Qo left, Qo right) {
-    if (left == NULL || right == NULL) EVAL_ERROR("arithmetic operations require non-null operands");
     uint8_t lt = QO_TYPE(left);
     uint8_t rt = QO_TYPE(right);
 
@@ -1081,7 +1072,6 @@ Qo eval_divide(Qo left, Qo right) {
 }
 
 Qo eval_power(Qo left, Qo right) {
-    if (left == NULL || right == NULL) EVAL_ERROR("arithmetic operations require non-null operands");
     uint8_t lt = QO_TYPE(left);
     uint8_t rt = QO_TYPE(right);
 
