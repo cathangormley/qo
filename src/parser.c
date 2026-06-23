@@ -38,6 +38,7 @@ const char *token_type_to_operator(TokenType op) {
         case TOKEN_PIPE: return "|";
         case TOKEN_AMP: return "&";
         case TOKEN_COLON: return ":";
+        case TOKEN_NULL_OP: return "::";
         case TOKEN_AT:    return "@";
         case TOKEN_DOT:   return ".";
         case TOKEN_DOT_DOT:    return "..";
@@ -452,6 +453,7 @@ static int starts_factor(TokenType type) {
            type == TOKEN_LPAREN ||
            type == TOKEN_LBRACE ||
            type == TOKEN_EACH ||
+           type == TOKEN_NULL_OP ||
            is_expression_operator(type);
 }
 
@@ -1159,6 +1161,12 @@ static Qo parse_factor(Parser *parser) {
         int builtin_id = builtin_name_to_id(name);
         advance(parser);
         node = builtin_id >= 0 ? make_builtin_value((uint8_t)builtin_id) : make_symbol_value(name);
+        return parse_postfix_calls(parser, node);
+    }
+
+    if (token->type == TOKEN_NULL_OP) {
+        advance(parser);
+        node = make_builtin_value(QO_BUILTIN_NULL_OP);
         return parse_postfix_calls(parser, node);
     }
 

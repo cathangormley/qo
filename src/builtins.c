@@ -53,6 +53,7 @@ int builtin_name_to_id(const char *name) {
     if (strcmp(name, "distinct") == 0) return QO_BUILTIN_DISTINCT;
     if (strcmp(name, "reverse") == 0)  return QO_BUILTIN_REVERSE;
     if (strcmp(name, "compose") == 0)  return QO_BUILTIN_COMPOSE;
+    if (strcmp(name, "::") == 0)       return QO_BUILTIN_NULL_OP;
     return -1;
 }
 
@@ -93,7 +94,8 @@ const char *builtin_id_to_name(uint8_t id) {
         case QO_BUILTIN_NEG:      return "neg";
         case QO_BUILTIN_DISTINCT: return "distinct";
         case QO_BUILTIN_REVERSE:  return "reverse";
-        case QO_BUILTIN_COMPOSE: return "compose";
+        case QO_BUILTIN_COMPOSE:  return "compose";
+        case QO_BUILTIN_NULL_OP:  return "::";
         default:                  return NULL;
     }
 }
@@ -465,6 +467,8 @@ static Qo eval_builtin_null(Qo arg, Environment *env) {
             return result;
         }
 
+        case QO_BUILTIN:
+            return make_bool_value(QO_BUILTIN_ID(arg) == QO_BUILTIN_NULL_OP);
         default:
             return make_bool_value(0);
     }
@@ -1552,6 +1556,8 @@ static Qo eval_builtin_dispatch(Qo head, Qo *arg_values, int arg_count, Environm
                 case QO_BUILTIN_NEG:      return eval_builtin_neg(arg_values[0], env);
                 case QO_BUILTIN_DISTINCT: return eval_builtin_distinct(arg_values[0], env);
                 case QO_BUILTIN_REVERSE:  return eval_builtin_reverse(arg_values[0], env);
+                case QO_BUILTIN_NULL_OP:
+                    return qo_clone(arg_values[0]);
                 default:
                     EVAL_ERROR_FMT("unknown builtin id %d", id);
             }

@@ -32,6 +32,7 @@ typedef enum {
     TOKEN_PIPE,
     TOKEN_AMP,
     TOKEN_COLON,
+    TOKEN_NULL_OP,
     TOKEN_SEMICOLON,
     TOKEN_LPAREN,
     TOKEN_RPAREN,
