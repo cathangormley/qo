@@ -1111,6 +1111,8 @@ static Qo eval_builtin_flip(Qo arg, Environment *env) {
 
 Qo eval_value(Qo tree, Environment *env);
 
+static Qo null_for_vector_type(uint8_t vec_type);
+
 static Qo eval_builtin_eval(Qo arg, Environment *env) {
     return eval_value(arg, env);
 }
@@ -1118,7 +1120,7 @@ static Qo eval_builtin_eval(Qo arg, Environment *env) {
 static Qo eval_builtin_first(Qo arg, Environment *env) {
     (void)env;
     if (is_vector_type(qo_type(arg))) {
-        if (qo_count(arg) == 0) EVAL_ERROR("first on empty vector");
+        if (qo_count(arg) == 0) return null_for_vector_type(qo_type(arg));
         return dict_elem_copy(arg, 0);
     }
     return qo_clone(arg);
@@ -1128,7 +1130,7 @@ static Qo eval_builtin_last(Qo arg, Environment *env) {
     (void)env;
     if (is_vector_type(qo_type(arg))) {
         int64_t n = qo_count(arg);
-        if (n == 0) EVAL_ERROR("last on empty vector");
+        if (n == 0) return null_for_vector_type(qo_type(arg));
         return dict_elem_copy(arg, n - 1);
     }
     return qo_clone(arg);
@@ -1281,6 +1283,9 @@ static Qo null_for_vector_type(uint8_t vec_type) {
         case SC_U8:
             if (vec_type == QO_SYM_VEC) return make_symbol_value("");
             return make_bool_value(0);
+        case SC_PTR:
+            if (vec_type == QO_LIST) return alloc_ptr_vec(QO_LIST, 0);
+            return NULL;
         default:     return NULL;
     }
 }
