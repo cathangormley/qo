@@ -1678,14 +1678,16 @@ static Qo eval_builtin_assign(Qo *args, int arg_count, Environment *env) {
 
         /* First component: get or create root dict */
         int found;
-        Qo current = env_get(env, qo_symbol_id(comps[0]), &found);
+        Qo current = env_get(env, comps[0], &found);
         if (!found || current == NULL) {
             current = alloc_dict_block(0);
             QO_DICT_KTYPE(current) = QO_SYMBOL;
             QO_DICT_VTYPE(current) = QO_DICT;
-            env_set(env_root(env), qo_symbol_id(comps[0]), current);
+            env_set(env_root(env), comps[0], current);
+
+  
             qo_release(current);
-            current = env_get(env, qo_symbol_id(comps[0]), &found);
+            current = env_get(env, comps[0], &found);
         } else if (qo_type(current) != QO_DICT) {
             qo_release(current);
             free(comps); free(dict_stack); free(idx_stack);
@@ -1757,7 +1759,7 @@ static Qo eval_builtin_assign(Qo *args, int arg_count, Environment *env) {
 
                 /* Replace current in parent (or env if root) */
                 if (depth == 1) {
-                    env_set(env_root(env), qo_symbol_id(comps[0]), new_current);
+                    env_set(env_root(env), comps[0], new_current);
                 } else {
                     Qo parent = dict_stack[depth - 2];
                     int64_t pidx = idx_stack[depth - 1];
@@ -1809,7 +1811,7 @@ static Qo eval_builtin_assign(Qo *args, int arg_count, Environment *env) {
 
     Qo result = eval_value(args[1], env);
     if (evaluator_error_requested() || evaluator_exit_requested()) return result;
-    env_set(env, qo_symbol_id(target), result);
+    env_set(env, target, result);
     return result;
 }
 
@@ -1819,7 +1821,7 @@ static Qo eval_nested_read(Qo full_sym, Environment *env) {
     const char *dot = strchr(name, '.');
     if (!dot) {
         int found;
-        Qo v = env_get(env, qo_symbol_id(full_sym), &found);
+        Qo v = env_get(env, full_sym, &found);
         if (found) return v;
         EVAL_ERROR_FMT("undefined variable '%s'", name);
     }
@@ -1830,7 +1832,7 @@ static Qo eval_nested_read(Qo full_sym, Environment *env) {
     Qo ns_sym = qo_symbol_intern(ns_name);
 
     int found;
-    Qo current = env_get(env, qo_symbol_id(ns_sym), &found);
+    Qo current = env_get(env, ns_sym, &found);
     if (!found) {
         const char *saved_name = qo_symbol_name(ns_sym);
         free(ns_name);
@@ -1903,7 +1905,7 @@ static Qo eval_call_function(Qo function, Qo *arg_vals, int arg_count, Environme
     Environment *global_env = env_root(env);
     Environment *call_env   = env_new_with_parent(global_env);
     for (int i = 0; i < arg_count; i++) {
-            env_set(call_env, qo_symbol_id(QO_FN_PARAMS(function)[i]), arg_vals[i]);
+            env_set(call_env, QO_FN_PARAMS(function)[i], arg_vals[i]);
     }
     Qo last = NULL;
     for (int64_t i = 0; i < bc; i++) {
@@ -2445,7 +2447,7 @@ Qo eval_value(Qo tree, Environment *env) {
         if (strchr(name, '.'))
             return eval_nested_read(tree, env);
         int found = 0;
-        Qo v = env_get(env, qo_symbol_id(tree), &found);
+        Qo v = env_get(env, tree, &found);
         if (found) return v;
         EVAL_ERROR_FMT("undefined variable '%s'", qo_symbol_name(tree));
     }

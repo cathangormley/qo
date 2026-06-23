@@ -188,7 +188,7 @@ int main(int argc, char **argv) {
 
     {
         Qo sys_sym = qo_symbol_intern("sys");
-        env_set(env, qo_symbol_id(sys_sym), sys_dict);
+        env_set(env, sys_sym, sys_dict);
         qo_release(sys_sym);
     }
     qo_release(sys_dict);

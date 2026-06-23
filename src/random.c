@@ -47,7 +47,7 @@ uint64_t random_current_seed(void) {
 static void random_sync_seed(Environment *env) {
     Environment *root = env_root(env);
     int found;
-    Qo sys_val = env_get(root, qo_symbol_id(qo_symbol_intern("sys")), &found);
+    Qo sys_val = env_get(root, qo_symbol_intern("sys"), &found);
     if (!found || qo_type(sys_val) != QO_DICT) { qo_release(sys_val); return; }
     int64_t n = QO_DICT_COUNT(sys_val);
     Qo seed_sym = qo_symbol_intern("seed");

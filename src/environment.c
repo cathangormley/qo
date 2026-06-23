@@ -11,7 +11,9 @@ Environment *env_new(void) {
 
 Environment *env_new_with_parent(Environment *parent) {
     Environment *env = xmalloc(sizeof(Environment));
-    env->vars = NULL;
+    env->dict = alloc_dict_block(0);
+    QO_DICT_KTYPE(env->dict) = QO_SYMBOL;
+    QO_DICT_VTYPE(env->dict) = 0;
     env->parent = parent;
     return env;
 }
@@ -22,40 +24,45 @@ Environment *env_root(Environment *env) {
 }
 
 void env_free(Environment *env) {
-    Variable *cur = env->vars;
-    while (cur) {
-        Variable *next = cur->next;
-        qo_release(cur->value);
-        free(cur);
-        cur = next;
-    }
+    if (!env) return;
+    qo_release(env->dict);
     free(env);
 }
 
-void env_set(Environment *env, int64_t symbol_id, Qo value) {
-    for (Variable *v = env->vars; v; v = v->next) {
-        if (v->symbol_id == symbol_id) {
-            qo_release(v->value);
-            v->value = qo_retain(value);
+void env_set(Environment *env, Qo key_sym, Qo value) {
+    int64_t n = QO_DICT_COUNT(env->dict);
+    int64_t key_id = qo_symbol_id(key_sym);
+
+    for (int64_t i = 0; i < n; i++) {
+        if (qo_symbol_id(QO_DICT_KEYS(env->dict)[i]) == key_id) {
+            qo_release(QO_DICT_VALS(env->dict)[i]);
+            QO_DICT_VALS(env->dict)[i] = qo_retain(value);
             return;
         }
     }
 
-    {
-        Variable *var = xmalloc(sizeof(Variable));
-        var->symbol_id = symbol_id;
-        var->value = qo_retain(value);
-        var->next = env->vars;
-        env->vars = var;
+    Qo new_dict = alloc_dict_block(n + 1);
+    QO_DICT_KTYPE(new_dict) = QO_SYMBOL;
+    QO_DICT_VTYPE(new_dict) = QO_DICT_VTYPE(env->dict);
+    for (int64_t i = 0; i < n; i++) {
+        QO_DICT_KEYS(new_dict)[i] = qo_retain(QO_DICT_KEYS(env->dict)[i]);
+        QO_DICT_VALS(new_dict)[i] = qo_retain(QO_DICT_VALS(env->dict)[i]);
     }
+    QO_DICT_KEYS(new_dict)[n] = qo_retain(key_sym);
+    QO_DICT_VALS(new_dict)[n] = qo_retain(value);
+    qo_release(env->dict);
+    env->dict = new_dict;
 }
 
-Qo env_get(Environment *env, int64_t symbol_id, int *found) {
+Qo env_get(Environment *env, Qo key_sym, int *found) {
+    int64_t key_id = qo_symbol_id(key_sym);
+
     for (Environment *scope = env; scope; scope = scope->parent) {
-        for (Variable *v = scope->vars; v; v = v->next) {
-            if (v->symbol_id == symbol_id) {
+        int64_t n = QO_DICT_COUNT(scope->dict);
+        for (int64_t i = 0; i < n; i++) {
+            if (qo_symbol_id(QO_DICT_KEYS(scope->dict)[i]) == key_id) {
                 *found = 1;
-                return qo_retain(v->value);
+                return qo_retain(QO_DICT_VALS(scope->dict)[i]);
             }
         }
     }
