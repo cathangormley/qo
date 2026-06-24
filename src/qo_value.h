@@ -68,6 +68,8 @@ typedef QoObject *Qo;
 
 /* ── Sentinel values for null and infinity ──────────────────────────── */
 #define QO_SHORT_NULL    INT16_MIN
+#define QO_SHORT_INF     INT16_MAX
+#define QO_SHORT_NEGINF  (INT16_MIN + 1)
 #define QO_INT_NULL      INT32_MIN
 #define QO_INT_INF       INT32_MAX
 #define QO_INT_NEGINF    (INT32_MIN + 1)

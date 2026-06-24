@@ -89,7 +89,7 @@ Token* lexer_next_token(Lexer *lexer) {
                 suffix = '\0';
             }
 
-            if (suffix == 'i' || suffix == 'j' || suffix == 'f' || suffix == '\0') {
+            if (suffix == 'h' || suffix == 'i' || suffix == 'j' || suffix == 'f' || suffix == '\0') {
                 char next = lexer->input[end];
                 if (!(isalnum((unsigned char)next) || next == '_' || next == '.')) {
                     char value[4];

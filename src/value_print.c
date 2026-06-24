@@ -151,6 +151,8 @@ static void qo_print_internal(Qo q, int depth) {
         case QO_SHORT: {
             int16_t sv = QO_SHORT_VAL(q);
             if (sv == QO_SHORT_NULL) qo_printf("0Nh");
+            else if (sv == QO_SHORT_INF) qo_printf("0Wh");
+            else if (sv == QO_SHORT_NEGINF) qo_printf("-0Wh");
             else qo_printf("%ldh", (long)sv);
             break;
         }
@@ -266,6 +268,8 @@ static void qo_print_internal(Qo q, int depth) {
                 if (i > 0) qo_printf(" ");
                 int16_t v = QO_SHORT_DATA(q)[i];
                 if (v == QO_SHORT_NULL) qo_printf("0N");
+                else if (v == QO_SHORT_INF) qo_printf("0W");
+                else if (v == QO_SHORT_NEGINF) qo_printf("-0W");
                 else qo_printf("%ld", (long)v);
             }
             qo_printf("h");

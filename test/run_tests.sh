@@ -752,6 +752,28 @@ test_case "suffix_invalid_all_suffixed_ints" "1i 2i 3i" "Error: Failed to parse 
 test_case "suffix_invalid_mixed_shorts" "1h 2h 3h" "Error: Failed to parse expression"
 test_case "suffix_invalid_mixed_order" "1j 2i 3h" "Error: Failed to parse expression"
 
+# Short null/inf sentinel literals
+test_case "short_null_scalar"           "0Nh"               "0Nh"
+test_case "short_inf_scalar"            "0Wh"               "0Wh"
+test_case "short_neginf_scalar"         "-0Wh"              "-0Wh"
+test_case "short_null_equals_null"      "0Nh=0Nh"           "1b"
+test_case "short_null_type"             "type 0Nh"          "\`short"
+test_case "short_null_is_null"          "null 0Nh"          "1b"
+test_case "short_inf_type"              "type 0Wh"          "\`short"
+test_case "short_all_null_vec_suffix"   "0N 0N 0Nh"         "0N 0N 0Nh"
+test_case "short_null_vec_cast"         "\"h\"\$ (1,0N,3)"  "1 0N 3h"
+
+# Int null sentinel literals
+test_case "int_all_null_vec_suffix"     "0N 0N 0Ni"         "0N 0N 0Ni"
+test_case "int_null_vec_cast"           "\"i\"\$ (1,0N,3)"  "1 0N 3i"
+
+# Long null sentinel literals
+test_case "long_null_scalar"            "0N"                "0N"
+test_case "long_null_eq_null"           "0N=0N"             "1b"
+test_case "long_null_vec_suffix"        "0N 0N 0N"          "0N 0N 0N"
+test_case "long_null_mixed_numeric"     "0N 5 0N"           "0N 5 0N"
+test_case "long_null_vec_cast"          "\"j\"\$ (1,0N,3)"  "1 0N 3"
+
 # Null type
 test_case "trailing_semicolon_is_null" "2+3;" ""
 test_case "parse_empty_string_is_null" "parse[\"\"]" ""
@@ -1149,6 +1171,18 @@ test_case "cast_date_to_int"             "\"i\"\$2026.01.01"  "20454i"
 test_case "cast_long_vec_to_date"        "\"d\"\$20454 20455" "2026.01.01 2026.01.02"
 test_case "cast_date_char_unknown_err"   "\"z\"\$4i"          "Error: cast: left argument must be a type symbol or type character"
 test_case "cast_timestamp_to_date"        "\"d\"\$2026.06.21T12:00:00.000000000"  "2026.06.21"
+test_case "cast_null_long_to_float"       "\"f\"\$0N"               "0Nf"
+test_case "cast_null_long_to_int"         "\"i\"\$0N"               "0Ni"
+test_case "cast_null_long_to_short"       "\"h\"\$0N"               "0Nh"
+test_case "cast_null_float_to_long"       "\"j\"\$0Nf"              "0N"
+test_case "cast_null_int_to_long"         "\"j\"\$0Ni"              "0N"
+test_case "cast_null_long_to_bool"        "\"b\"\$0N"               "0b"
+test_case "cast_null_short_roundtrip"     "\"j\"\$(\"h\"\$0N)"     "0N"
+test_case "cast_null_float_to_int"        "\"i\"\$0Nf"              "0Ni"
+test_case "cast_null_to_same_type"        "\"j\"\$0N"               "0N"
+test_case "cast_null_vec_to_float"        "\"f\"\$ 0N 5 0N"         "0N 5 0Nf"
+test_case "cast_null_vec_to_int"          "\"i\"\$ 0N 5 0N"         "0N 5 0Ni"
+test_case "cast_null_vec_to_short"        "\"h\"\$ 0N 5 0N"         "0N 5 0Nh"
 
 # Operator projection
 test_case "op_projection_plus_left" "(+[2;])3" "5"

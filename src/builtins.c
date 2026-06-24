@@ -929,7 +929,9 @@ static Qo format_scalar_as_string(Qo q) {
     switch (t) {
         case QO_SHORT: {
             int16_t v = qo_short(q);
-            if (v == QO_SHORT_NULL) { memcpy(buf, "0N", 2); n = 2; }
+            if (v == QO_SHORT_NULL)    { memcpy(buf, "0N", 2);  n = 2; }
+            else if (v == QO_SHORT_INF)    { memcpy(buf, "0W", 2);  n = 2; }
+            else if (v == QO_SHORT_NEGINF) { memcpy(buf, "-0W", 3); n = 3; }
             else n = snprintf(buf, sizeof buf, "%d", (int)v);
             break;
         }
@@ -1359,11 +1361,12 @@ static Qo make_scalar_from_int64(uint8_t tt, int64_t i) {
     }
 }
 
-#define VEC_CAST(vectype, allocfn, accessor, elem_type, cast_expr) \
+#define VEC_CAST(vectype, allocfn, accessor, elem_type, cast_expr, null_val) \
     if (vt == (vectype)) { \
         Qo r = allocfn(vectype, n); \
         elem_type *dst = accessor(r); \
-        for (int64_t i = 0; i < n; i++) dst[i] = (cast_expr); \
+        for (int64_t i = 0; i < n; i++) \
+            dst[i] = vec_elem_is_null(value, i) ? (null_val) : (cast_expr); \
         return r; \
     }
 
@@ -1378,6 +1381,44 @@ static uint8_t char_to_cast_type(char c) {
         case 'b': return QO_BOOL;
         case 'd': return QO_DATE;
         default:  return 0;
+    }
+}
+
+static int scalar_is_null_val(Qo v) {
+    switch (qo_type(v)) {
+        case QO_SHORT:     return qo_short(v) == QO_SHORT_NULL;
+        case QO_INT:       return qo_int(v) == QO_INT_NULL;
+        case QO_LONG:      return qo_long(v) == QO_LONG_NULL;
+        case QO_TIMESTAMP: return qo_timestamp(v) == QO_LONG_NULL;
+        case QO_TIMESPAN:  return qo_timespan(v) == QO_LONG_NULL;
+        case QO_DATE:      return qo_date(v) == QO_INT_NULL;
+        case QO_FLOAT:     return isnan(qo_float(v));
+        default:           return 0;
+    }
+}
+
+static Qo typed_null_for_scalar(uint8_t type) {
+    switch (type_storage(type)) {
+        case SC_I64: return make_long_value(QO_LONG_NULL);
+        case SC_I32: return make_int_value(QO_INT_NULL);
+        case SC_I16: return make_short_value(QO_SHORT_NULL);
+        case SC_F64: return make_float_value(QO_FLOAT_NULL);
+        case SC_U8:  return make_bool_value(0);
+        default:     return NULL;
+    }
+}
+
+static int vec_elem_is_null(Qo v, int64_t i) {
+    switch (type_storage(qo_type(v))) {
+        case SC_I64: return qo_long_data(v)[i] == QO_LONG_NULL;
+        case SC_I32: return qo_int_data(v)[i] == QO_INT_NULL;
+        case SC_I16: return qo_short_data(v)[i] == QO_SHORT_NULL;
+        case SC_F64: return isnan(qo_float_data(v)[i]);
+        case SC_PTR: {
+            Qo e = qo_ptr_data(v)[i];
+            return scalar_is_null_val(e);
+        }
+        default:     return 0;
     }
 }
 
@@ -1421,6 +1462,10 @@ static Qo eval_cast(Qo type_sym, Qo value, Environment *env) {
     /* ── Scalar source ── */
     if (src_scalar) {
         if (st == tt) return qo_clone(value);
+        if (scalar_is_null_val(value)) {
+            Qo n = typed_null_for_scalar(tt);
+            if (n) return n;
+        }
         int64_t raw = st == QO_FLOAT ? (int64_t)qo_float(value) : scalar_as_int64(value);
         if (tt == QO_DATE && st == QO_TIMESTAMP) raw /= 86400000000000LL;
         Qo r = make_scalar_from_int64(tt, raw);
@@ -1443,15 +1488,15 @@ static Qo eval_cast(Qo type_sym, Qo value, Environment *env) {
             return r;
         }
 
-        VEC_CAST(QO_LONG_VEC,  alloc_data_vec, qo_long_data,  int64_t, vec_elem_as_int64(value, i))
-        VEC_CAST(QO_TIMESPAN_VEC, alloc_data_vec, qo_long_data, int64_t, vec_elem_as_int64(value, i))
-        VEC_CAST(QO_DATE_VEC,  alloc_data_vec, qo_int_data,   int32_t, (int32_t)vec_elem_as_int64(value, i))
-        VEC_CAST(QO_INT_VEC,   alloc_data_vec, qo_int_data,   int32_t, (int32_t)vec_elem_as_int64(value, i))
-        VEC_CAST(QO_SHORT_VEC, alloc_data_vec, qo_short_data, int16_t, (int16_t)vec_elem_as_int64(value, i))
-        VEC_CAST(QO_FLOAT_VEC, alloc_data_vec, qo_float_data, double,  vec_elem_as_double(value, i))
-        VEC_CAST(QO_BOOL_VEC,  alloc_data_vec, qo_bool_data,  uint8_t, (vec_elem_as_int64(value, i) != 0))
-        VEC_CAST(QO_BYTE_VEC,  alloc_data_vec, qo_byte_data,  uint8_t, (uint8_t)vec_elem_as_int64(value, i))
-        VEC_CAST(QO_CHAR_VEC,  alloc_charlike, qo_char_data,  char,    (char)vec_elem_as_int64(value, i))
+        VEC_CAST(QO_LONG_VEC,  alloc_data_vec, qo_long_data,  int64_t, vec_elem_as_int64(value, i), QO_LONG_NULL)
+        VEC_CAST(QO_TIMESPAN_VEC, alloc_data_vec, qo_long_data, int64_t, vec_elem_as_int64(value, i), QO_LONG_NULL)
+        VEC_CAST(QO_DATE_VEC,  alloc_data_vec, qo_int_data,   int32_t, (int32_t)vec_elem_as_int64(value, i), QO_INT_NULL)
+        VEC_CAST(QO_INT_VEC,   alloc_data_vec, qo_int_data,   int32_t, (int32_t)vec_elem_as_int64(value, i), QO_INT_NULL)
+        VEC_CAST(QO_SHORT_VEC, alloc_data_vec, qo_short_data, int16_t, (int16_t)vec_elem_as_int64(value, i), QO_SHORT_NULL)
+        VEC_CAST(QO_FLOAT_VEC, alloc_data_vec, qo_float_data, double,  vec_elem_as_double(value, i), QO_FLOAT_NULL)
+        VEC_CAST(QO_BOOL_VEC,  alloc_data_vec, qo_bool_data,  uint8_t, (vec_elem_as_int64(value, i) != 0), 0)
+        VEC_CAST(QO_BYTE_VEC,  alloc_data_vec, qo_byte_data,  uint8_t, (uint8_t)vec_elem_as_int64(value, i), 0)
+        VEC_CAST(QO_CHAR_VEC,  alloc_charlike, qo_char_data,  char,    (char)vec_elem_as_int64(value, i), 0)
         EVAL_ERROR("cast: unsupported target type");
     }
 }

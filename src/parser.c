@@ -67,10 +67,11 @@ static int is_special_int_literal(const Token *token) {
 }
 
 static Qo make_special_int_value(const Token *token, char final_suffix) {
+    int use_short = (final_suffix == 'h');
     int use_int = (final_suffix == 'i');
     int use_float = (final_suffix == 'f');
-    if (!use_int && !use_float && final_suffix != '\0' && final_suffix != 'j') {
-        fprintf(stderr, "Error: special literal requires i, j, or f suffix\n");
+    if (!use_short && !use_int && !use_float && final_suffix != '\0' && final_suffix != 'j') {
+        fprintf(stderr, "Error: special literal requires h, i, j, or f suffix\n");
         return PARSE_ERROR;
     }
 
@@ -80,12 +81,15 @@ static Qo make_special_int_value(const Token *token, char final_suffix) {
         if (strcmp(token->lexeme, "-0W") == 0) return make_float_value(-INFINITY);
     } else {
         if (strcmp(token->lexeme, "0N") == 0) {
+            if (use_short) return make_short_value(QO_SHORT_NULL);
             return use_int ? make_int_value(QO_INT_NULL) : make_long_value(QO_LONG_NULL);
         }
         if (strcmp(token->lexeme, "0W") == 0) {
+            if (use_short) return make_short_value(QO_SHORT_INF);
             return use_int ? make_int_value(QO_INT_INF) : make_long_value(QO_LONG_INF);
         }
         if (strcmp(token->lexeme, "-0W") == 0) {
+            if (use_short) return make_short_value(QO_SHORT_NEGINF);
             return use_int ? make_int_value(QO_INT_NEGINF) : make_long_value(QO_LONG_NEGINF);
         }
     }
