@@ -221,7 +221,8 @@ static void qo_print_internal(Qo q, int depth) {
         case QO_ADVERB: {
             uint8_t kind = QO_ADVERB_KIND(q);
             if (kind == QO_ADVERB_EACH) qo_printf("'");
-            else qo_printf("<adverb %d>", (int)kind);
+            else if (kind == QO_ADVERB_EACHRIGHT) qo_printf("/:");
+            else if (kind == QO_ADVERB_EACHLEFT) qo_printf("\\:");
             break;
         }
         case QO_SYMBOL:
@@ -382,7 +383,11 @@ static void qo_print_internal(Qo q, int depth) {
             break;
         case QO_ADVERBED:
             qo_print_internal(QO_ADVERBED_FUNC(q), depth);
-            if (QO_ADVERBED_KIND(q) == QO_ADVERB_EACH) qo_printf("'");
+            switch (QO_ADVERBED_KIND(q)) {
+                case QO_ADVERB_EACH:      qo_printf("'");   break;
+                case QO_ADVERB_EACHRIGHT: qo_printf("/:");  break;
+                case QO_ADVERB_EACHLEFT:  qo_printf("\\:"); break;
+            }
             break;
         case QO_COMPOSITION: {
             int64_t n = QO_COUNT(q);

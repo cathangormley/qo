@@ -139,7 +139,7 @@ test_case "power_vector_base" "2 3 4 ** 2" "4 9 16f"
 test_case "power_vector_exponent" "2 ** 1 2 3" "2 4 8f"
 test_case "power_vector_vector" "2 3 4 ** 1 2 3" "2 9 64f"
 test_case_multiline "power_dict" "d:(1;2;3)!(4;5;6); 2 ** d" $'1 | 16f\n2 | 32f\n3 | 64f'
-test_case "slash_undefined" "5 / 2" "Error: operator '/' is undefined"
+test_case "slash_undefined" "5 / 2" "Error: Failed to parse expression"
 test_case "right_to_left_addition_comma" "10 + 10, 20" "20 30"
 test_case "right_to_left_comma_addition" "10, 20 + 5" "10 25"
 test_case "equal_atom_true" "3=3" "1b"
@@ -201,12 +201,12 @@ test_case "list_index_bracket" "(3;2)[0]" "3"
 test_case_multiline "join_longvec_symvec" "1 2, \`a\`b" $'1\n2\n\x60a\n\x60b'
 test_case_multiline "join_long_scalar_symvec" "1, \`a\`b" $'1\n\x60a\n\x60b'
 test_case_multiline "join_long_sym_scalars" "1, \`a" $'1\n\x60a'
-test_case "join_list_longvec_type" "type ((1;2), 3 4)" "\`LONG"
-test_case "join_longvec_symvec_type" "type (1 2, \`a\`b)" "\`list"
+test_case "join_list_longvec_type" "type ((1;2), 3 4)" "5h"
+test_case "join_longvec_symvec_type" "type (1 2, \`a\`b)" "0h"
 test_case_multiline "join_three_ways" "1 2, \`a\`b, 3 4f" $'1\n2\n\x60a\n\x60b\n3f\n4f'
 test_case_multiline "join_scalar_mixed_list" "1, (3;\`a)" $'1\n3\n\x60a'
 test_case_multiline "join_intvec_floatvec" "1 2, 3.5 4.5f" $'1\n2\n3.5f\n4.5f'
-test_case "join_intvec_floatvec_type" "type (1 2, 3.5 4.5f)" "\`list"
+test_case "join_intvec_floatvec_type" "type (1 2, 3.5 4.5f)" "0h"
 
 # Element-wise operations
 test_case "vector_plus_atom" "(10, 20) + 5" "15 25"
@@ -324,7 +324,7 @@ test_case "sum_bracket_call" "a : (1;2;3); sum[a]" "6"
 test_case "plus_bracket_call" "+[2;3]" "5"
 test_case "enlist_basic" "enlist[1;2;3]" "1 2 3"
 test_case "enlist_var_resolves" "a:5; enlist[a;10]" "5 10"
-test_case "enlist_symbol_literal_stays_symbol" "type enlist[\`a;10]" "\`list"
+test_case "enlist_symbol_literal_stays_symbol" "type enlist[\`a;10]" "0h"
 test_case "enlist_homogeneous_long_promotes_vector" "enlist[1;2;3]" "1 2 3"
 test_case "enlist_homogeneous_int_promotes_vector" "enlist[1i;2i;3i]" "1 2 3i"
 test_case "enlist_homogeneous_short_promotes_vector" "enlist[1h;2h;3h]" "1 2 3h"
@@ -333,8 +333,8 @@ test_case "enlist_homogeneous_char_promotes_string" "enlist[first \"a\";first \"
 test_case "enlist_homogeneous_bool_promotes_bool_vector" "enlist[1b;0b;1b]" "101b"
 test_case "enlist_homogeneous_byte_promotes_byte_vector" "enlist[0x01;0x02;0x03]" "0x010203"
 test_case "enlist_homogeneous_symbol_promotes_sym_vector" "enlist[\`a;\`b;\`c]" "\`a\`b\`c"
-test_case "enlist_mixed_types_stays_list" "type enlist[1;2f;3]" "\`list"
-test_case "enlist_projection_type" "type enlist[3;]" "\`projection"
+test_case "enlist_mixed_types_stays_list" "type enlist[1;2f;3]" "0h"
+test_case "enlist_projection_type" "type enlist[3;]" "105h"
 test_case "enlist_projection_apply" "enlist[3;][5]" "3 5"
 test_case "enlist_projection_first_slot" "enlist[;5][3]" "3 5"
 test_case "enlist_projection_three_args" "enlist[1;;3][2]" "1 2 3"
@@ -347,8 +347,8 @@ test_case "string_char_scalar" "string \"a\"" "\"a\""
 test_case "string_symbol" "string \`foo" "\"foo\""
 test_case_multiline "string_charvec_atomic" "string \"hello\"" $'"h"\n"e"\n"l"\n"l"\n"o"'
 test_case_multiline "string_charvec_two_chars" "string \"ab\"" $'"a"\n"b"'
-test_case "string_charvec_type" "type string \"hello\"" "\`list"
-test_case "string_empty_charvec_type" "type string \"\"" "\`list"
+test_case "string_charvec_type" "type string \"hello\"" "0h"
+test_case "string_empty_charvec_type" "type string \"\"" "0h"
 test_case "string_empty_charvec_count" "count string \"\"" "0"
 test_case "string_charvec_count" "count string \"hello\"" "5"
 test_case "string_null_long" "string 0N" "\"0N\""
@@ -358,15 +358,15 @@ test_case_multiline "string_int_vector" "string 1 2 3i" $'"1"\n"2"\n"3"'
 test_case_multiline "string_float_vector" "string 1.5 2.5 3.5" $'"1.5"\n"2.5"\n"3.5"'
 test_case_multiline "string_sym_vector" "string \`a\`b\`c" $'"a"\n"b"\n"c"'
 test_case_multiline "string_mixed_list" "string (1;2.5;\`a)" $'"1"\n"2.5"\n"a"'
-test_case "string_scalar_type" "type string 123" "\`CHAR"
-test_case "string_vector_type" "type string 11 22 33" "\`list"
+test_case "string_scalar_type" "type string 123" "7h"
+test_case "string_vector_type" "type string 11 22 33" "0h"
 test_case "sum_inline_call" "sum[(1;2;3)]" "6"
 test_case "sum_scalar" "sum 5" "5"
 test_case "keyword_alias_call" "a:sum; a (5;4;3)" "12"
-test_case "now_type" "type now[]" "\`timestamp"
+test_case "now_type" "type now[]" "-9h"
 test_case "now_positive" "now[] > 2020.01.01T00:00:00.000000000" "1b"
 test_case "timestamp_scalar_parse_print" "2026.05.31T00:11:00.123456789" "2026.05.31T00:11:00.123456789"
-test_case "timestamp_scalar_type" "type 2026.05.31T00:11:00.123456789" "\`timestamp"
+test_case "timestamp_scalar_type" "type 2026.05.31T00:11:00.123456789" "-9h"
 test_case "timestamp_var_roundtrip" "t:2026.05.31T00:11:00.123456789; t" "2026.05.31T00:11:00.123456789"
 test_case "timestamp_epoch" "1970.01.01T00:00:00.000000000" "1970.01.01T00:00:00.000000000"
 test_case "timestamp_leap_day" "2024.02.29T23:59:59.999999999" "2024.02.29T23:59:59.999999999"
@@ -375,7 +375,7 @@ test_case "timestamp_vector_print" \
     "2026.05.31T00:11:00.000000000 2026.06.01T12:00:00.000000000"
 test_case "timestamp_vector_type" \
     "type 2026.05.31T00:11:00.000000000 2026.06.01T12:00:00.000000000" \
-    "\`TIMESTAMP"
+    "9h"
 test_case "timestamp_vector_count" \
     "count 2026.05.31T00:11:00.000000000 2026.06.01T12:00:00.000000000 2026.06.02T12:00:00.000000000" \
     "3"
@@ -390,7 +390,7 @@ test_case "timestamp_first" \
     "2026.05.31T00:11:00.000000000"
 test_case "timestamp_first_type" \
     "type first 2026.05.31T00:11:00.000000000 2026.06.01T12:00:00.000000000" \
-    "\`timestamp"
+    "-9h"
 test_case "timestamp_string" \
     "string 2026.05.31T00:11:00.123456789" \
     "\"2026.05.31T00:11:00.123456789\""
@@ -405,37 +405,37 @@ test_case "timestamp_partial_equals_full" \
     "2026.01.01T01:02:03.4 = 2026.01.01T01:02:03.400000000" "1b"
 test_case "timestamp_date_only_equals_midnight" \
     "2026.01.01T = 2026.01.01T00:00:00.000000000" "1b"
-test_case "timestamp_date_only_type" "type 2026.01.01T" "\`timestamp"
-test_case "timestamp_plus_long_type"        "type 2026.01.01T + 1"          "\`timestamp"
+test_case "timestamp_date_only_type" "type 2026.01.01T" "-9h"
+test_case "timestamp_plus_long_type"        "type 2026.01.01T + 1"          "-9h"
 test_case "timestamp_plus_long_value"       "2026.01.01T + 1000000000"      "2026.01.01T00:00:01.000000000"
 test_case "timestamp_minus_long_value"      "2026.01.01T - 1000000000"      "2025.12.31T23:59:59.000000000"
-test_case "long_plus_timestamp_type"        "type 1 + 2026.01.01T"          "\`timestamp"
-test_case "timestamp_plus_int_type"         "type 2026.01.01T + 1i"         "\`timestamp"
-test_case "timestamp_plus_short_type"       "type 2026.01.01T + 1h"         "\`timestamp"
-test_case "timestamp_times_long_type"       "type 2026.01.01T * 2"          "\`timestamp"
-test_case "timestamp_plus_long_vector_type" "type 2026.01.01T + 1 2 3"      "\`TIMESTAMP"
+test_case "long_plus_timestamp_type"        "type 1 + 2026.01.01T"          "-9h"
+test_case "timestamp_plus_int_type"         "type 2026.01.01T + 1i"         "-9h"
+test_case "timestamp_plus_short_type"       "type 2026.01.01T + 1h"         "-9h"
+test_case "timestamp_times_long_type"       "type 2026.01.01T * 2"          "-9h"
+test_case "timestamp_plus_long_vector_type" "type 2026.01.01T + 1 2 3"      "9h"
 test_case "timestamp_vector_plus_long_type" \
-    "type 2026.01.01T 2026.01.02T + 1" "\`TIMESTAMP"
+    "type 2026.01.01T 2026.01.02T + 1" "9h"
 test_case "timestamp_vector_plus_long_vector_type" \
-    "type 2026.01.01T 2026.01.02T + 1 2" "\`TIMESTAMP"
+    "type 2026.01.01T 2026.01.02T + 1 2" "9h"
 test_case "timestamp_vector_plus_long_vector_value" \
     "2026.01.01T 2026.01.02T + 1 2" \
     "2026.01.01T00:00:00.000000001 2026.01.02T00:00:00.000000002"
 test_case "timestamp_vector_minus_short_type" \
-    "type 2026.01.01T 2026.01.02T - 1h" "\`TIMESTAMP"
+    "type 2026.01.01T 2026.01.02T - 1h" "9h"
 test_case "timestamp_roundtrip_add_subtract" \
     "a:2026.05.31T00:11:00.123456789; b:(a + 5) - 5; a = b" "1b"
 
 # timespan tests
 test_case "timespan_full_format"       "1T00:01:00.000000000"              "1T00:01:00.000000000"
-test_case "timespan_type"              "type 1T00:01:00.000000000"         "\`timespan"
+test_case "timespan_type"              "type 1T00:01:00.000000000"         "-10h"
 test_case "timespan_var_roundtrip"     "t:1T00:01:00.000000000; t"         "1T00:01:00.000000000"
 test_case "timespan_zero"              "0T"                                "0T00:00:00.000000000"
 test_case "timespan_multi_day"         "365T00:00:00.000000000"            "365T00:00:00.000000000"
 test_case "timespan_vector_print" \
     "1T 2T" "1T00:00:00.000000000 2T00:00:00.000000000"
 test_case "timespan_vector_type" \
-    "type 1T 2T" "\`TIMESPAN"
+    "type 1T 2T" "10h"
 test_case "timespan_vector_count" \
     "count 1T 2T 3T" "3"
 test_case "timespan_equal"             "1T00:01:00.000000000 = 1T00:01:00.000000000" "1b"
@@ -445,7 +445,7 @@ test_case "timespan_greater"           "2T > 1T"                              "1
 test_case "timespan_first" \
     "first 1T 2T" "1T00:00:00.000000000"
 test_case "timespan_first_type" \
-    "type first 1T 2T" "\`timespan"
+    "type first 1T 2T" "-10h"
 test_case "timespan_string" \
     "string 1T00:01:00.000000000"  "\"1T00:01:00.000000000\""
 test_case "timespan_date_only"         "1T"                   "1T00:00:00.000000000"
@@ -456,24 +456,24 @@ test_case "timespan_with_one_frac"     "1T01:02:03.4"         "1T01:02:03.400000
 test_case "timespan_with_full_frac"    "1T01:02:03.123456789" "1T01:02:03.123456789"
 test_case "timespan_partial_equals_full" \
     "1T01:02 = 1T01:02:00.000000000" "1b"
-test_case "timespan_plus_long_type"    "type 1T + 1"           "\`timespan"
+test_case "timespan_plus_long_type"    "type 1T + 1"           "-10h"
 test_case "timespan_plus_long_value"   "1T + 1000000000"       "1T00:00:01.000000000"
 test_case "timespan_minus_long_value"  "1T - 1000000000"       "0T23:59:59.000000000"
-test_case "long_plus_timespan_type"    "type 1 + 1T"           "\`timespan"
-test_case "timespan_plus_int_type"     "type 1T + 1i"          "\`timespan"
-test_case "timespan_plus_short_type"   "type 1T + 1h"          "\`timespan"
-test_case "timespan_times_long_type"   "type 1T00:01:00 * 2"   "\`timespan"
+test_case "long_plus_timespan_type"    "type 1 + 1T"           "-10h"
+test_case "timespan_plus_int_type"     "type 1T + 1i"          "-10h"
+test_case "timespan_plus_short_type"   "type 1T + 1h"          "-10h"
+test_case "timespan_times_long_type"   "type 1T00:01:00 * 2"   "-10h"
 test_case "timespan_times_long_value"  "2T * 3"                "6T00:00:00.000000000"
 test_case "timespan_plus_long_vector_type" \
-    "type 1T + 1 2 3" "\`TIMESPAN"
+    "type 1T + 1 2 3" "10h"
 test_case "timespan_vector_plus_long_type" \
-    "type 1T 2T + 1" "\`TIMESPAN"
+    "type 1T 2T + 1" "10h"
 test_case "timespan_vector_plus_long_vector_type" \
-    "type 1T 2T + 1 2" "\`TIMESPAN"
+    "type 1T 2T + 1 2" "10h"
 test_case "timespan_vector_plus_long_vector_value" \
     "1T 2T + 1 2" "1T00:00:00.000000001 2T00:00:00.000000002"
 test_case "timespan_vector_minus_short_type" \
-    "type 1T 2T - 1h" "\`TIMESPAN"
+    "type 1T 2T - 1h" "10h"
 test_case "timespan_roundtrip_add_subtract" \
     "a:1T00:01:00.000000001; b:(a + 5) - 5; a = b" "1b"
 test_case "timespan_null" "null 0T" "0b"
@@ -484,7 +484,7 @@ test_case "timespan_first_of_vector" "first 1T 2T 3T" "1T00:00:00.000000000"
 
 # ── Date type ──────────────────────────────────────────────────────────
 test_case "date_scalar_parse_print"    "2026.01.15"            "2026.01.15"
-test_case "date_scalar_type"           "type 2026.01.15"       "\`date"
+test_case "date_scalar_type"           "type 2026.01.15"       "-11h"
 test_case "date_epoch"                 "1970.01.01"            "1970.01.01"
 test_case "date_var_roundtrip"         "d:2026.06.21; d"       "2026.06.21"
 test_case "date_after_epoch"           "2026.01.01 > 1970.01.01"  "1b"
@@ -492,19 +492,19 @@ test_case "date_less"                  "2026.01.01 < 2026.12.31"  "1b"
 test_case "date_equal"                 "2026.01.01 = 2026.01.01"  "1b"
 test_case "date_not_equal"             "2026.01.01 = 2026.01.02"  "0b"
 test_case "date_vector"                "2026.01.01 2026.06.21"    "2026.01.01 2026.06.21"
-test_case "date_vector_type"           "type 2026.01.01 2026.06.21"  "\`DATE"
+test_case "date_vector_type"           "type 2026.01.01 2026.06.21"  "11h"
 test_case "date_plus_long"             "2026.01.01 + 1"         "2026.01.02"
-test_case "date_plus_long_type"        "type[2026.01.01 + 1]"   "\`date"
+test_case "date_plus_long_type"        "type[2026.01.01 + 1]"   "-11h"
 test_case "date_minus_long"            "2026.01.10 - 3"         "2026.01.07"
 test_case "date_minus_date"            "2026.01.10 - 2026.01.01"   "9"
-test_case "date_minus_date_type"       "type[2026.01.10 - 2026.01.01]"  "\`long"
+test_case "date_minus_date_type"       "type[2026.01.10 - 2026.01.01]"  "-5h"
 test_case "long_plus_date"             "5 + 2026.01.01"         "2026.01.06"
 test_case "date_vec_plus_long"         "2026.01.01 2026.01.02 + 1"  "2026.01.02 2026.01.03"
 test_case "date_vec_minus_date_vec"    "2026.01.10 2026.01.20 - 2026.01.01 2026.01.01"  "9 19"
 test_case "date_count"                 "count 2026.01.15 2026.06.21"  "2"
 test_case "date_first"                 "first 2026.01.01 2026.01.15"  "2026.01.01"
 
-test_case "empty_brackets_passes_null" "f:{[x] type x}; f[]" "\`builtin"
+test_case "empty_brackets_passes_null" "f:{[x] type x}; f[]" "101h"
 test_case "read_file" "read \"test/read_fixture.txt\"" "\"Hello world!\""
 test_case "read_file_with_at_apply" "read @ \"test/read_fixture.txt\"" "\"Hello world!\""
 test_case "read_alias_with_at_apply" "r:read; r @ \"test/read_fixture.txt\"" "\"Hello world!\""
@@ -539,7 +539,7 @@ test_case "not_bool_vec" "not[101b]" "010b"
 test_case "not_empty_list" "not[()]" "b"
 
 # null builtin
-test_case "null_type"                "type null"              "\`builtin"
+test_case "null_type"                "type null"              "101h"
 test_case "null_scalar_null"         "null 0N"                "1b"
 test_case "null_scalar_int"          "null 42"                "0b"
 test_case "null_scalar_int_null"     "null 0Ni"               "1b"
@@ -561,7 +561,7 @@ test_case "null_empty_bracket"       "null[]"                 "1b"
 test_case "null_sym_scalar"          "null \`a"               "0b"
 
 # null_op (::) builtin
-test_case "null_op_type"              "type ::"               "\`builtin"
+test_case "null_op_type"              "type ::"               "101h"
 test_case "null_op_identity_long"     ":: 42"                 "42"
 test_case "null_op_identity_int"      ":: 42i"                "42i"
 test_case "null_op_identity_short"    ":: 42h"                "42h"
@@ -591,7 +591,7 @@ test_case "dict_lookup_implicit_apply" "d:(1;2;3)!(4;5;6); d 3" "6"
 test_case "dict_keys" "d:(1;2;3)!(4;5;6); key[d]" "1 2 3"
 test_case "dict_values" "d:(1;2;3)!(4;5;6); value[d]" "4 5 6"
 test_case "dict_add_scalar" "d:2 + ((1;2;3)!(4;5;6)); d[3]" "8"
-test_case "dict_type" "type ((1;2)!(4;5))" "\`dict"
+test_case "dict_type" "type ((1;2)!(4;5))" "-16h"
 test_case "dict_string_lookup" "d:\"abc\"!\"def\"; d[(first \"b\")]" "'e'"
 test_case "dict_string_lookup_implicit_apply" "d:\"abc\"!\"def\"; d first \"b\"" "'e'"
 test_case "dict_string_key" "key[\"abc\"!\"def\"]" "\"abc\""
@@ -604,7 +604,7 @@ test_case "eval_comma_list" "eval[parse[\"1,2,3\"]]" "1 2 3"
 test_case_multiline "parse_keyword_form" "parse \"sum a + 5\"" $'sum\n(+;`a;5)'
 test_case "symbol_literal" "\`foo" "\`foo"
 test_case "function_literal_print" "{1;2;3}" "{1;2;3}"
-test_case "function_literal_type" "type {1;2}" "\`function"
+test_case "function_literal_type" "type {1;2}" "100h"
 test_case "function_with_params_print" "{[a;b] a+b}" "{[a;b] a+b}"
 test_case "function_with_single_param" "{[x] x*2}" "{[x] x*2}"
 test_case "function_with_three_params" "{[a;b;c] a+b+c}" "{[a;b;c] a+b+c}"
@@ -629,8 +629,8 @@ test_case "lex_dotted_symbol" "lex \"\`a.b\""         "\"\`a.b\""
 test_case "lex_nested_dotted_symbol" "lex \"\`a.b.c\"" "\"\`a.b.c\""
 test_case "dotted_symbol_equality" "\`a.b=\`a.b"     "1b"
 test_case "dotted_symbol_inequality" "\`a.b=\`a.c"    "0b"
-test_case "dotted_symbol_type" "type \`a.b"           "\`symbol"
-test_case "parse_generic_call_head_type" "type first parse\"f[2;3]\"" "\`symbol"
+test_case "dotted_symbol_type" "type \`a.b"           "-8h"
+test_case "parse_generic_call_head_type" "type first parse\"f[2;3]\"" "-8h"
 test_case_multiline "parse_projection_holes" "parse \"f[;x;;y]\"" $'`f\nP\n`x\nP\n`y'
 test_case "parse_unclosed_paren_errors"   "parse \" (\""  "Error: parse: failed to parse expression"
 test_case "parse_stray_bracket_errors"    "parse \"[\""   "Error: parse: failed to parse expression"
@@ -639,7 +639,7 @@ test_case "parse_unclosed_brace_errors"   "parse \"{\""   "Error: parse: failed 
 test_case "parse_stray_tilde_errors"      "parse \"~\""   "Error: parse: failed to parse expression"
 test_case "projection_partial_apply" "f:{[x;y] x+y}; g:f[2;]; g[3]" "5"
 test_case "projection_print" "f:{[x;y;z]x+y+z}; g:f[2;;3]; g" "{[x;y;z]x+y+z}[2;;3]"
-test_case "projection_type" "f:{[x;y] x+y}; type f[2;]" "\`projection"
+test_case "projection_type" "f:{[x;y] x+y}; type f[2;]" "105h"
 
 # Each operator
 test_case "each_first_on_list" "first' (\"cat\";\"dog\")" "\"cd\""
@@ -647,15 +647,15 @@ test_case "each_last_on_list" "last' (\"cat\";\"dog\")" "\"tg\""
 test_case "each_count_on_list" "count' (\"cat\";\"dog\")" "3 3"
 test_case_multiline "each_til_on_multi" "til' 3 4 5" $'0 1 2\n0 1 2 3\n0 1 2 3 4'
 test_case "each_func_alias" "f:first'; f (\"cat\";\"dog\")" "\"cd\""
-test_case "each_type" "type first'" "\`adverbfunc"
+test_case "each_type" "type first'" "106h"
 
 # Adverb (') as first-class value
 test_case "adverb_standalone" "'" "'"
-test_case "adverb_type_bracket" "type[']" "\`adverb"
-test_case "adverb_type_at" "type@'" "\`adverb"
+test_case "adverb_type_bracket" "type[']" "103h"
+test_case "adverb_type_at" "type@'" "103h"
 test_case "adverb_equality" "'='" "1b"
 test_case "adverb_assignment" "x:';x" "'"
-test_case "adverb_assignment_type" "x:';type x" "\`adverb"
+test_case "adverb_assignment_type" "x:';type x" "103h"
 test_case "adverb_apply_to_func" "x:';x first" "first'"
 test_case "adverb_apply_and_call" "x:'; (x first) (\"cat\";\"dog\")" "\"cd\""
 test_case "adverb_parse_roundtrip" "eval[parse[\"'\"]]" "'"
@@ -675,11 +675,31 @@ test_case "each_multiarg_partial" "f:{[x;y;z] x+y+z}; (f'[1;2])[3]" "6"
 test_case "each_multiarg_too_many" "f:{[x;y] x+y}; f'[1;2;3]" "Error: function expects 2 args, got 3"
 test_case "each_multiarg_projector_no_vec" "f:{[x;y] x * y}; (f'[2;])[3]" "6"
 
+# ── Each-right (/:) and each-left (\:) adverbs ──────────────────────────
+test_case "eacright_type"       "f:{[x] x}; type f/:"          "106h"
+test_case "eachleft_type"       "f:{[x] x}; type f\\:"         "106h"
+test_case "eacright_print"      "+/:"                         "+/:"
+test_case "eachleft_print"      "+\\:"                        "+\\:"
+test_case "eacright_basic"      "f:{[x;y] x+y}; f/:[10;1 2 3]"  "11 12 13"
+test_case "eachleft_basic"      "f:{[x;y] x+y}; f\\:[1 2 3;10]"  "11 12 13"
+test_case "eacright_all_scalar" "f:{[x;y] x+y}; f/:[5;6]"     "11"
+test_case "eachleft_all_scalar" "f:{[x;y] x+y}; f\\:[5;6]"     "11"
+test_case "eacright_three_args" "f:{[x;y;z] x+y+z}; f/:[10;20;1 2 3]" "31 32 33"
+test_case "eachleft_three_args" "f:{[x;y;z] x+y+z}; f\\:[1 2 3;10;20]" "31 32 33"
+test_case "eacright_unary"      "f:{[x] x*2}; f/:[1 2 3]"    "2 4 6"
+test_case "eachleft_unary"      "f:{[x] x*2}; f\\:[1 2 3]"    "2 4 6"
+test_case "eacright_projector"  "f:{[x;y] x*y}; (f/:[10;])[1 2 3]" "10 20 30"
+test_case "eachleft_projector"  "f:{[x;y] x*y}; (f\\:[;10])[1 2 3]" "10 20 30"
+test_case "eacright_adverb_chain" "f:{[x] x*2}; f/:'"         "{[x] x*2}/:'"
+test_case "eachleft_adverb_chain" "f:{[x] x*2}; f\\:'"        "{[x] x*2}\\:'"
+test_case "eacright_bracket_form" "f:{[x;y] x+y}; (/:[f])[1 2 3;10]" "11 12 13"
+test_case "eachleft_bracket_form" "f:{[x;y] x+y}; (\\:[f])[1 2 3;10]" "11 12 13"
+
 # Symbol vector literal (`a`b`c)
 test_case "sym_vec_literal_two" "\`a\`b" "\`a\`b"
 test_case "sym_vec_literal_three" "\`a\`b\`c" "\`a\`b\`c"
 test_case "sym_vec_literal_with_spaces" "\`a \`b \`c" "\`a\`b\`c"
-test_case "sym_vec_literal_type" "type \`a\`b\`c" "\`SYMBOL"
+test_case "sym_vec_literal_type" "type \`a\`b\`c" "8h"
 test_case "sym_vec_literal_index" "\`a\`b\`c[0]" "\`a"
 test_case "sym_vec_literal_index_last" "\`a\`b\`c[2]" "\`c"
 test_case "sym_vec_literal_index_multi" "\`a\`b\`c[0 1]" "\`a\`b"
@@ -696,8 +716,8 @@ test_case "sym_vec_literal_eval_parse" "eval parse \"\`a\`b\`c\"" "\`a\`b\`c"
 test_case "sym_vec_literal_empty_in_vec" "\`\`a\`b" "\`\`a\`b"
 
 # Type builtin
-test_case "type_int" "type 2" "\`long"
-test_case "type_default_long_literal" "type 5" "\`long"
+test_case "type_int" "type 2" "-5h"
+test_case "type_default_long_literal" "type 5" "-5h"
 test_case "default_long_literal_print" "5" "5"
 test_case "default_long_equals_j_suffix" "5 = 5j" "1b"
 test_case "single_long_suffix" "1j" "1"
@@ -723,20 +743,20 @@ test_case "neginf_in_number_sequence" "-0W -1 0" "-0W -1 0"
 test_case "suffix_on_null_in_sequence" "1 0Ni 2" "Error: Failed to parse expression"
 test_case "suffix_on_null_float_sequence" "0Nf 2.5" "Error: Failed to parse expression"
 test_case "explicit_suffix_on_null_in_sequence" "1 0Nj 3" "Error: Failed to parse expression"
-test_case "type_int_vector" "type (1;2)" "\`LONG"
-test_case "type_float" "type 2.0" "\`float"
-test_case "type_string" "type \"str\"" "\`CHAR"
-test_case "type_symbol" "type \`hello" "\`symbol"
-test_case "type_symbol_vector" "type (\`a;\`b)" "\`SYMBOL"
-test_case "type_nested_builtin" "type type 1" "\`symbol"
-test_case "type_builtin" "type sum" "\`builtin"
+test_case "type_int_vector" "type (1;2)" "5h"
+test_case "type_float" "type 2.0" "-6h"
+test_case "type_string" "type \"str\"" "7h"
+test_case "type_symbol" "type \`hello" "-8h"
+test_case "type_symbol_vector" "type (\`a;\`b)" "8h"
+test_case "type_nested_builtin" "type type 1" "-3h"
+test_case "type_builtin" "type sum" "101h"
 
 # Float suffix parsing
 test_case "float_suffix_simple" "1f" "1f"
 test_case "float_suffix_decimal" "1.5f" "1.5f"
-test_case "float_suffix_type" "type 1f" "\`float"
+test_case "float_suffix_type" "type 1f" "-6h"
 test_case "float_suffix_vector" "1 2.5 3f" "1 2.5 3f"
-test_case "float_suffix_vector_type" "type (1 2.5 3f)" "\`FLOAT"
+test_case "float_suffix_vector_type" "type (1 2.5 3f)" "6h"
 test_case "float_suffix_arithmetic" "1f + 2f" "3f"
 test_case "float_suffix_multiply" "1.5f * 2" "3f"
 test_case "float_suffix_mixed_with_decimal" "1 2.5 3f" "1 2.5 3f"
@@ -757,9 +777,9 @@ test_case "short_null_scalar"           "0Nh"               "0Nh"
 test_case "short_inf_scalar"            "0Wh"               "0Wh"
 test_case "short_neginf_scalar"         "-0Wh"              "-0Wh"
 test_case "short_null_equals_null"      "0Nh=0Nh"           "1b"
-test_case "short_null_type"             "type 0Nh"          "\`short"
+test_case "short_null_type"             "type 0Nh"          "-3h"
 test_case "short_null_is_null"          "null 0Nh"          "1b"
-test_case "short_inf_type"              "type 0Wh"          "\`short"
+test_case "short_inf_type"              "type 0Wh"          "-3h"
 test_case "short_all_null_vec_suffix"   "0N 0N 0Nh"         "0N 0N 0Nh"
 test_case "short_null_vec_cast"         "\"h\"\$ (1,0N,3)"  "1 0N 3h"
 
@@ -777,7 +797,7 @@ test_case "long_null_vec_cast"          "\"j\"\$ (1,0N,3)"  "1 0N 3"
 # Null type
 test_case "trailing_semicolon_is_null" "2+3;" ""
 test_case "parse_empty_string_is_null" "parse[\"\"]" ""
-test_case "type_of_empty_input" "type[parse[\"\"]]" "\`list"
+test_case "type_of_empty_input" "type[parse[\"\"]]" "0h"
 
 # Single-element list unwrapping
 test_case "bare_builtin_print" "print" "print"
@@ -798,14 +818,14 @@ test_case "bool_one" "1b" "1b"
 test_case "bool_vector" "1010011b" "1010011b"
 test_case "bool_vector_complex" "10101010b" "10101010b"
 test_case "count_bool_vector" "count 1010b" "4"
-test_case "type_bool_scalar" "type 1b" "\`bool"
-test_case "type_bool_vector" "type 1010011b" "\`BOOL"
+test_case "type_bool_scalar" "type 1b" "-1h"
+test_case "type_bool_vector" "type 1010011b" "1h"
 test_case "byte_scalar_literal" "0x01" "0x01"
 test_case "byte_scalar_literal_odd_digits" "0x1" "0x01"
 test_case "byte_vector_literal" "0x0102" "0x0102"
 test_case "byte_vector_literal_odd_digits" "0x102" "0x0102"
-test_case "type_byte_scalar" "type 0x7f" "\`byte"
-test_case "type_byte_vector" "type 0x010203" "\`BYTE"
+test_case "type_byte_scalar" "type 0x7f" "-2h"
+test_case "type_byte_vector" "type 0x010203" "2h"
 
 # ── Byte arithmetic / promotion ───────────────────────────────────────
 test_case "byte_plus_byte"          "0x01 + 0x02"        "0x03"
@@ -835,9 +855,9 @@ test_case "ser_char_vec_no_trailing_nul" "ser \"cd\"" "0x15000200000000000000636
 test_case "drop_serialized_char_vec" "1 _ ser \"cd\"" "0x0002000000000000006364"
 test_case "ser_long_vec_promoted" "ser (1;2)" "0x1300020000000000000001000000000000000200000000000000"
 test_case "ser_list_mixed" "ser (1;\"a\")" "0x20000200000000000000030001000000000000001500010000000000000061"
-test_case "deser_list_type" "type deser ser (1;\"a\")" "\`list"
+test_case "deser_list_type" "type deser ser (1;\"a\")" "0h"
 test_case "deser_list_count" "count deser ser (1;\"a\")" "2"
-test_case "deser_list_nested" "type deser ser ((1;2f);(3;4f))" "\`list"
+test_case "deser_list_nested" "type deser ser ((1;2f);(3;4f))" "0h"
 test_case "deser_long" "deser ser 42" "42"
 test_case "deser_int" "deser ser 42i" "42i"
 test_case "deser_short" "deser ser 42h" "42h"
@@ -849,7 +869,7 @@ test_case "deser_long_vec" "deser ser 1 2 3" "1 2 3"
 test_case "deser_symbol" "deser ser \`abc" "\`abc"
 test_case "ser_symbol" "ser \`abc" "0x070061626300"
 test_case "deser_symbol_empty" "deser ser \`" "\`"
-test_case "deser_symbol_underscore" "type deser ser \`_XY" "\`symbol"
+test_case "deser_symbol_underscore" "type deser ser \`_XY" "-8h"
 test_case "deser_string" "deser ser \"hello\"" "\"hello\""
 test_case "deser_not_byte_vec" "deser 42" "Error: deser expects a byte vector"
 test_case "ser_sym_vec" "ser \`a\`b\`c" "0x17000300000000000000610062006300"
@@ -857,12 +877,12 @@ test_case "deser_sym_vec" "deser ser \`a\`b\`c" "\`a\`b\`c"
 test_case "deser_sym_vec_empty_sym" "deser ser \`" "\`"
 test_case "deser_sym_vec_underscore" "deser ser \`_x\`y2" "\`_x\`y2"
 test_case "ipc_sym_vec" "ser deser ser \`foo\`bar" "0x17000200000000000000666f6f0062617200"
-test_case "deser_dict_type" "type deser ser \`a\`b!1 2" "\`dict"
+test_case "deser_dict_type" "type deser ser \`a\`b!1 2" "-16h"
 test_case "deser_dict_count" "count deser ser \`a\`b!1 2" "2"
 test_case "deser_dict_key" "key deser ser \`a\`b!1 2" "\`a\`b"
 test_case "deser_dict_value" "value deser ser \`a\`b!1 2" "1 2"
-test_case "deser_dict_empty" "type deser ser ()!()" "\`dict"
-test_case "deser_func_type" "type deser ser {x}" "\`function"
+test_case "deser_dict_empty" "type deser ser ()!()" "-16h"
+test_case "deser_func_type" "type deser ser {x}" "100h"
 test_case "deser_func_eval" "deser ser {[x] x+1}@5" "6"
 test_case "ser_func" "ser {[x] x+1}" "0x22007b5b785d20782b317d00"
 test_case "parse_bool" "parse\"1b\"" "1b"
@@ -952,7 +972,7 @@ test_case "find_vector_notfound"    "find[3 4 5;3 6]"         "0 3"
 test_case "find_string_in_list"     "find[(\"cat\";\"dog\");\"dog\"]" "1"
 test_case "find_multi_str_in_list"  "find[(\"cat\";\"dog\";\"bird\");(\"bird\";\"cat\")]" "2 0"
 test_case "find_char_in_str"        "find[\"cat\";first \"a\"]" "1"
-test_case "find_type"               "type find"               "\`builtin"
+test_case "find_type"               "type find"               "101h"
 
 # Find operator (?)
 test_case "find_op_scalar_found"     "3 4 5 ? 4"            "1"
@@ -962,29 +982,29 @@ test_case "find_op_vector_notfound"  "3 4 5 ? 3 6"          "0 3"
 
 # ── Random number generation (?) ───────────────────────────────────────
 # Type checks
-test_case "rand_type_long"       "type 5 ? 0j"              "\`LONG"
-test_case "rand_type_int"        "type 5 ? 0i"              "\`INT"
-test_case "rand_type_short"      "type 5 ? 0h"              "\`SHORT"
-test_case "rand_type_byte"       "type 5 ? 0x00"            "\`BYTE"
-test_case "rand_type_bool"       "type 5 ? 0b"              "\`BOOL"
-test_case "rand_type_float"      "type 5 ? 1.0f"            "\`FLOAT"
-test_case "rand_type_default"    "type 5 ? 0"               "\`LONG"
+test_case "rand_type_long"       "type 5 ? 0j"              "5h"
+test_case "rand_type_int"        "type 5 ? 0i"              "4h"
+test_case "rand_type_short"      "type 5 ? 0h"              "3h"
+test_case "rand_type_byte"       "type 5 ? 0x00"            "2h"
+test_case "rand_type_bool"       "type 5 ? 0b"              "1h"
+test_case "rand_type_float"      "type 5 ? 1.0f"            "6h"
+test_case "rand_type_default"    "type 5 ? 0"               "5h"
 # Count checks
 test_case "rand_count"           "count (10 ? 0j)"          "10"
 test_case "rand_count_empty"     "count (0 ? 0j)"           "0"
 # Scalar result for n=1
-test_case "rand_scalar_type"     "type 1 ? 100"             "\`long"
+test_case "rand_scalar_type"     "type 1 ? 100"             "-5h"
 # Bounded range (values in [0, bound))
 test_case "rand_bounded_max"     "max[(1000 ? 10)] < 10"    "1b"
 test_case "rand_bounded_short"   "max[(500 ? 5h)] < 5h"     "1b"
 # Zero RHS for float → zeros
 test_case "rand_zero_float"      "max[(5 ? 0f)]"            "0f"
 # Bracket form with scalar count
-test_case "rand_bracket_form"    "type ?[3;0j]"             "\`LONG"
+test_case "rand_bracket_form"    "type ?[3;0j]"             "5h"
 # Seed determinism
 test_case "rand_seed_deterministic" "sys.seed: 12345; a:5?100; sys.seed: 0; 1?0; sys.seed: 12345; a=5?100" "11111b"
 # Seed readable via sys.seed
-test_case "rand_seed_type"       "type sys.seed"            "\`long"
+test_case "rand_seed_type"       "type sys.seed"            "-5h"
 
 # ── neg keyword ────────────────────────────────────────────────────────
 test_case "neg_pos_long"       "neg[5]"                "-5"
@@ -997,10 +1017,10 @@ test_case "neg_neg_short"      "neg[-5h]"              "5h"
 test_case "neg_pos_float"      "neg[5.5f]"             "-5.5f"
 test_case "neg_neg_float"      "neg[-3.25f]"           "3.25f"
 test_case "neg_zero_float"     "neg[0f]"               "-0f"
-test_case "neg_type_long"      "type neg[5]"           "\`long"
-test_case "neg_type_int"       "type neg[5i]"          "\`int"
-test_case "neg_type_short"     "type neg[5h]"          "\`short"
-test_case "neg_type_float"     "type neg[5.5f]"        "\`float"
+test_case "neg_type_long"      "type neg[5]"           "-5h"
+test_case "neg_type_int"       "type neg[5i]"          "-4h"
+test_case "neg_type_short"     "type neg[5h]"          "-3h"
+test_case "neg_type_float"     "type neg[5.5f]"        "-6h"
 # Vectors
 test_case "neg_long_vec"       "neg[1 2 3]"            "-1 -2 -3"
 test_case "neg_int_vec"        "neg[1 2 3i]"           "-1 -2 -3i"
@@ -1008,7 +1028,7 @@ test_case "neg_short_vec"      "neg[1 2 3h]"           "-1 -2 -3h"
 test_case "neg_float_vec"      "neg[1.5 2.5 3.5f]"     "-1.5 -2.5 -3.5f"
 test_case "neg_neg_vec"        "neg[-1 -2 -3]"         "1 2 3"
 test_case "neg_mixed_vec"      "neg[0 -5 3]"           "0 5 -3"
-test_case "neg_vec_type_eq"    "type neg[1 2 3i]"      "\`INT"
+test_case "neg_vec_type_eq"    "type neg[1 2 3i]"      "4h"
 # Lists
 test_case "neg_list"           "neg[(1;-2;3)]"         "-1 2 -3"
 # Mixed list prints multi-line at top-level; test via enlist to force single-line
@@ -1019,7 +1039,7 @@ test_case "neg_null_long"      "neg[0N]"               "0N"
 test_case "neg_null_int"       "neg[0Ni]"              "0Ni"
 test_case "neg_null_float"     "neg[0Nf]"              "0Nf"
 test_case "neg_null_vec"       "neg[0N 5 0N]"          "0N -5 0N"
-test_case "neg_type_null_float" "type neg[0Nf]"          "\`float"
+test_case "neg_type_null_float" "type neg[0Nf]"          "-6h"
 # Inf
 test_case "neg_inf_long"       "neg[0W]"               "-0W"
 test_case "neg_neginf_long"    "neg[-0W]"              "0W"
@@ -1029,7 +1049,7 @@ test_case "neg_inf_float"      "neg[0Wf]"              "-0Wf"
 test_case "neg_neginf_float"   "neg[-0Wf]"             "0Wf"
 # Bracket/keyword form
 test_case "neg_bracket"        "neg[10]"               "-10"
-test_case "neg_type_builtin"   "type neg"              "\`builtin"
+test_case "neg_type_builtin"   "type neg"              "101h"
 
 # ── distinct keyword ───────────────────────────────────────────────────
 test_case "distinct_long_vec"         "distinct[1 2 3 1 2]"         "1 2 3"
@@ -1046,8 +1066,8 @@ test_case "distinct_list"             "distinct[(1;2;3;1;2)]"      "1 2 3"
 test_case "distinct_list_mixed"       "enlist distinct[(1;2i;1;3f)]" "(1;2i;3f)"
 test_case "distinct_empty_vec"        "distinct[()]"               ""
 test_case "distinct_empty_long"       "count distinct[0#0]"        "0"
-test_case "distinct_type_preserved"   "type distinct[1 2 3i]"      "\`INT"
-test_case "distinct_type_builtin"     "type distinct"              "\`builtin"
+test_case "distinct_type_preserved"   "type distinct[1 2 3i]"      "4h"
+test_case "distinct_type_builtin"     "type distinct"              "101h"
 test_case "distinct_null_in_vec"      "distinct[0N 5 0N 5]"        "0N 5"
 test_case "distinct_inf"              "distinct[0W -0W 0W]"        "0W -0W"
 
@@ -1063,28 +1083,28 @@ test_case "reverse_list"         "enlist reverse[(1;2i;\"a\")]" "(\"a\";2i;1)"
 test_case "reverse_scalar"       "reverse 42"                "42"
 test_case "reverse_empty"        "count reverse[()]"         "0"
 test_case "reverse_single"       "reverse[enlist[42]]"       "42"
-test_case "reverse_type_vec"     "type reverse[1 2 3]"       "\`LONG"
-test_case "reverse_type_list"    "type reverse[(1;2i)]"      "\`list"
-test_case "reverse_type_builtin" "type reverse"              "\`builtin"
+test_case "reverse_type_vec"     "type reverse[1 2 3]"       "5h"
+test_case "reverse_type_list"    "type reverse[(1;2i)]"      "0h"
+test_case "reverse_type_builtin" "type reverse"              "101h"
 
 # Bracket-form operator parsing: expr OP[args] should be expr applied
 # to OP[args], not a binary op.  Test all expression operators.
-test_case "bracket_plus"               "type +[3;4]"              "\`long"
-test_case "bracket_minus"              "type -[10;3]"             "\`long"
-test_case "bracket_star"               "type *[2;3]"              "\`long"
-test_case "bracket_bang"               "type ![\`a\`b;1 2]"       "\`dict"
-test_case "bracket_comma"              "type ,[1;2]"              "\`LONG"
-test_case "bracket_hash"               "type #[3;1 2 3]"          "\`LONG"
-test_case "bracket_underscore"         "type _[1;1 2 3]"          "\`LONG"
-test_case "bracket_equal"              "type =[1;1]"              "\`bool"
-test_case "bracket_less"               "type <[1;2]"              "\`bool"
-test_case "bracket_greater"            "type >[2;1]"              "\`bool"
-test_case "bracket_amp"                "type &[2;9]"              "\`long"
-test_case "bracket_pipe"               "type |[2;9]"              "\`long"
-test_case "bracket_dollar"             "type \$[\`float;42]"      "\`float"
-test_case "bracket_at"                 "type @[;1] 3 4 5"         "\`long"
-test_case "bracket_dot"                "type .[+;(3;5)]"          "\`long"
-test_case "bracket_question"           "type ?[1 2 3; 2]"         "\`long"
+test_case "bracket_plus"               "type +[3;4]"              "-5h"
+test_case "bracket_minus"              "type -[10;3]"             "-5h"
+test_case "bracket_star"               "type *[2;3]"              "-5h"
+test_case "bracket_bang"               "type ![\`a\`b;1 2]"       "-16h"
+test_case "bracket_comma"              "type ,[1;2]"              "5h"
+test_case "bracket_hash"               "type #[3;1 2 3]"          "5h"
+test_case "bracket_underscore"         "type _[1;1 2 3]"          "5h"
+test_case "bracket_equal"              "type =[1;1]"              "-1h"
+test_case "bracket_less"               "type <[1;2]"              "-1h"
+test_case "bracket_greater"            "type >[2;1]"              "-1h"
+test_case "bracket_amp"                "type &[2;9]"              "-5h"
+test_case "bracket_pipe"               "type |[2;9]"              "-5h"
+test_case "bracket_dollar"             "type \$[\`float;42]"      "-6h"
+test_case "bracket_at"                 "type @[;1] 3 4 5"         "-5h"
+test_case "bracket_dot"                "type .[+;(3;5)]"          "-5h"
+test_case "bracket_question"           "type ?[1 2 3; 2]"         "-5h"
 
 # IPC tests (same-process via localhost)
 IPC_PORT=19101
@@ -1118,7 +1138,7 @@ test_case "range_negative"       "-2..2"     "-2 -1 0 1"
 test_case "range_empty"          "5..5"      "[]"
 test_case "range_inclusive_single" "5..=5"   "5"
 test_case "range_reverse"        "5..0"      "[]"
-test_case "range_type"           "type 0..5" "\`LONG"
+test_case "range_type"           "type 0..5" "5h"
 
 # Cast operator ($)
 test_case "cast_long_to_int" "\`int\$5" "5i"
@@ -1193,7 +1213,7 @@ test_case "op_projection_take" "(#[2;])1 2 3 4 5" "1 2"
 test_case "op_projection_drop" "(_[1;])1 2 3 4 5" "2 3 4 5"
 test_case "op_projection_max" "(|[10;])3 5 2" "10 10 10"
 test_case "op_projection_min" "(&[10;])3 5 2" "3 5 2"
-test_case "op_projection_type" "type (+[2;])" "\`projection"
+test_case "op_projection_type" "type (+[2;])" "105h"
 test_case "op_projection_equal_left" "(=[42;])42" "1b"
 test_case "op_projection_less_left" "(<[3;])5" "1b"
 test_case "op_projection_greater_left" "(>[3;])5" "0b"
@@ -1202,12 +1222,12 @@ test_case "op_projection_div" "(%[10;])3" "3.33333f"
 test_case "op_projection_bare" "+[;]" "+[;]"
 
 # ── compose keyword ─────────────────────────────────────────────────────
-test_case "compose_type"             "type compose"            "\`builtin"
+test_case "compose_type"             "type compose"            "101h"
 test_case "compose_double_sum"       "twicesum:compose({[x] 2*x};+); twicesum[5;2]"  "14"
 test_case "compose_single_func"      "f:compose enlist {[x] x*x}; f[5]"    "25"
 test_case "compose_neg_abs"          "f:compose(neg;{[x] x}); f[-5]" "5"
 test_case "compose_empty_err"        "compose()"               "Error: compose expects a non-empty list"
-test_case "compose_type_value"       "type compose(+;{[x] 2*x})"   "\`composition"
+test_case "compose_type_value"       "type compose(+;{[x] 2*x})"   "104h"
 test_case "compose_print"            "compose(+;{[x] 2*x})"    "(+;{[x] 2*x})"
 test_case "compose_three"            "f:compose(neg;{[x] x+1};{[x] x*2}); f[3]" "-7"
 test_case "compose_projection"       "f:compose (*[2];+); f[3;4]" "14"
@@ -1234,7 +1254,7 @@ test_case "unclosed_string"               '"abc'    "Error: Failed to parse expr
 test_case_multiline "table_simple" "([a:1 2 3] b:4 5 6)" $'a b\n- -\n1 4\n2 5\n3 6'
 test_case_multiline "table_single_col" "([a:10 20 30])" $'a\n-\n10\n20\n30'
 test_case_multiline "table_scalar_cols" "([a:42] b:7)" $'a b\n- -\n42 7'
-test_case "table_type" "type ([]a:1 2)" "\`table"
+test_case "table_type" "type ([]a:1 2)" "16h"
 test_case_multiline "table_one_row" "([x:10] y:20)" $'x y\n- -\n10 20'
 test_case_multiline "table_expr_cols" "([a:1+1 2+2] b:3+3 4+4)" $'a b\n- -\n4 10\n5 11'
 test_case "table_empty" "([])" "()"
@@ -1250,10 +1270,10 @@ test_case_multiline "table_index_subtable_reverse" "([]a:1 2 3;b:4 5 6) 2 0" $'a
 test_case_multiline "table_index_subtable_single" "([]a:1 2 3;b:4 5 6) 1 1" $'a b\n- -\n2 5\n2 5'
 
 # ── Flip builtin tests ───────────────────────────────────────────────
-test_case "flip_table_to_dict_type" "type flip ([]a:1 2 3;b:4 5 6)" "\`dict"
+test_case "flip_table_to_dict_type" "type flip ([]a:1 2 3;b:4 5 6)" "-16h"
 test_case_multiline "flip_table_to_dict" "flip ([]a:1 2 3;b:4 5 6)" \
   $'`a | 1 2 3\n`b | 4 5 6'
-test_case "flip_dict_to_table_type" "type flip \`a\`b!(1 2 3;4 5 6)" "\`table"
+test_case "flip_dict_to_table_type" "type flip \`a\`b!(1 2 3;4 5 6)" "16h"
 test_case_multiline "flip_dict_to_table" "flip \`a\`b!(1 2 3;4 5 6)" \
   $'a b\n- -\n1 4\n2 5\n3 6'
 test_case_multiline "flip_flip_table" "flip flip ([]a:1 2 3;b:4 5 6)" \
@@ -1266,8 +1286,8 @@ test_case_multiline "enlist_dict_promotion" "(\`a\`b!1 2;\`a\`b!3 4)" \
   $'a b\n- -\n1 2\n3 4'
 test_case_multiline "enlist_dict_promotion_single" "enlist[\`a\`b!1 2]" \
   $'a b\n- -\n1 2'
-test_case "enlist_dict_promotion_type" "type (\`a\`b!1 2;\`a\`b!3 4)" "\`table"
-test_case "enlist_dict_no_promotion" "type (\`a\`b!1 2;\`c\`d!3 4)" "\`list"
+test_case "enlist_dict_promotion_type" "type (\`a\`b!1 2;\`a\`b!3 4)" "16h"
+test_case "enlist_dict_no_promotion" "type (\`a\`b!1 2;\`c\`d!3 4)" "0h"
 test_case_multiline "enlist_dict_promotion_flip" "flip (\`a\`b!1 2;\`a\`b!3 4)" \
   $'`a | 1 3\n`b | 2 4'
 
@@ -1295,7 +1315,7 @@ test_case "get_not_symbol"        "get 42"                        "Error: get ex
 test_case "get_namespace_basic"   "a.b:10; get \`a.b"            "10"
 test_case "get_nested_namespace"  "a.b.c:7; get \`a.b.c"        "7"
 test_case "get_expression"        "a:5; b:a+2; get \`b"         "7"
-test_case "get_type"              "a:5; type get \`a"            "\`long"
+test_case "get_type"              "a:5; type get \`a"            "-5h"
 
 # ── Where keyword tests ──────────────────────────────────────────────
 test_case "where_bool_vec"             "where 0101b"         "1 3"
@@ -1310,15 +1330,15 @@ test_case "where_overflow_neginf"       "where -0W"           "Error: where expe
 
 # ── sys.argv tests ────────────────────────────────────────────────────
 test_case "sys_argv_count"       "count sys.argv"        "0"
-test_case "sys_argv_type"        "type sys.argv"         "\`list"
-test_case "sys_type"             "type sys"              "\`dict"
+test_case "sys_argv_type"        "type sys.argv"         "0h"
+test_case "sys_type"             "type sys"              "-16h"
 test_case_file_args "sys_argv_with_args"    "count sys.argv"  "4"       "a" "b" "c"
 test_case_file_args "sys_argv_index_one"    "sys.argv[1]"     "\"a\""   "a" "b" "c"
 test_case_file_args "sys_argv_index_two"    "sys.argv[2]"     "\"b\""   "a" "b" "c"
 test_case_file_args "sys_argv_dash_first"   "sys.argv[1]"     "\"-opt\"" "-opt" "val"
 
 # ── sys.hostname tests ─────────────────────────────────────────────────
-test_case "sys_hostname_type"    "type sys.hostname"    "\`CHAR"
+test_case "sys_hostname_type"    "type sys.hostname"    "7h"
 test_case "sys_hostname_exists"  "0 < count sys.hostname" "1b"
 
 echo ""

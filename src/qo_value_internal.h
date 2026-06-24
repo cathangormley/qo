@@ -100,6 +100,8 @@ static inline int type_has_flag(uint8_t t, uint8_t f) { return (type_flags(t) & 
 /* adverb payload: kind byte */
 #define QO_ADVERB_KIND(q)   ((q)->byte_val)
 #define QO_ADVERB_EACH      0
+#define QO_ADVERB_EACHRIGHT 1
+#define QO_ADVERB_EACHLEFT  2
 
 /* table payload: count=nrows, data[0..sizeof(Qo)-1]=dict pointer (Qo*) */
 #define QO_TABLE_ROWS(q)   QO_COUNT(q)

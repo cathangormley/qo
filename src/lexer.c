@@ -413,7 +413,12 @@ Token* lexer_next_token(Lexer *lexer) {
                 return token_new(TOKEN_STAR_STAR, "**", false, '\0', start_pos);
             }
             return token_new(TOKEN_STAR, "*", false, '\0', start_pos);
-        case '/': return token_new(TOKEN_SLASH, "/", false, '\0', start_pos);
+        case '/':
+            if (lexer->input[lexer->pos] == ':') {
+                lexer->pos++;
+                return token_new(TOKEN_EACHRIGHT, "/:", false, '\0', start_pos);
+            }
+            return token_new(TOKEN_SLASH, "/", false, '\0', start_pos);
         case '%': return token_new(TOKEN_DIVIDE, "%", false, '\0', start_pos);
         case '!': return token_new(TOKEN_BANG, "!", false, '\0', start_pos);
         case ',': return token_new(TOKEN_COMMA, ",", false, '\0', start_pos);
@@ -466,6 +471,15 @@ Token* lexer_next_token(Lexer *lexer) {
         }
         case '?': return token_new(TOKEN_QUESTION, "?", false, '\0', start_pos);
         case '\'': return token_new(TOKEN_EACH,   "'", false, '\0', start_pos);
+        case '\\':
+            if (lexer->input[lexer->pos] == ':') {
+                lexer->pos++;
+                return token_new(TOKEN_EACHLEFT, "\\:", false, '\0', start_pos);
+            }
+            {
+                char lexeme[2] = {ch, '\0'};
+                return token_new(TOKEN_ERROR, lexeme, false, '\0', start_pos);
+            }
         default: {
             char lexeme[2] = {ch, '\0'};
             return token_new(TOKEN_ERROR, lexeme, false, '\0', start_pos);

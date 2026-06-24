@@ -751,44 +751,42 @@ static Qo eval_builtin_refcount(Qo arg, Environment *env) {
 
 static Qo eval_builtin_type(Qo arg, Environment *env) {
     (void)env;
-    const char *tag = "unknown";
     switch (qo_type(arg)) {
-        case QO_SHORT:      tag = "short";     break;
-        case QO_INT:        tag = "int";       break;
-        case QO_LONG:       tag = "long";      break;
-        case QO_TIMESTAMP:  tag = "timestamp"; break;
-        case QO_TIMESPAN:   tag = "timespan";  break;
-        case QO_DATE:       tag = "date";      break;
-        case QO_SHORT_VEC:  tag = "SHORT";     break;
-        case QO_INT_VEC:    tag = "INT";       break;
-        case QO_LONG_VEC:   tag = "LONG";      break;
-        case QO_TIMESTAMP_VEC: tag = "TIMESTAMP"; break;
-        case QO_TIMESPAN_VEC:  tag = "TIMESPAN";  break;
-        case QO_DATE_VEC:       tag = "DATE";       break;
-        case QO_FLOAT:      tag = "float";     break;
-        case QO_FLOAT_VEC:  tag = "FLOAT";     break;
-        case QO_CHAR:       tag = "char";      break;
-        case QO_CHAR_VEC:   tag = "CHAR";      break;
-        case QO_BOOL:       tag = "bool";      break;
-        case QO_BOOL_VEC:   tag = "BOOL";      break;
-        case QO_BYTE:       tag = "byte";      break;
-        case QO_BYTE_VEC:   tag = "BYTE";      break;
-        case QO_PROJECTOR:  tag = "projector"; break;
-        case QO_PROJECTION: tag = "projection";break;
-        case QO_SYMBOL:     tag = "symbol";    break;
-        case QO_SYM_VEC:    tag = "SYMBOL";    break;
-        case QO_DICT:       tag = "dict";      break;
-        case QO_OPERATOR:   tag = "operator";  break;
-        case QO_BUILTIN:    tag = "builtin";   break;
-        case QO_LIST:       tag = "list";      break;
-        case QO_FUNCTION:   tag = "function";  break;
-        case QO_ADVERBED:   tag = "adverbfunc"; break;
-        case QO_ADVERB:     tag = "adverb";    break;
-        case QO_TABLE:      tag = "table";     break;
-        case QO_COMPOSITION: tag = "composition"; break;
-        default: break;
+        case QO_LIST:         return make_short_value(0);
+        case QO_BOOL:         return make_short_value(-1);
+        case QO_BOOL_VEC:     return make_short_value(1);
+        case QO_BYTE:         return make_short_value(-2);
+        case QO_BYTE_VEC:     return make_short_value(2);
+        case QO_SHORT:        return make_short_value(-3);
+        case QO_SHORT_VEC:    return make_short_value(3);
+        case QO_INT:          return make_short_value(-4);
+        case QO_INT_VEC:      return make_short_value(4);
+        case QO_LONG:         return make_short_value(-5);
+        case QO_LONG_VEC:     return make_short_value(5);
+        case QO_FLOAT:        return make_short_value(-6);
+        case QO_FLOAT_VEC:    return make_short_value(6);
+        case QO_CHAR:         return make_short_value(-7);
+        case QO_CHAR_VEC:     return make_short_value(7);
+        case QO_SYMBOL:       return make_short_value(-8);
+        case QO_SYM_VEC:      return make_short_value(8);
+        case QO_TIMESTAMP:    return make_short_value(-9);
+        case QO_TIMESTAMP_VEC: return make_short_value(9);
+        case QO_TIMESPAN:     return make_short_value(-10);
+        case QO_TIMESPAN_VEC:  return make_short_value(10);
+        case QO_DATE:         return make_short_value(-11);
+        case QO_DATE_VEC:     return make_short_value(11);
+        case QO_DICT:         return make_short_value(-16);
+        case QO_TABLE:        return make_short_value(16);
+        case QO_FUNCTION:     return make_short_value(100);
+        case QO_BUILTIN:      return make_short_value(101);
+        case QO_OPERATOR:     return make_short_value(102);
+        case QO_ADVERB:       return make_short_value(103);
+        case QO_COMPOSITION:  return make_short_value(104);
+        case QO_PROJECTION:   return make_short_value(105);
+        case QO_ADVERBED:     return make_short_value(106);
+        case QO_PROJECTOR:    return make_short_value(107);
+        default:              return make_short_value(0);
     }
-    return make_symbol_value(tag);
 }
 
 static Qo eval_builtin_key(Qo arg, Environment *env) {
@@ -2322,12 +2320,18 @@ static Qo eval_apply_value(Qo head, Qo *args, int arg_count, Environment *env) {
     if (qo_type(head) == QO_ADVERB) {
         if (arg_count != 1) EVAL_ERROR("adverb expects 1 argument");
         uint8_t kind = QO_ADVERB_KIND(head);
-        if (kind == QO_ADVERB_EACH) return make_adverbed_value(args[0], kind);
+        if (kind == QO_ADVERB_EACH || kind == QO_ADVERB_EACHRIGHT
+            || kind == QO_ADVERB_EACHLEFT)
+            return make_adverbed_value(args[0], kind);
         EVAL_ERROR("unknown adverb");
     }
 
     if (qo_type(head) == QO_ADVERBED) {
         Qo func = QO_ADVERBED_FUNC(head);
+        uint8_t akind = QO_ADVERBED_KIND(head);
+        int is_eachright = (akind == QO_ADVERB_EACHRIGHT);
+        int is_eachleft  = (akind == QO_ADVERB_EACHLEFT);
+
         if (arg_count == 0) return eval_apply_value(func, args, arg_count, env);
         {
             int any_null = 0;
@@ -2350,10 +2354,26 @@ static Qo eval_apply_value(Qo head, Qo *args, int arg_count, Environment *env) {
         }
 
         int64_t n = -1;
-        for (int a = 0; a < arg_count; a++) {
-            uint8_t at = qo_type(args[a]);
-            if (is_vector_type(at)) { n = qo_count(args[a]); break; }
-            if (at == QO_DICT)      { n = QO_DICT_COUNT(args[a]); break; }
+        int iter_arg = -1;
+
+        if (is_eachleft || is_eachright) {
+            int pos = is_eachleft ? 0 : arg_count - 1;
+            if (pos >= 0 && pos < arg_count) {
+                uint8_t at = qo_type(args[pos]);
+                if (is_vector_type(at)) {
+                    n = qo_count(args[pos]);
+                    iter_arg = pos;
+                } else if (at == QO_DICT) {
+                    n = QO_DICT_COUNT(args[pos]);
+                    iter_arg = pos;
+                }
+            }
+        } else {
+            for (int a = 0; a < arg_count; a++) {
+                uint8_t at = qo_type(args[a]);
+                if (is_vector_type(at)) { n = qo_count(args[a]); break; }
+                if (at == QO_DICT)      { n = QO_DICT_COUNT(args[a]); break; }
+            }
         }
 
         if (n < 0) return eval_apply_value(func, args, arg_count, env);
@@ -2364,14 +2384,22 @@ static Qo eval_apply_value(Qo head, Qo *args, int arg_count, Environment *env) {
         for (int64_t i = 0; i < n; i++) {
             for (int a = 0; a < arg_count; a++) {
                 uint8_t at = qo_type(args[a]);
-                if (is_vector_type(at)) {
-                    if (qo_count(args[a]) != n)
-                        EVAL_ERROR("each: vector length mismatch");
-                    elem_args[a] = dict_elem_copy(args[a], i);
-                } else if (at == QO_DICT) {
-                    if (QO_DICT_COUNT(args[a]) != n)
-                        EVAL_ERROR("each: dict length mismatch");
-                    elem_args[a] = qo_clone(QO_DICT_VALS(args[a])[i]);
+                int use_iter = (is_eachleft || is_eachright) ? (a == iter_arg)
+                              : (is_vector_type(at) || at == QO_DICT);
+
+                if (use_iter) {
+                    if (is_vector_type(at)) {
+                        if (qo_count(args[a]) != n)
+                            EVAL_ERROR("each: vector length mismatch");
+                        elem_args[a] = dict_elem_copy(args[a], i);
+                    } else if (at == QO_DICT) {
+                        if (QO_DICT_COUNT(args[a]) != n)
+                            EVAL_ERROR("each: dict length mismatch");
+                        elem_args[a] = qo_clone(QO_DICT_VALS(args[a])[i]);
+                    } else {
+                        elem_args[a] = args[a];
+                        qo_retain(elem_args[a]);
+                    }
                 } else {
                     elem_args[a] = args[a];
                     qo_retain(elem_args[a]);

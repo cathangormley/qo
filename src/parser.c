@@ -434,7 +434,7 @@ static Qo parse_symbol_sequence(Parser *parser, Token *first_token) {
 
 static int is_expression_operator(TokenType type) {
     return type == TOKEN_PLUS || type == TOKEN_MINUS || type == TOKEN_STAR ||
-           type == TOKEN_STAR_STAR || type == TOKEN_SLASH || type == TOKEN_DIVIDE || type == TOKEN_BANG ||
+           type == TOKEN_STAR_STAR || type == TOKEN_DIVIDE || type == TOKEN_BANG ||
            type == TOKEN_COMMA || type == TOKEN_HASH || type == TOKEN_UNDERSCORE ||
            type == TOKEN_EQUAL || type == TOKEN_LESS || type == TOKEN_GREATER ||
            type == TOKEN_LE || type == TOKEN_GE ||
@@ -457,8 +457,10 @@ static int starts_factor(TokenType type) {
            type == TOKEN_STRING ||
            type == TOKEN_LPAREN ||
            type == TOKEN_LBRACE ||
-           type == TOKEN_EACH ||
-           type == TOKEN_NULL_OP ||
+            type == TOKEN_EACH ||
+            type == TOKEN_EACHRIGHT ||
+            type == TOKEN_EACHLEFT ||
+            type == TOKEN_NULL_OP ||
            is_expression_operator(type);
 }
 
@@ -515,11 +517,16 @@ static Qo parse_postfix_calls(Parser *parser, Qo base) {
     int count = 0;
     Qo *args = NULL;
 
-    while (token && (token->type == TOKEN_LBRACKET || token->type == TOKEN_EACH)) {
-        if (token->type == TOKEN_EACH) {
+    while (token && (token->type == TOKEN_LBRACKET || token->type == TOKEN_EACH
+                     || token->type == TOKEN_EACHRIGHT || token->type == TOKEN_EACHLEFT)) {
+        if (token->type == TOKEN_EACH || token->type == TOKEN_EACHRIGHT
+            || token->type == TOKEN_EACHLEFT) {
+            uint8_t kind = (token->type == TOKEN_EACH) ? QO_ADVERB_EACH
+                         : (token->type == TOKEN_EACHRIGHT) ? QO_ADVERB_EACHRIGHT
+                         : QO_ADVERB_EACHLEFT;
             advance(parser);
             Qo *elements = xmalloc(sizeof(Qo) * 2);
-            elements[0] = make_adverb_value(QO_ADVERB_EACH);
+            elements[0] = make_adverb_value(kind);
             elements[1] = base;
             base = qo_make_list_take(elements, 2);
             token = current_token(parser);
@@ -1220,6 +1227,16 @@ static Qo parse_factor(Parser *parser) {
     if (token->type == TOKEN_EACH) {
         advance(parser);
         return parse_postfix_calls(parser, make_adverb_value(QO_ADVERB_EACH));
+    }
+
+    if (token->type == TOKEN_EACHRIGHT) {
+        advance(parser);
+        return parse_postfix_calls(parser, make_adverb_value(QO_ADVERB_EACHRIGHT));
+    }
+
+    if (token->type == TOKEN_EACHLEFT) {
+        advance(parser);
+        return parse_postfix_calls(parser, make_adverb_value(QO_ADVERB_EACHLEFT));
     }
 
     fprintf(stderr, "Error: unexpected token '%s'\n", token->lexeme ? token->lexeme : "EOF");
