@@ -108,14 +108,14 @@ test_case "first_empty_float" 'first "f"$()'  "0Nf"
 test_case "last_empty_float"  'last "f"$()'   "0Nf"
 test_case "first_empty_bool"  'first "b"$()'  "0b"
 test_case "last_empty_bool"   'last "b"$()'   "0b"
-test_case "first_empty_list"  'first ()'      ""
-test_case "last_empty_list"   'last ()'       ""
+test_case "first_empty_list"  'first ()'      "()"
+test_case "last_empty_list"   'last ()'       "()"
 test_case "shell_echo" "shell \"echo hello\"" "\"hello\""
 test_case "shell_assign" "x: shell \"echo test\"; x" "\"test\""
 test_case "drop_positive" "3 _ (5;6;7;8;9)" "8 9"
 test_case "drop_negative" "-3 _ (1;2;3;4;5)" "1 2"
 test_case "drop_zero" "0 _ (1;2;3)" "1 2 3"
-test_case "drop_all" "5 _ (1;2;3;4;5)" "[]"
+test_case "drop_all" "5 _ (1;2;3;4;5)" "\`long\$()"
 test_case "drop_from_atom" "0 _ 42" "42"
 test_case "subtraction" "10 - 3" "7"
 test_case "subtraction_int_preserves_int" "5i - 2i" "3i"
@@ -195,7 +195,7 @@ test_case "bracket_negative_index" "(3 4 5)[-1]" "0N"
 test_case_multiline "dict_multi_index" "d:til[10]!2*til 10; d[5 6 7]" $'10\n12\n14'
 test_case_multiline "dict_multi_index_list" "d:til[10]!2*til 10; d[(4;6)]" $'8\n12'
 test_case "dict_multi_index_missing" "d:(1;2;3)!(10;20;30); d[1 9]" "Error: dictionary key not found"
-test_case "empty_list_literal" "()" ""
+test_case "empty_list_literal" "()" "()"
 test_case "list_literal" "(1;2;3)" "1 2 3"
 test_case "list_index_bracket" "(3;2)[0]" "3"
 test_case_multiline "join_longvec_symvec" "1 2, \`a\`b" $'1\n2\n\x60a\n\x60b'
@@ -536,7 +536,7 @@ test_case "not_float_vec_all_zero" "not[0 0 0f]" "111b"
 test_case "not_bool_scalar_false" "not[0b]" "1b"
 test_case "not_bool_scalar_true" "not[1b]" "0b"
 test_case "not_bool_vec" "not[101b]" "010b"
-test_case "not_empty_list" "not[()]" "b"
+test_case "not_empty_list" "not[()]" "\`bool\$()"
 
 # null builtin
 test_case "null_type"                "type null"              "101h"
@@ -619,7 +619,7 @@ test_case_multiline "parse_dict" "parse \"(1;2)!(4;5)\"" $'!\n(enlist;1;2)\n(enl
 test_case_multiline "lex_simple_arithmetic" "lex \"1 + 2\"" $'"1"\n"+"\n"2"'
 test_case_multiline "lex_function_call" "lex \"f[x]\"" $'"f"\n"["\n"x"\n"]"'
 test_case_multiline "lex_keyword" "lex \"sum a\"" $'"sum"\n"a"'
-test_case "lex_empty_string" "lex \"\"" ""
+test_case "lex_empty_string" "lex \"\"" "()"
 test_case "lex_float" "lex \"3.14\"" "\"3.14\""
 test_case "lex_symbol" "lex \"\`foo\"" "\"\`foo\""
 test_case_multiline "lex_empty_symbol_plus" "lex \"\`+\"" $'"`"\n"+"'
@@ -796,7 +796,7 @@ test_case "long_null_vec_cast"          "\"j\"\$ (1,0N,3)"  "1 0N 3"
 
 # Null type
 test_case "trailing_semicolon_is_null" "2+3;" ""
-test_case "parse_empty_string_is_null" "parse[\"\"]" ""
+test_case "parse_empty_string_is_null" "parse[\"\"]" "()"
 test_case "type_of_empty_input" "type[parse[\"\"]]" "0h"
 
 # Single-element list unwrapping
@@ -1064,7 +1064,7 @@ test_case "distinct_char_vec"         "distinct[\"hello\"]"          "\"helo\""
 test_case "distinct_sym_vec"          "distinct[\`a\`b\`a\`c]"      "\`a\`b\`c"
 test_case "distinct_list"             "distinct[(1;2;3;1;2)]"      "1 2 3"
 test_case "distinct_list_mixed"       "enlist distinct[(1;2i;1;3f)]" "(1;2i;3f)"
-test_case "distinct_empty_vec"        "distinct[()]"               ""
+test_case "distinct_empty_vec"  "distinct[()]"  "()"
 test_case "distinct_empty_long"       "count distinct[0#0]"        "0"
 test_case "distinct_type_preserved"   "type distinct[1 2 3i]"      "4h"
 test_case "distinct_type_builtin"     "type distinct"              "101h"
@@ -1135,9 +1135,9 @@ test_case "range_basic"          "0..5"      "0 1 2 3 4"
 test_case "range_inclusive_basic" "0..=5"    "0 1 2 3 4 5"
 test_case "range_nonzero_start"  "3..7"      "3 4 5 6"
 test_case "range_negative"       "-2..2"     "-2 -1 0 1"
-test_case "range_empty"          "5..5"      "[]"
-test_case "range_inclusive_single" "5..=5"   "5"
-test_case "range_reverse"        "5..0"      "[]"
+test_case "range_empty"        "5..5"      "\`long\$()"
+test_case "range_inclusive_single" "5..=5"  "5"
+test_case "range_reverse"        "5..0"      "\`long\$()"
 test_case "range_type"           "type 0..5" "5h"
 
 # Cast operator ($)
@@ -1377,9 +1377,9 @@ test_case "get_type"              "a:5; type get \`a"            "-5h"
 # ── Where keyword tests ──────────────────────────────────────────────
 test_case "where_bool_vec"             "where 0101b"         "1 3"
 test_case "where_int_vec"              "where (0 1 0 1 2)"   "1 3 4 4"
-test_case "where_bool_scalar_false"    "where 0b"             "[]"
-test_case "where_bool_scalar_true"     "where 1b"             "0"
-test_case "where_int_zero"              "where 0"              "[]"
+test_case "where_bool_scalar_false"  "where 0b"  "\`long\$()"
+test_case "where_bool_scalar_true"   "where 1b"  "0"
+test_case "where_int_zero"            "where 0"   "\`long\$()"
 test_case "where_int_pos"              "where 3"              "0 0 0"
 test_case "where_type_error"           "where 1.5"            "Error: where expects a boolean or integer argument"
 test_case "where_overflow_inf"          "where 0W"             "Error: where result too large"

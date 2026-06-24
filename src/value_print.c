@@ -100,6 +100,7 @@ static void qo_print_list_style(Qo q, int depth) {
     int64_t n = QO_COUNT(q);
 
     if (depth == 0) {
+        if (n == 0) { qo_printf("()"); return; }
         for (int64_t i = 0; i < n; i++) {
             if (i > 0) qo_printf("\n");
             qo_print_internal(QO_LIST_DATA(q)[i], depth + 1);
@@ -249,12 +250,14 @@ static void qo_print_internal(Qo q, int depth) {
         }
         case QO_BOOL_VEC: {
             int64_t n = QO_COUNT(q);
+            if (n == 0) { qo_printf("`bool$()"); break; }
             for (int64_t i = 0; i < n; i++) qo_printf("%ld", (long)QO_BOOL_DATA(q)[i]);
             qo_printf("b");
             break;
         }
         case QO_BYTE_VEC: {
             int64_t n = QO_COUNT(q);
+            if (n == 0) { qo_printf("`byte$()"); break; }
             qo_printf("0x");
             for (int64_t i = 0; i < n; i++) qo_printf("%02x", (unsigned int)QO_BYTE_DATA(q)[i]);
             break;
@@ -262,7 +265,7 @@ static void qo_print_internal(Qo q, int depth) {
         case QO_SHORT_VEC: {
             int64_t n = QO_COUNT(q);
             if (n == 0) {
-                qo_printf("[]");
+                qo_printf("`short$()");
                 break;
             }
             for (int64_t i = 0; i < n; i++) {
@@ -279,7 +282,7 @@ static void qo_print_internal(Qo q, int depth) {
         case QO_INT_VEC: {
             int64_t n = QO_COUNT(q);
             if (n == 0) {
-                qo_printf("[]");
+                qo_printf("`int$()");
                 break;
             }
             for (int64_t i = 0; i < n; i++) {
@@ -296,7 +299,7 @@ static void qo_print_internal(Qo q, int depth) {
         case QO_LONG_VEC: {
             int64_t n = QO_COUNT(q);
             if (n == 0) {
-                qo_printf("[]");
+                qo_printf("`long$()");
                 break;
             }
             for (int64_t i = 0; i < n; i++) {
@@ -311,7 +314,7 @@ static void qo_print_internal(Qo q, int depth) {
         }
         case QO_TIMESTAMP_VEC: {
             int64_t n = QO_COUNT(q);
-            if (n == 0) { qo_printf("[]"); break; }
+            if (n == 0) { qo_printf("`timestamp$()"); break; }
             for (int64_t i = 0; i < n; i++) {
                 if (i > 0) qo_printf(" ");
                 int64_t v = QO_LONG_DATA(q)[i];
@@ -324,7 +327,7 @@ static void qo_print_internal(Qo q, int depth) {
         }
         case QO_TIMESPAN_VEC: {
             int64_t n = QO_COUNT(q);
-            if (n == 0) { qo_printf("[]"); break; }
+            if (n == 0) { qo_printf("`timespan$()"); break; }
             for (int64_t i = 0; i < n; i++) {
                 if (i > 0) qo_printf(" ");
                 int64_t v = QO_LONG_DATA(q)[i];
@@ -337,7 +340,7 @@ static void qo_print_internal(Qo q, int depth) {
         }
         case QO_DATE_VEC: {
             int64_t n = QO_COUNT(q);
-            if (n == 0) { qo_printf("[]"); break; }
+            if (n == 0) { qo_printf("`date$()"); break; }
             for (int64_t i = 0; i < n; i++) {
                 if (i > 0) qo_printf(" ");
                 int32_t v = QO_DATE_DATA(q)[i];
@@ -351,7 +354,7 @@ static void qo_print_internal(Qo q, int depth) {
         case QO_FLOAT_VEC: {
             int64_t n = QO_COUNT(q);
             if (n == 0) {
-                qo_printf("[]");
+                qo_printf("`float$()");
                 break;
             }
             for (int64_t i = 0; i < n; i++) {
@@ -366,7 +369,7 @@ static void qo_print_internal(Qo q, int depth) {
         }
         case QO_SYM_VEC: {
             int64_t n = QO_COUNT(q);
-            if (n == 0) { qo_printf("[]"); break; }
+            if (n == 0) { qo_printf("`symbol$()"); break; }
             for (int64_t i = 0; i < n; i++) {
                 qo_printf("`%s", qo_symbol_name(QO_LIST_DATA(q)[i]));
             }
