@@ -1625,6 +1625,7 @@ static Qo eval_apply_keyword(Qo head, Qo *arg_values, int arg_count, Environment
             case TOKEN_GE:         return eval_gte(arg_values[0], arg_values[1]);
             case TOKEN_PIPE:       return eval_max_of(arg_values[0], arg_values[1]);
             case TOKEN_AMP:        return eval_min_of(arg_values[0], arg_values[1]);
+            case TOKEN_CARET:      return eval_fill(arg_values[0], arg_values[1]);
             case TOKEN_PLUS:       return eval_add(arg_values[0], arg_values[1]);
             case TOKEN_MINUS:      return eval_subtract(arg_values[0], arg_values[1]);
             case TOKEN_STAR:       return eval_multiply(arg_values[0], arg_values[1]);

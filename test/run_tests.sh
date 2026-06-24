@@ -906,6 +906,22 @@ test_case "amp_negatives"            "-5&-2"                                    
 test_case "pipe_len_mismatch"        "1 2|3 4 5"                                "Error: cannot compare vectors of different lengths"
 test_case "amp_non_numeric"          "\`a & 2"                                  "Error: operator requires int/float/bool/char operands"
 
+# ── Fill operator (^) ───────────────────────────────────────────────────
+test_case "fill_scalar_not_null"    "0N^5"                    "5"
+test_case "fill_scalar_null"        "1^0N"                    "1"
+test_case "fill_scalar_both_null"   "0N^0N"                   "0N"
+test_case "fill_scalar_int_null"    "1^0Ni"                   "1"
+test_case "fill_scalar_float_null"  "1.0^0Nf"                 "1f"
+test_case "fill_scalar_null_left"   "0N^1"                    "1"
+test_case "fill_vec_fill_one"       "1^ 4 0N 6"               "4 1 6"
+test_case "fill_vec_no_nulls"       "1 2 3^ 4 5 6"            "4 5 6"
+test_case "fill_vec_fill_two"       "10 20 30^ 1 0N 3"        "1 20 3"
+test_case "fill_vec_all_nulls"      "10 20 30^ 0N 0N 0N"      "10 20 30"
+test_case "fill_vec_first_null"     "99^ 0N 2 3"              "99 2 3"
+test_case "fill_vec_len_mismatch"   "1 2^ 0N 0N 0N"           "Error: fill: vectors must be same length"
+test_case "fill_right_assoc"        "10 20 30^ 1 0N 3"        "1 20 3"
+test_case "fill_callable"           "^[1 2 3;4 0N 6]"         "4 2 6"
+
 # Find keyword
 test_case "find_scalar_found"       "find[3 4 5;4]"           "1"
 test_case "find_scalar_notfound"    "find[3 4 5;6]"           "3"

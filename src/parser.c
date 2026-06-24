@@ -37,6 +37,7 @@ const char *token_type_to_operator(TokenType op) {
         case TOKEN_GE: return ">=";
         case TOKEN_PIPE: return "|";
         case TOKEN_AMP: return "&";
+        case TOKEN_CARET: return "^";
         case TOKEN_COLON: return ":";
         case TOKEN_NULL_OP: return "::";
         case TOKEN_AT:    return "@";
@@ -433,7 +434,7 @@ static int is_expression_operator(TokenType type) {
            type == TOKEN_COMMA || type == TOKEN_HASH || type == TOKEN_UNDERSCORE ||
            type == TOKEN_EQUAL || type == TOKEN_LESS || type == TOKEN_GREATER ||
            type == TOKEN_LE || type == TOKEN_GE ||
-           type == TOKEN_PIPE || type == TOKEN_AMP ||
+            type == TOKEN_PIPE || type == TOKEN_AMP || type == TOKEN_CARET ||
            type == TOKEN_COLON || type == TOKEN_AT || type == TOKEN_DOT ||
            type == TOKEN_DOT_DOT || type == TOKEN_DOT_DOT_EQ ||
            type == TOKEN_DOLLAR ||

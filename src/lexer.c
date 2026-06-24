@@ -436,6 +436,7 @@ Token* lexer_next_token(Lexer *lexer) {
         }
         case '|': return token_new(TOKEN_PIPE, "|", false, '\0', start_pos);
         case '&': return token_new(TOKEN_AMP, "&", false, '\0', start_pos);
+        case '^': return token_new(TOKEN_CARET, "^", false, '\0', start_pos);
         case ':': {
             if (lexer->input[lexer->pos] == ':') {
                 lexer->pos++;

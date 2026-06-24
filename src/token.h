@@ -31,6 +31,7 @@ typedef enum {
     TOKEN_GE,
     TOKEN_PIPE,
     TOKEN_AMP,
+    TOKEN_CARET,
     TOKEN_COLON,
     TOKEN_NULL_OP,
     TOKEN_SEMICOLON,

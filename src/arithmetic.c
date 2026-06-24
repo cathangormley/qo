@@ -1092,3 +1092,84 @@ Qo eval_power(Qo left, Qo right) {
     return execute_float_scalar_binop(left, right, TOKEN_STAR_STAR);
 }
 
+/* ── ^ fill operator ──────────────────────────────────────────────────── */
+
+static int scalar_is_typed_null(Qo v) {
+    switch (qo_type(v)) {
+        case QO_SHORT:    return qo_short(v) == QO_SHORT_NULL;
+        case QO_INT:      return qo_int(v) == QO_INT_NULL;
+        case QO_LONG:     return qo_long(v) == QO_LONG_NULL;
+        case QO_TIMESTAMP: return qo_timestamp(v) == QO_LONG_NULL;
+        case QO_TIMESPAN: return qo_timespan(v) == QO_LONG_NULL;
+        case QO_DATE:     return qo_date(v) == QO_INT_NULL;
+        case QO_FLOAT:    return isnan(qo_float(v));
+        default:          return 0;
+    }
+}
+
+Qo eval_fill(Qo left, Qo right) {
+    uint8_t lt = qo_type(left);
+    uint8_t rt = qo_type(right);
+    int lv = is_vector_type(lt);
+    int rv = is_vector_type(rt);
+
+    if (!lv && !rv)
+        return scalar_is_typed_null(right) ? qo_clone(left) : qo_clone(right);
+
+    if (!rv) {
+        if (scalar_is_typed_null(right)) return qo_clone(left);
+        return qo_clone(right);
+    }
+
+    int64_t n = qo_count(right);
+    if (lv && qo_count(left) != n)
+        EVAL_ERROR("fill: vectors must be same length");
+
+    uint8_t sc = type_storage(rt);
+
+    if (sc == SC_PTR) {
+        Qo result = alloc_ptr_vec(rt, n);
+        for (int64_t i = 0; i < n; i++) {
+            Qo re = qo_ptr_data(right)[i];
+            if (qo_is_null(re) || (re != NULL && qo_type(re) == QO_BUILTIN
+                                   && QO_BUILTIN_ID(re) == QO_BUILTIN_NULL_OP)) {
+                Qo le = lv ? qo_ptr_data(left)[i] : left;
+                qo_ptr_data(result)[i] = qo_clone(le);
+            } else {
+                qo_ptr_data(result)[i] = qo_clone(re);
+            }
+        }
+        return result;
+    }
+
+    Qo result = alloc_same_type(rt, n);
+    for (int64_t i = 0; i < n; i++) {
+        int is_null = 0;
+        switch (sc) {
+            case SC_I64: is_null = (qo_long_data(right)[i] == QO_LONG_NULL); break;
+            case SC_I32: is_null = (qo_int_data(right)[i] == QO_INT_NULL); break;
+            case SC_I16: is_null = (qo_short_data(right)[i] == QO_SHORT_NULL); break;
+            case SC_F64: is_null = isnan(qo_float_data(right)[i]); break;
+            case SC_U8:  is_null = 0; break;
+            default:     is_null = 0; break;
+        }
+        if (is_null) {
+            if (lv) copy_vec_elem_to(result, i, left, i);
+            else {
+                switch (sc) {
+                    case SC_I64: qo_long_data(result)[i] = (int64_t)value_as_double(left); break;
+                    case SC_I32: qo_int_data(result)[i] = (int32_t)value_as_double(left); break;
+                    case SC_I16: qo_short_data(result)[i] = (int16_t)value_as_double(left); break;
+                    case SC_F64: qo_float_data(result)[i] = value_as_double(left); break;
+                    case SC_U8:  qo_bool_data(result)[i] = (uint8_t)value_as_double(left); break;
+                    default: break;
+                }
+            }
+        } else {
+            copy_vec_elem_to(result, i, right, i);
+        }
+    }
+    if (rt == QO_CHAR_VEC) qo_char_data(result)[n] = '\0';
+    return result;
+}
+
