@@ -1344,6 +1344,7 @@ static uint8_t vec_type_for_scalar(uint8_t st) {
 }
 
 static Qo make_scalar_from_int64(uint8_t tt, int64_t i) {
+    if (tt == QO_TIMESTAMP) return make_timestamp_value(i);
     if (tt == QO_TIMESPAN) return make_timespan_value(i);
     if (tt == QO_DATE) return make_date_value((int32_t)i);
     switch (type_storage(tt)) {
@@ -1432,8 +1433,23 @@ static Qo eval_cast(Qo type_sym, Qo value, Environment *env) {
         tt = char_to_cast_type(qo_char(type_sym));
     } else if (type_sym != NULL && qo_type(type_sym) == QO_CHAR_VEC && qo_count(type_sym) == 1) {
         tt = char_to_cast_type(qo_char_data(type_sym)[0]);
+    } else if (type_sym != NULL && qo_type(type_sym) == QO_SHORT) {
+        switch (qo_short(type_sym)) {
+            case -1: case 1:  tt = QO_BOOL;      break;
+            case -2: case 2:  tt = QO_BYTE;      break;
+            case -3: case 3:  tt = QO_SHORT;     break;
+            case -4: case 4:  tt = QO_INT;       break;
+            case -5: case 5:  tt = QO_LONG;      break;
+            case -6: case 6:  tt = QO_FLOAT;     break;
+            case -7: case 7:  tt = QO_CHAR;      break;
+            case -8: case 8:  tt = QO_SYMBOL;    break;
+            case -9: case 9:  tt = QO_TIMESTAMP; break;
+            case -10: case 10: tt = QO_TIMESPAN; break;
+            case -11: case 11: tt = QO_DATE;     break;
+            default: break;
+        }
     }
-    if (tt == 0) EVAL_ERROR("cast: left argument must be a type symbol or type character");
+    if (tt == 0) EVAL_ERROR("cast: left argument must be a type symbol, type character, or type short");
 
     uint8_t st = qo_type(value);
 
@@ -1487,6 +1503,7 @@ static Qo eval_cast(Qo type_sym, Qo value, Environment *env) {
         }
 
         VEC_CAST(QO_LONG_VEC,  alloc_data_vec, qo_long_data,  int64_t, vec_elem_as_int64(value, i), QO_LONG_NULL)
+        VEC_CAST(QO_TIMESTAMP_VEC, alloc_data_vec, qo_long_data, int64_t, vec_elem_as_int64(value, i), QO_LONG_NULL)
         VEC_CAST(QO_TIMESPAN_VEC, alloc_data_vec, qo_long_data, int64_t, vec_elem_as_int64(value, i), QO_LONG_NULL)
         VEC_CAST(QO_DATE_VEC,  alloc_data_vec, qo_int_data,   int32_t, (int32_t)vec_elem_as_int64(value, i), QO_INT_NULL)
         VEC_CAST(QO_INT_VEC,   alloc_data_vec, qo_int_data,   int32_t, (int32_t)vec_elem_as_int64(value, i), QO_INT_NULL)
