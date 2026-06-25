@@ -964,6 +964,11 @@ test_case "fill_vec_len_mismatch"   "1 2^ 0N 0N 0N"           "Error: fill: vect
 test_case "fill_right_assoc"        "10 20 30^ 1 0N 3"        "1 20 3"
 test_case "fill_callable"           "^[1 2 3;4 0N 6]"         "4 2 6"
 
+# Fill on dict values
+test_case_multiline "fill_dict_scalar"    '5^`a`b`c!1 2 0N'    $'`a | 1\n`b | 2\n`c | 5'
+test_case_multiline "fill_dict_vec_val"   '5^`a!enlist 0N 1 2 3'  $'`a | 5 1 2 3'
+test_case_multiline "fill_dict_no_nulls"  '99^`a`b!1 2'        $'`a | 1\n`b | 2'
+
 # Find keyword
 test_case "find_scalar_found"       "find[3 4 5;4]"           "1"
 test_case "find_scalar_notfound"    "find[3 4 5;6]"           "3"

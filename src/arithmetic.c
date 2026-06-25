@@ -1100,8 +1100,21 @@ Qo eval_fill(Qo left, Qo right) {
     int lv = is_vector_type(lt);
     int rv = is_vector_type(rt);
 
+    /* Handle dict right operand: recursively fill each value */
+    if (rt == QO_DICT) {
+        int64_t n = QO_DICT_COUNT(right);
+        Qo result = alloc_dict_block(n);
+        QO_DICT_KTYPE(result) = QO_DICT_KTYPE(right);
+        QO_DICT_VTYPE(result) = QO_DICT_VTYPE(right);
+        for (int64_t i = 0; i < n; i++) {
+            QO_DICT_KEYS(result)[i] = qo_clone(QO_DICT_KEYS(right)[i]);
+            QO_DICT_VALS(result)[i] = eval_fill(left, QO_DICT_VALS(right)[i]);
+        }
+        return result;
+    }
+
     if (!rv)
-        return scalar_is_null_val(right) ? qo_clone(left) : qo_clone(right);
+        return (qo_is_null(right) || scalar_is_null_val(right)) ? qo_clone(left) : qo_clone(right);
 
     int64_t n = qo_count(right);
     if (lv && qo_count(left) != n)
