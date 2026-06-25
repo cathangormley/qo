@@ -969,6 +969,13 @@ test_case_multiline "fill_dict_scalar"    '5^`a`b`c!1 2 0N'    $'`a | 1\n`b | 2\
 test_case_multiline "fill_dict_vec_val"   '5^`a!enlist 0N 1 2 3'  $'`a | 5 1 2 3'
 test_case_multiline "fill_dict_no_nulls"  '99^`a`b!1 2'        $'`a | 1\n`b | 2'
 
+test_case_multiline "fill_table_scalar"    '10^([]a:1 0N 3;b:0N 3 6)' \
+  $'a b\n- -\n1 10\n10 3\n3 6'
+test_case_multiline "fill_table_no_nulls"  '5^([]a:1 2 3;b:4 5 6)' \
+  $'a b\n- -\n1 4\n2 5\n3 6'
+test_case_multiline "fill_table_vec_fill"  '10 20 30^([]a:1 0N 3;b:0N 3 6)' \
+  $'a b\n- -\n1 10\n20 3\n3 6'
+
 # Find keyword
 test_case "find_scalar_found"       "find[3 4 5;4]"           "1"
 test_case "find_scalar_notfound"    "find[3 4 5;6]"           "3"

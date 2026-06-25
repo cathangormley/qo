@@ -1100,6 +1100,15 @@ Qo eval_fill(Qo left, Qo right) {
     int lv = is_vector_type(lt);
     int rv = is_vector_type(rt);
 
+    /* Handle table right operand: extract dict, fill, re-wrap */
+    if (rt == QO_TABLE) {
+        Qo filled_dict = eval_fill(left, QO_TABLE_DICT(right));
+        Qo result = alloc_table_block();
+        QO_SET_COUNT(result, QO_TABLE_ROWS(right));
+        QO_TABLE_DICT(result) = filled_dict;
+        return result;
+    }
+
     /* Handle dict right operand: recursively fill each value */
     if (rt == QO_DICT) {
         int64_t n = QO_DICT_COUNT(right);
