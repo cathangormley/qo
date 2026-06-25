@@ -91,3 +91,16 @@ Qo eval_divide(Qo left, Qo right);
 Qo eval_power(Qo left, Qo right);
 const char *token_type_to_operator(TokenType op);
 Qo parse_source_to_value(const char *input);
+
+static inline int scalar_is_null_val(Qo v) {
+    switch (qo_type(v)) {
+        case QO_SHORT:     return qo_short(v) == QO_SHORT_NULL;
+        case QO_INT:       return qo_int(v) == QO_INT_NULL;
+        case QO_LONG:      return qo_long(v) == QO_LONG_NULL;
+        case QO_TIMESTAMP: return qo_timestamp(v) == QO_LONG_NULL;
+        case QO_TIMESPAN:  return qo_timespan(v) == QO_LONG_NULL;
+        case QO_DATE:      return qo_date(v) == QO_INT_NULL;
+        case QO_FLOAT:     return isnan(qo_float(v));
+        default:           return 0;
+    }
+}

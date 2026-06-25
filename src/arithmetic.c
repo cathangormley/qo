@@ -1094,32 +1094,14 @@ Qo eval_power(Qo left, Qo right) {
 
 /* ── ^ fill operator ──────────────────────────────────────────────────── */
 
-static int scalar_is_typed_null(Qo v) {
-    switch (qo_type(v)) {
-        case QO_SHORT:    return qo_short(v) == QO_SHORT_NULL;
-        case QO_INT:      return qo_int(v) == QO_INT_NULL;
-        case QO_LONG:     return qo_long(v) == QO_LONG_NULL;
-        case QO_TIMESTAMP: return qo_timestamp(v) == QO_LONG_NULL;
-        case QO_TIMESPAN: return qo_timespan(v) == QO_LONG_NULL;
-        case QO_DATE:     return qo_date(v) == QO_INT_NULL;
-        case QO_FLOAT:    return isnan(qo_float(v));
-        default:          return 0;
-    }
-}
-
 Qo eval_fill(Qo left, Qo right) {
     uint8_t lt = qo_type(left);
     uint8_t rt = qo_type(right);
     int lv = is_vector_type(lt);
     int rv = is_vector_type(rt);
 
-    if (!lv && !rv)
-        return scalar_is_typed_null(right) ? qo_clone(left) : qo_clone(right);
-
-    if (!rv) {
-        if (scalar_is_typed_null(right)) return qo_clone(left);
-        return qo_clone(right);
-    }
+    if (!rv)
+        return scalar_is_null_val(right) ? qo_clone(left) : qo_clone(right);
 
     int64_t n = qo_count(right);
     if (lv && qo_count(left) != n)
@@ -1131,8 +1113,7 @@ Qo eval_fill(Qo left, Qo right) {
         Qo result = alloc_ptr_vec(rt, n);
         for (int64_t i = 0; i < n; i++) {
             Qo re = qo_ptr_data(right)[i];
-            if (qo_is_null(re) || (re != NULL && qo_type(re) == QO_BUILTIN
-                                   && QO_BUILTIN_ID(re) == QO_BUILTIN_NULL_OP)) {
+            if (qo_is_null(re)) {
                 Qo le = lv ? qo_ptr_data(left)[i] : left;
                 qo_ptr_data(result)[i] = qo_clone(le);
             } else {

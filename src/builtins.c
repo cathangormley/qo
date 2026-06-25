@@ -1281,9 +1281,11 @@ static Qo null_for_vector_type(uint8_t vec_type) {
         case SC_I16: return make_short_value(QO_SHORT_NULL);
         case SC_F64: return make_float_value(QO_FLOAT_NULL);
         case SC_U8:
-            if (vec_type == QO_SYM_VEC) return make_symbol_value("");
+            if (vec_type == QO_BYTE_VEC) return make_byte_value(0);
+            if (vec_type == QO_CHAR_VEC) return make_char_value(' ');
             return make_bool_value(0);
         case SC_PTR:
+            if (vec_type == QO_SYM_VEC) return make_symbol_value("");
             if (vec_type == QO_LIST) return alloc_ptr_vec(QO_LIST, 0);
             return NULL;
         default:     return NULL;
@@ -1380,19 +1382,6 @@ static uint8_t char_to_cast_type(char c) {
         case 'b': return QO_BOOL;
         case 'd': return QO_DATE;
         default:  return 0;
-    }
-}
-
-static int scalar_is_null_val(Qo v) {
-    switch (qo_type(v)) {
-        case QO_SHORT:     return qo_short(v) == QO_SHORT_NULL;
-        case QO_INT:       return qo_int(v) == QO_INT_NULL;
-        case QO_LONG:      return qo_long(v) == QO_LONG_NULL;
-        case QO_TIMESTAMP: return qo_timestamp(v) == QO_LONG_NULL;
-        case QO_TIMESPAN:  return qo_timespan(v) == QO_LONG_NULL;
-        case QO_DATE:      return qo_date(v) == QO_INT_NULL;
-        case QO_FLOAT:     return isnan(qo_float(v));
-        default:           return 0;
     }
 }
 
