@@ -1307,6 +1307,14 @@ test_case "func_literal_bad_body"         "{~}"     "Error: Failed to parse expr
 test_case "func_literal_empty_body"       "{;}"     "Error: Failed to parse expression"
 test_case "unclosed_string"               '"abc'    "Error: Failed to parse expression"
 
+# ── Comment tests ────────────────────────────────────────────────────────
+test_case "comment_line_alone"           "// nothing"          "()"
+test_case "comment_line_after_expr"      "1+2 // trailing"     "3"
+test_case "comment_line_before_expr"     "// skip me\n 1+2"    "3"
+test_case "comment_block_inline"         "1+ /* inside */ 2"   "3"
+test_case "comment_block_multiline"      "1 /* mid\n dle */ + 2"  "1"
+test_case "comment_backtick_before"      "\`a // not comment"  "\`a"
+
 # ── Table literal tests ──────────────────────────────────────────────
 test_case_multiline "table_simple" "([a:1 2 3] b:4 5 6)" $'a b\n- -\n1 4\n2 5\n3 6'
 test_case_multiline "table_single_col" "([a:10 20 30])" $'a\n-\n10\n20\n30'

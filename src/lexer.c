@@ -54,10 +54,35 @@ static Token* token_new(TokenType type, char *lexeme, bool is_float, char type_s
 }
 
 Token* lexer_next_token(Lexer *lexer) {
-    // Skip whitespace and newlines
-    while (lexer->input[lexer->pos] == ' ' || lexer->input[lexer->pos] == '\n' ||
-           lexer->input[lexer->pos] == '\r' || lexer->input[lexer->pos] == '\t')
-        lexer->pos++;
+    while (1) {
+        /* Skip whitespace and newlines */
+        while (lexer->input[lexer->pos] == ' ' || lexer->input[lexer->pos] == '\n' ||
+               lexer->input[lexer->pos] == '\r' || lexer->input[lexer->pos] == '\t')
+            lexer->pos++;
+
+        /* Skip // line comments */
+        if (lexer->input[lexer->pos] == '/' && lexer->input[lexer->pos + 1] == '/') {
+            lexer->pos += 2;
+            while (lexer->input[lexer->pos] != '\0' && lexer->input[lexer->pos] != '\n')
+                lexer->pos++;
+            continue;
+        }
+
+        /* Skip block comments (slash-star ... star-slash) */
+        if (lexer->input[lexer->pos] == '/' && lexer->input[lexer->pos + 1] == '*') {
+            lexer->pos += 2;
+            while (lexer->input[lexer->pos] != '\0') {
+                if (lexer->input[lexer->pos] == '*' && lexer->input[lexer->pos + 1] == '/') {
+                    lexer->pos += 2;
+                    break;
+                }
+                lexer->pos++;
+            }
+            continue;
+        }
+
+        break;  /* not a comment — proceed to tokenize */
+    }
 
     int start_pos = lexer->pos;
     if (lexer->input[lexer->pos] == '\0')
