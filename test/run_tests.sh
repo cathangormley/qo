@@ -976,6 +976,13 @@ test_case_multiline "fill_table_no_nulls"  '5^([]a:1 2 3;b:4 5 6)' \
 test_case_multiline "fill_table_vec_fill"  '10 20 30^([]a:1 0N 3;b:0N 3 6)' \
   $'a b\n- -\n1 10\n20 3\n3 6'
 
+# Fill type validation (reject non-fillable operands)
+test_case "fill_func_left_null_right"   '{}^0N'               "Error: fill: left operand is not a fillable type"
+test_case "fill_func_left_null"         '{x}^1 2 0N'          "Error: fill: left operand is not a fillable type"
+test_case "fill_valid_left_func_right"  '1^{x+1}'             "Error: fill: right operand is not a fillable type"
+test_case "fill_builtin_left_null"      'sum^0N'              "Error: fill: left operand is not a fillable type"
+test_case "fill_null_left_builtin"      '::^sum'              "Error: fill: right operand is not a fillable type"
+
 # Find keyword
 test_case "find_scalar_found"       "find[3 4 5;4]"           "1"
 test_case "find_scalar_notfound"    "find[3 4 5;6]"           "3"

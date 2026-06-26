@@ -1122,6 +1122,16 @@ Qo eval_fill(Qo left, Qo right) {
         return result;
     }
 
+    /* Reject non-fillable types: functions, operators, builtins (except ::), etc. */
+    if (rt == QO_FUNCTION || rt == QO_PROJECTION || rt == QO_ADVERBED ||
+        rt == QO_COMPOSITION || rt == QO_OPERATOR || rt == QO_PROJECTOR || rt == QO_ADVERB ||
+        (rt == QO_BUILTIN && !qo_is_null(right)))
+        EVAL_ERROR("fill: right operand is not a fillable type");
+    if (lt == QO_FUNCTION || lt == QO_PROJECTION || lt == QO_ADVERBED ||
+        lt == QO_COMPOSITION || lt == QO_OPERATOR || lt == QO_PROJECTOR || lt == QO_ADVERB ||
+        (lt == QO_BUILTIN && !qo_is_null(left)))
+        EVAL_ERROR("fill: left operand is not a fillable type");
+
     if (!rv)
         return (qo_is_null(right) || scalar_is_null_val(right)) ? qo_clone(left) : qo_clone(right);
 
@@ -1131,20 +1141,6 @@ Qo eval_fill(Qo left, Qo right) {
 
     uint8_t sc = type_storage(rt);
 
-    if (sc == SC_PTR) {
-        Qo result = alloc_ptr_vec(rt, n);
-        for (int64_t i = 0; i < n; i++) {
-            Qo re = qo_ptr_data(right)[i];
-            if (qo_is_null(re)) {
-                Qo le = lv ? qo_ptr_data(left)[i] : left;
-                qo_ptr_data(result)[i] = qo_clone(le);
-            } else {
-                qo_ptr_data(result)[i] = qo_clone(re);
-            }
-        }
-        return result;
-    }
-
     Qo result = alloc_same_type(rt, n);
     for (int64_t i = 0; i < n; i++) {
         int is_null = 0;
@@ -1153,6 +1149,11 @@ Qo eval_fill(Qo left, Qo right) {
             case SC_I32: is_null = (qo_int_data(right)[i] == QO_INT_NULL); break;
             case SC_I16: is_null = (qo_short_data(right)[i] == QO_SHORT_NULL); break;
             case SC_F64: is_null = isnan(qo_float_data(right)[i]); break;
+            case SC_PTR: {
+                Qo re = qo_ptr_data(right)[i];
+                is_null = qo_is_null(re) || scalar_is_null_val(re);
+                break;
+            }
             case SC_U8:  is_null = 0; break;
             default:     is_null = 0; break;
         }
@@ -1165,6 +1166,7 @@ Qo eval_fill(Qo left, Qo right) {
                     case SC_I16: qo_short_data(result)[i] = (int16_t)value_as_double(left); break;
                     case SC_F64: qo_float_data(result)[i] = value_as_double(left); break;
                     case SC_U8:  qo_bool_data(result)[i] = (uint8_t)value_as_double(left); break;
+                    case SC_PTR: qo_ptr_data(result)[i] = qo_clone(left); break;
                     default: break;
                 }
             }
