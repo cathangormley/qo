@@ -751,42 +751,7 @@ static Qo eval_builtin_refcount(Qo arg, Environment *env) {
 
 static Qo eval_builtin_type(Qo arg, Environment *env) {
     (void)env;
-    switch (qo_type(arg)) {
-        case QO_LIST:         return make_short_value(0);
-        case QO_BOOL:         return make_short_value(-1);
-        case QO_BOOL_VEC:     return make_short_value(1);
-        case QO_BYTE:         return make_short_value(-2);
-        case QO_BYTE_VEC:     return make_short_value(2);
-        case QO_SHORT:        return make_short_value(-3);
-        case QO_SHORT_VEC:    return make_short_value(3);
-        case QO_INT:          return make_short_value(-4);
-        case QO_INT_VEC:      return make_short_value(4);
-        case QO_LONG:         return make_short_value(-5);
-        case QO_LONG_VEC:     return make_short_value(5);
-        case QO_FLOAT:        return make_short_value(-6);
-        case QO_FLOAT_VEC:    return make_short_value(6);
-        case QO_CHAR:         return make_short_value(-7);
-        case QO_CHAR_VEC:     return make_short_value(7);
-        case QO_SYMBOL:       return make_short_value(-8);
-        case QO_SYM_VEC:      return make_short_value(8);
-        case QO_TIMESTAMP:    return make_short_value(-9);
-        case QO_TIMESTAMP_VEC: return make_short_value(9);
-        case QO_TIMESPAN:     return make_short_value(-10);
-        case QO_TIMESPAN_VEC:  return make_short_value(10);
-        case QO_DATE:         return make_short_value(-11);
-        case QO_DATE_VEC:     return make_short_value(11);
-        case QO_DICT:         return make_short_value(-16);
-        case QO_TABLE:        return make_short_value(16);
-        case QO_FUNCTION:     return make_short_value(100);
-        case QO_BUILTIN:      return make_short_value(101);
-        case QO_OPERATOR:     return make_short_value(102);
-        case QO_ADVERB:       return make_short_value(103);
-        case QO_COMPOSITION:  return make_short_value(104);
-        case QO_PROJECTION:   return make_short_value(105);
-        case QO_ADVERBED:     return make_short_value(106);
-        case QO_PROJECTOR:    return make_short_value(107);
-        default:              return make_short_value(0);
-    }
+    return make_short_value((int8_t)qo_type(arg));
 }
 
 static Qo eval_builtin_key(Qo arg, Environment *env) {
@@ -1222,13 +1187,14 @@ static Qo eval_builtin_find(Qo haystack, Qo needles, Environment *env) {
     int64_t n = qo_count(haystack);
 
     /* Determine needle count and whether result should be scalar.
-       Iterate if it's a list or numeric vector (SHORT/INT/LONG/FLOAT).
-       Treat CHAR/BYTE/BOOL vectors and scalar atoms as a single needle. */
+       Iterate if it's a list or numeric/char vector.
+       Treat BYTE/BOOL vectors and scalar atoms as a single needle. */
     uint8_t nt = needles ? qo_type(needles) : 0;
     int64_t needle_count;
     int result_is_scalar;
     int iter_needles = (nt == QO_LIST || nt == QO_SHORT_VEC || nt == QO_INT_VEC ||
-                        nt == QO_LONG_VEC || nt == QO_FLOAT_VEC || nt == QO_SYM_VEC);
+                        nt == QO_LONG_VEC || nt == QO_FLOAT_VEC || nt == QO_SYM_VEC ||
+                        nt == QO_CHAR_VEC);
     if (needles == NULL || !iter_needles) {
         needle_count = 1;
         result_is_scalar = 1;
@@ -1272,6 +1238,49 @@ static Qo eval_builtin_find(Qo haystack, Qo needles, Environment *env) {
         return make_long_value(val);
     }
     return result;
+}
+
+static Qo eval_builtin_in(Qo needles, Qo haystack, Environment *env) {
+    (void)env;
+    uint8_t ht = haystack ? qo_type(haystack) : 0;
+
+    /* Defines which needle types are iterated element-by-element. */
+    uint8_t nt = needles ? qo_type(needles) : 0;
+    int iter_needles = (nt == QO_LIST || nt == QO_SHORT_VEC || nt == QO_INT_VEC ||
+                        nt == QO_LONG_VEC || nt == QO_FLOAT_VEC || nt == QO_SYM_VEC ||
+                        nt == QO_CHAR_VEC);
+    int has_needle_vec = (needles != NULL && iter_needles);
+
+    /* Scalar or null haystack: compare each needle with value_equals directly. */
+    if (!ht || !is_vector_type(ht)) {
+        if (!has_needle_vec)
+            return make_bool_value((uint8_t)value_equals(haystack, needles));
+        int64_t nc = qo_count(needles);
+        Qo r = alloc_data_vec(QO_BOOL_VEC, nc);
+        for (int64_t i = 0; i < nc; i++) {
+            Qo n = dict_elem_copy(needles, i);
+            qo_bool_data(r)[i] = (uint8_t)value_equals(haystack, n);
+            qo_release(n);
+        }
+        return r;
+    }
+
+    /* Delegate to find and convert indices < count to booleans. */
+    Qo indices = eval_builtin_find(haystack, needles, env);
+    int64_t n = qo_count(haystack);
+
+    if (qo_type(indices) == QO_LONG) {
+        int64_t val = qo_long(indices);
+        qo_release(indices);
+        return make_bool_value((uint8_t)(val < n));
+    }
+
+    int64_t nc = qo_count(indices);
+    Qo r = alloc_data_vec(QO_BOOL_VEC, nc);
+    for (int64_t i = 0; i < nc; i++)
+        qo_bool_data(r)[i] = (uint8_t)(qo_long_data(indices)[i] < n);
+    qo_release(indices);
+    return r;
 }
 
 static Qo null_for_vector_type(uint8_t vec_type) {
@@ -1684,6 +1693,8 @@ static Qo eval_apply_keyword(Qo head, Qo *arg_values, int arg_count, Environment
                 if (is_vector_type(qo_type(arg_values[0])))
                     return eval_builtin_find(arg_values[0], arg_values[1], env);
                 return eval_random(arg_values[0], arg_values[1], env);
+            case TOKEN_IN:
+                return eval_builtin_in(arg_values[0], arg_values[1], env);
             case TOKEN_AT:
                 return eval_apply_value(arg_values[0], &arg_values[1], 1, env);
             case TOKEN_DOT: {

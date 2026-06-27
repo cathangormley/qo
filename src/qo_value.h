@@ -31,40 +31,40 @@ typedef struct QoObject {
 
 typedef QoObject *Qo;
 
-/* ── Type bytes ─────────────────────────────────────────────────────────── */
-#define QO_SHORT       0x01
-#define QO_INT         0x02
-#define QO_LONG        0x03
-#define QO_FLOAT       0x04
-#define QO_CHAR        0x05
-#define QO_BOOL        0x06
-#define QO_SYMBOL      0x07
-#define QO_OPERATOR    0x08
-#define QO_PROJECTOR   0x09
-#define QO_BUILTIN     0x0B
-#define QO_BYTE        0x0A
-#define QO_TIMESTAMP   0x0C
-#define QO_TIMESPAN   0x0D
-#define QO_DATE        0x0E
-#define QO_SHORT_VEC   0x11
-#define QO_INT_VEC     0x12
-#define QO_LONG_VEC    0x13
-#define QO_FLOAT_VEC   0x14
-#define QO_CHAR_VEC    0x15
-#define QO_BOOL_VEC    0x16
-#define QO_SYM_VEC     0x17
-#define QO_BYTE_VEC    0x18
-#define QO_TIMESTAMP_VEC 0x19
-#define QO_TIMESPAN_VEC  0x1A
-#define QO_DATE_VEC     0x1B
-#define QO_LIST        0x20
-#define QO_DICT        0x21
-#define QO_FUNCTION    0x22
-#define QO_PROJECTION  0x23
-#define QO_ADVERBED    0x24
-#define QO_ADVERB      0x25
-#define QO_TABLE       0x26
-#define QO_COMPOSITION 0x27
+/* ── Type bytes (match type short codes so type_tag IS the type code) ──── */
+#define QO_LIST        0x00     /*  0h */
+#define QO_BOOL        0xFFu    /* -1h */
+#define QO_BYTE        0xFEu    /* -2h */
+#define QO_SHORT       0xFDu    /* -3h */
+#define QO_INT         0xFCu    /* -4h */
+#define QO_LONG        0xFBu    /* -5h */
+#define QO_FLOAT       0xFAu    /* -6h */
+#define QO_CHAR        0xF9u    /* -7h */
+#define QO_SYMBOL      0xF8u    /* -8h */
+#define QO_TIMESTAMP   0xF7u    /* -9h */
+#define QO_TIMESPAN    0xF6u    /* -10h */
+#define QO_DATE        0xF5u    /* -11h */
+#define QO_DICT        0xF0u    /* -16h */
+#define QO_BOOL_VEC    0x01     /*  1h */
+#define QO_BYTE_VEC    0x02     /*  2h */
+#define QO_SHORT_VEC   0x03     /*  3h */
+#define QO_INT_VEC     0x04     /*  4h */
+#define QO_LONG_VEC    0x05     /*  5h */
+#define QO_FLOAT_VEC   0x06     /*  6h */
+#define QO_CHAR_VEC    0x07     /*  7h */
+#define QO_SYM_VEC     0x08     /*  8h */
+#define QO_TIMESTAMP_VEC 0x09   /*  9h */
+#define QO_TIMESPAN_VEC  0x0A   /* 10h */
+#define QO_DATE_VEC     0x0B    /* 11h */
+#define QO_TABLE       0x10     /* 16h */
+#define QO_FUNCTION    0x64     /* 100h */
+#define QO_BUILTIN     0x65     /* 101h */
+#define QO_OPERATOR    0x66     /* 102h */
+#define QO_ADVERB      0x67     /* 103h */
+#define QO_COMPOSITION 0x68     /* 104h */
+#define QO_PROJECTION  0x69     /* 105h */
+#define QO_ADVERBED    0x6A     /* 106h */
+#define QO_PROJECTOR   0x6B     /* 107h */
 
 /* ── Sentinel values for null and infinity ──────────────────────────── */
 #define QO_SHORT_NULL    INT16_MIN

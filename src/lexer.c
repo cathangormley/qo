@@ -148,6 +148,11 @@ Token* lexer_next_token(Lexer *lexer) {
             value[len++] = lexer->input[lexer->pos++];
         }
         value[len] = '\0';
+        if (strcmp(value, "in") == 0) {
+            Token *t = token_new(TOKEN_IN, value, false, '\0', start_pos);
+            free(value);
+            return t;
+        }
         Token *t = token_new(TOKEN_IDENTIFIER, value, false, '\0', start_pos);
         free(value);
         return t;
