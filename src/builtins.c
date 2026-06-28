@@ -55,6 +55,7 @@ int builtin_name_to_id(const char *name) {
     if (strcmp(name, "compose") == 0)  return QO_BUILTIN_COMPOSE;
     if (strcmp(name, "::") == 0)       return QO_BUILTIN_NULL_OP;
     if (strcmp(name, "get") == 0)      return QO_BUILTIN_GET;
+    if (strcmp(name, "text") == 0)      return QO_BUILTIN_TEXT;
     return -1;
 }
 
@@ -98,6 +99,7 @@ const char *builtin_id_to_name(uint8_t id) {
         case QO_BUILTIN_COMPOSE:  return "compose";
         case QO_BUILTIN_NULL_OP:  return "::";
         case QO_BUILTIN_GET:      return "get";
+        case QO_BUILTIN_TEXT:     return "text";
         default:                  return NULL;
     }
 }
@@ -1616,6 +1618,8 @@ static Qo eval_builtin_dispatch(Qo head, Qo *arg_values, int arg_count, Environm
                 case QO_BUILTIN_NULL_OP:
                     return qo_clone(arg_values[0]);
                 case QO_BUILTIN_GET:      return eval_builtin_get(arg_values[0], env);
+                case QO_BUILTIN_TEXT:
+                    return qo_text(arg_values[0]);
                 default:
                     EVAL_ERROR_FMT("unknown builtin id %d", id);
             }

@@ -224,4 +224,5 @@ Qo qo_clone(Qo q);
 
 void qo_print(Qo q);
 void qo_print_with_limits(Qo q, int max_lines, int max_chars_per_line);
+Qo qo_text(Qo q);
 int value_equals(Qo a, Qo b);

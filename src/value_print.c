@@ -516,3 +516,29 @@ void qo_print_with_limits(Qo q, int max_lines, int max_chars_per_line) {
     qo_print_buffering = prev_buffering;
 }
 
+/* Return a QO_CHAR_VEC containing the full print representation of q. */
+Qo qo_text(Qo q) {
+    char *prev_buffer = qo_print_buffer;
+    size_t prev_len = qo_print_buffer_len;
+    size_t prev_cap = qo_print_buffer_cap;
+    int prev_buffering = qo_print_buffering;
+
+    qo_print_buffering = 1;
+    qo_print_buffer = NULL;
+    qo_print_buffer_len = 0;
+    qo_print_buffer_cap = 0;
+    qo_print_internal(q, 0);
+
+    Qo result = alloc_charlike(QO_CHAR_VEC, (int64_t)qo_print_buffer_len);
+    if (qo_print_buffer_len > 0)
+        memcpy(QO_CHAR_DATA(result), qo_print_buffer, qo_print_buffer_len);
+
+    free(qo_print_buffer);
+    qo_print_buffer = prev_buffer;
+    qo_print_buffer_len = prev_len;
+    qo_print_buffer_cap = prev_cap;
+    qo_print_buffering = prev_buffering;
+
+    return result;
+}
+

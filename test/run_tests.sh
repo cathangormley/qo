@@ -360,6 +360,19 @@ test_case_multiline "string_sym_vector" "string \`a\`b\`c" $'"a"\n"b"\n"c"'
 test_case_multiline "string_mixed_list" "string (1;2.5;\`a)" $'"1"\n"2.5"\n"a"'
 test_case "string_scalar_type" "type string 123" "7h"
 test_case "string_vector_type" "type string 11 22 33" "0h"
+
+# text
+test_case "text_scalar_long" "text 42" "\"42\""
+test_case "text_scalar_int" "text 5i" "\"5i\""
+test_case "text_scalar_short" "text 3h" "\"3h\""
+test_case "text_scalar_float" "text 3.14f" "\"3.14f\""
+test_case "text_scalar_bool" "text 1b" "\"1b\""
+test_case "text_scalar_char" "text \"x\"" "\"\"x\"\""
+test_case "text_symbol" "text \`abc" "\"\`abc\""
+test_case "text_null" "text 0N" "\"0N\""
+test_case "text_inf" "text 0W" "\"0W\""
+test_case "text_long_vector" "text 1 2 3" "\"1 2 3\""
+test_case "text_type" "type text 42" "7h"
 test_case "sum_inline_call" "sum[(1;2;3)]" "6"
 test_case "sum_scalar" "sum 5" "5"
 test_case "keyword_alias_call" "a:sum; a (5;4;3)" "12"
