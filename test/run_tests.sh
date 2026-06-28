@@ -809,8 +809,8 @@ test_case "long_null_vec_cast"          "\"j\"\$ (1,0N,3)"  "1 0N 3"
 
 # Null type
 test_case "trailing_semicolon_is_null" "2+3;" ""
-test_case "parse_empty_string_is_null" "parse[\"\"]" "()"
-test_case "type_of_empty_input" "type[parse[\"\"]]" "0h"
+test_case "parse_empty_string_is_null" "parse[\"\"]" ""
+test_case "type_of_empty_input" "type[parse[\"\"]]" "101h"
 
 # Single-element list unwrapping
 test_case "bare_builtin_print" "print" "print"
@@ -1356,7 +1356,7 @@ test_case "func_literal_empty_body"       "{;}"     "Error: Failed to parse expr
 test_case "unclosed_string"               '"abc'    "Error: Failed to parse expression"
 
 # ── Comment tests ────────────────────────────────────────────────────────
-test_case "comment_line_alone"           "// nothing"          "()"
+test_case "comment_line_alone" "// nothing" ""
 test_case "comment_line_after_expr"      "1+2 // trailing"     "3"
 test_case "comment_line_before_expr"     "// skip me\n 1+2"    "3"
 test_case "comment_block_inline"         "1+ /* inside */ 2"   "3"

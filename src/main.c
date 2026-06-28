@@ -20,7 +20,7 @@ static int eval_string(const char *input, Environment *env, int print_result) {
     
     if (!is_parse_error(tree)) {
         Qo result = eval_value(tree, env);
-        if (print_result && !evaluator_exit_requested() && !evaluator_error_requested()) {
+            if (print_result && !evaluator_exit_requested() && !evaluator_error_requested()) {
             if (result != NULL) {
                 qo_print_with_limits(result, 25, 80);
             }
@@ -98,11 +98,6 @@ static int run_repl(Environment *env) {
             size_t len = strlen(input);
             if (len > 0 && input[len - 1] == '\n') {
                 input[len - 1] = '\0';
-            }
-
-            if (strlen(input) == 0) {
-                show_prompt = 1;
-                continue;
             }
 
             eval_string(input, env, 1);

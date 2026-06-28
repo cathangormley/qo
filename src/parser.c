@@ -1386,7 +1386,7 @@ Qo parser_parse(Parser *parser) {
 
     if (count == 0) {
         free(statements);
-        return alloc_ptr_vec(QO_LIST, 0);
+        return make_null_value();
     }
 
     if (count == 1) {
