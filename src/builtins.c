@@ -1187,12 +1187,18 @@ static Qo eval_builtin_find(Qo haystack, Qo needles, Environment *env) {
     int64_t n = qo_count(haystack);
 
     /* Determine needle count and whether result should be scalar.
-       Iterate if it's a list or numeric/char vector.
-       Treat BYTE/BOOL vectors and scalar atoms as a single needle. */
+       When the haystack is a general list each element is an atomic value,
+       so only LIST needles are iterated (each element compared as a whole).
+       When the haystack is a typed vector elements are scalar atoms,
+       so typed-vector needles are iterated element-wise. */
     uint8_t nt = needles ? qo_type(needles) : 0;
     int64_t needle_count;
     int result_is_scalar;
-    int iter_needles = (nt == QO_LIST || nt == QO_SHORT_VEC || nt == QO_INT_VEC ||
+    int iter_needles;
+    if (ht == QO_LIST)
+        iter_needles = (nt == QO_LIST);
+    else
+        iter_needles = (nt == QO_LIST || nt == QO_SHORT_VEC || nt == QO_INT_VEC ||
                         nt == QO_LONG_VEC || nt == QO_FLOAT_VEC || nt == QO_SYM_VEC ||
                         nt == QO_CHAR_VEC);
     if (needles == NULL || !iter_needles) {
@@ -1244,16 +1250,14 @@ static Qo eval_builtin_in(Qo needles, Qo haystack, Environment *env) {
     (void)env;
     uint8_t ht = haystack ? qo_type(haystack) : 0;
 
-    /* Defines which needle types are iterated element-by-element. */
-    uint8_t nt = needles ? qo_type(needles) : 0;
-    int iter_needles = (nt == QO_LIST || nt == QO_SHORT_VEC || nt == QO_INT_VEC ||
-                        nt == QO_LONG_VEC || nt == QO_FLOAT_VEC || nt == QO_SYM_VEC ||
-                        nt == QO_CHAR_VEC);
-    int has_needle_vec = (needles != NULL && iter_needles);
-
-    /* Scalar or null haystack: compare each needle with value_equals directly. */
+    /* Scalar or null haystack: compare each needle with value_equals directly.
+       Use the same iteration logic as find for determining needle count. */
     if (!ht || !is_vector_type(ht)) {
-        if (!has_needle_vec)
+        uint8_t nt = needles ? qo_type(needles) : 0;
+        int iter_needles = (nt == QO_LIST || nt == QO_SHORT_VEC || nt == QO_INT_VEC ||
+                            nt == QO_LONG_VEC || nt == QO_FLOAT_VEC || nt == QO_SYM_VEC ||
+                            nt == QO_CHAR_VEC);
+        if (needles == NULL || !iter_needles)
             return make_bool_value((uint8_t)value_equals(haystack, needles));
         int64_t nc = qo_count(needles);
         Qo r = alloc_data_vec(QO_BOOL_VEC, nc);
