@@ -155,6 +155,7 @@ static inline int type_has_flag(uint8_t t, uint8_t f) { return (type_flags(t) & 
 #define QO_BUILTIN_NULL_OP     36
 #define QO_BUILTIN_GET         37
 #define QO_BUILTIN_TEXT        38
+#define QO_BUILTIN_GETENV      39
 
 static inline int qo_is_null(Qo q) {
     return q != NULL && q->type_tag == QO_BUILTIN

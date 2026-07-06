@@ -56,6 +56,7 @@ int builtin_name_to_id(const char *name) {
     if (strcmp(name, "::") == 0)       return QO_BUILTIN_NULL_OP;
     if (strcmp(name, "get") == 0)      return QO_BUILTIN_GET;
     if (strcmp(name, "text") == 0)      return QO_BUILTIN_TEXT;
+    if (strcmp(name, "getenv") == 0)    return QO_BUILTIN_GETENV;
     return -1;
 }
 
@@ -100,6 +101,7 @@ const char *builtin_id_to_name(uint8_t id) {
         case QO_BUILTIN_NULL_OP:  return "::";
         case QO_BUILTIN_GET:      return "get";
         case QO_BUILTIN_TEXT:     return "text";
+        case QO_BUILTIN_GETENV:   return "getenv";
         default:                  return NULL;
     }
 }
@@ -1524,6 +1526,33 @@ static Qo eval_cast(Qo type_sym, Qo value, Environment *env) {
 
 static Qo eval_nested_read(Qo full_sym, Environment *env);
 
+static Qo getenv_for_sym(Qo arg) {
+    const char *name = qo_symbol_name(arg);
+    const char *val = getenv(name);
+    size_t len = val ? strlen(val) : 0;
+    Qo result = alloc_charlike(QO_CHAR_VEC, (int64_t)len);
+    if (val) memcpy(qo_char_data(result), val, len);
+    return result;
+}
+
+static Qo eval_builtin_getenv(Qo arg, Environment *env) {
+    (void)env;
+    uint8_t t = qo_type(arg);
+
+    if (t == QO_SYMBOL) return getenv_for_sym(arg);
+
+    if (t == QO_SYM_VEC) {
+        int64_t n = qo_count(arg);
+        Qo result = alloc_ptr_vec(QO_LIST, n);
+        for (int64_t i = 0; i < n; i++) {
+            QO_LIST_DATA(result)[i] = getenv_for_sym(QO_LIST_DATA(arg)[i]);
+        }
+        return result;
+    }
+
+    EVAL_ERROR("getenv expects a symbol or symbol vector");
+}
+
 static Qo eval_builtin_get(Qo arg, Environment *env) {
     if (qo_type(arg) != QO_SYMBOL) EVAL_ERROR("get expects a symbol argument");
 
@@ -1618,6 +1647,7 @@ static Qo eval_builtin_dispatch(Qo head, Qo *arg_values, int arg_count, Environm
                 case QO_BUILTIN_NULL_OP:
                     return qo_clone(arg_values[0]);
                 case QO_BUILTIN_GET:      return eval_builtin_get(arg_values[0], env);
+                case QO_BUILTIN_GETENV:   return eval_builtin_getenv(arg_values[0], env);
                 case QO_BUILTIN_TEXT:
                     return qo_text(arg_values[0]);
                 default:

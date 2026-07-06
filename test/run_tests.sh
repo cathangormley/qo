@@ -1479,6 +1479,12 @@ test_case "sys_input_exists"      "type sys.input"      "100h"
 test_case "sys_input_default"     "sys.input[\"1+2\"]"   "3"
 test_case_no_exit "sys_input_override" "sys.input:{[x] x}; sys.input[\"anything\"]" "\"anything\""
 
+# ── getenv tests ───────────────────────────────────────────────────────
+test_case "getenv_missing"    "getenv \`NOEXIST" "\"\""
+test_case "getenv_symvec"     "getenv \`NOEXIST\`MISSING" "\"\""
+_QO_TEST_VAR="hello42" test_case "getenv_works" "getenv \`_QO_TEST_VAR" '"hello42"'
+_QO_TEST_A="abc" _QO_TEST_B="xyz" test_case_multiline "getenv_symvec_vals" "getenv \`_QO_TEST_A\`_QO_TEST_B" $'"abc"\n"xyz"'
+
 echo ""
 echo "Passed: $PASS, Failed: $FAIL"
 exit $FAIL
