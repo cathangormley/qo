@@ -98,9 +98,38 @@ static int run_repl(Environment *env) {
             size_t len = strlen(input);
             if (len > 0 && input[len - 1] == '\n') {
                 input[len - 1] = '\0';
+                len--;
             }
 
-            eval_string(input, env, 1);
+            if (input[0] == '\\') {
+                /* \ prefix: bypass sys.input (escape hatch) */
+                eval_string(input + 1, env, 1);
+            } else {
+                /* Route through sys.input by constructing the AST manually
+                   and calling eval_value directly. Tree form matches what
+                   the parser produces for sys[`input][user_input]:
+                   outer = [[bare "sys", [lit "input"]], raw_char_vec]
+                   sys is a bare symbol (IDENTIFIER → variable lookup),
+                   `input is wrapped in 1-elem list (SYMBOL LITERAL → literal),
+                   user_input is a raw CHAR_VEC (string literal). */
+                Qo input_val = alloc_charlike(QO_CHAR_VEC, (int64_t)len);
+                memcpy(qo_char_data(input_val), input, (size_t)len);
+                Qo sys_sym = make_symbol_value("sys");
+                Qo *input_wrap = xmalloc(1 * sizeof(Qo));
+                input_wrap[0] = make_symbol_value("input");
+                Qo input_node = qo_make_list_take(input_wrap, 1);
+                Qo *inner_el = xmalloc(2 * sizeof(Qo));
+                inner_el[0] = sys_sym;
+                inner_el[1] = input_node;
+                Qo inner = qo_make_list_take(inner_el, 2);
+                Qo *outer_el = xmalloc(2 * sizeof(Qo));
+                outer_el[0] = inner;
+                outer_el[1] = input_val;
+                Qo tree = qo_make_list_take(outer_el, 2);
+                Qo result = eval_value(tree, env);
+                qo_release(result);
+                qo_release(tree);
+            }
             evaluator_reset_error();
             show_prompt = 1;
         }
@@ -135,8 +164,8 @@ int main(int argc, char **argv) {
     /* initialize PRNG with seed 0 */
     random_init(0);
 
-    /* Set sys.argv, sys.hostname, sys.seed */
-    Qo sys_dict = alloc_dict_block(3);
+    /* Set sys.argv, sys.hostname, sys.seed, sys.input */
+    Qo sys_dict = alloc_dict_block(4);
     QO_DICT_KTYPE(sys_dict) = QO_SYMBOL;
     QO_DICT_VTYPE(sys_dict) = 0;
 
@@ -179,6 +208,19 @@ int main(int argc, char **argv) {
         QO_DICT_KEYS(sys_dict)[2] = qo_retain(seed_sym);
         QO_DICT_VALS(sys_dict)[2] = qo_retain(make_long_value((int64_t)random_current_seed()));
         qo_release(seed_sym);
+    }
+
+    /* sys.input — REPL line handler, defaults to {[x] print text eval parse x} */
+    {
+        Qo input_sym = qo_symbol_intern("input");
+        Qo default_fn = parse_source_to_value("{[x] print text eval parse x}");
+        Qo fn_val = eval_value(default_fn, env);
+        evaluator_reset_error();
+        qo_release(default_fn);
+        QO_DICT_KEYS(sys_dict)[3] = qo_retain(input_sym);
+        QO_DICT_VALS(sys_dict)[3] = qo_retain(fn_val);
+        qo_release(input_sym);
+        qo_release(fn_val);
     }
 
     {

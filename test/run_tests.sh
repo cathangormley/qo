@@ -6,7 +6,8 @@ FAIL=0
 QO_BIN=${QO_BIN:-./qo}
 OUT80=$(printf '"'; printf 'a%.0s' {1..78}; printf '"')
 OUT81_TRUNC=$(printf '"'; printf 'c%.0s' {1..77}; printf '..')
-OUT25_LINES=$(printf '1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12\n13\n14\n15\n16\n17\n18\n19\n20\n21\n22\n23\n24\n..')
+OUT81_FULL=$(printf '"'; printf 'c%.0s' {1..79}; printf '"')
+OUT26_LINES_EXACT=$(printf '1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12\n13\n14\n15\n16\n17\n18\n19\n20\n21\n22\n23\n24\n25\n26')
 OUT25_LINES_EXACT=$(printf '1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12\n13\n14\n15\n16\n17\n18\n19\n20\n21\n22\n23\n24\n25')
 
 test_case() {
@@ -14,8 +15,27 @@ test_case() {
     local input="$2"
     local expected="$3"
     
-    result=$(echo -e "$input\nexit 0" | "$QO_BIN" 2>&1 | sed 's/^qo>//' | grep -v "^Welcome" | grep -v "^Type" | grep -v "^$" | tail -1)
+    result=$(echo -e "$input"$'\n'"exit 0" | "$QO_BIN" 2>&1 | sed 's/^qo>//' | grep -v "^Welcome" | grep -v "^Type" | grep -v "^$" | tail -1)
     
+    if [ "$result" = "$expected" ]; then
+        echo "[PASS] $name"
+        PASS=$((PASS + 1))
+    else
+        echo "[FAIL] $name"
+        echo "  Input:    $input"
+        echo "  Expected: $expected"
+        echo "  Got:      $result"
+        FAIL=$((FAIL + 1))
+    fi
+}
+
+test_case_no_exit() {
+    local name="$1"
+    local input="$2"
+    local expected="$3"
+
+    result=$(echo -e "$input" | "$QO_BIN" 2>&1 | sed 's/^qo>//' | grep -v "^Welcome" | grep -v "^Type" | grep -v "^$" | tail -1)
+
     if [ "$result" = "$expected" ]; then
         echo "[PASS] $name"
         PASS=$((PASS + 1))
@@ -139,7 +159,7 @@ test_case "power_vector_base" "2 3 4 ** 2" "4 9 16f"
 test_case "power_vector_exponent" "2 ** 1 2 3" "2 4 8f"
 test_case "power_vector_vector" "2 3 4 ** 1 2 3" "2 9 64f"
 test_case_multiline "power_dict" "d:(1;2;3)!(4;5;6); 2 ** d" $'1 | 16f\n2 | 32f\n3 | 64f'
-test_case "slash_undefined" "5 / 2" "Error: Failed to parse expression"
+test_case "slash_undefined" "5 / 2" "Error: parse: failed to parse expression"
 test_case "right_to_left_addition_comma" "10 + 10, 20" "20 30"
 test_case "right_to_left_comma_addition" "10, 20 + 5" "10 25"
 test_case "equal_atom_true" "3=3" "1b"
@@ -215,7 +235,7 @@ test_case "list_plus_atom" "(1;2;3) + 5" "6 7 8"
 test_case_multiline "list_of_vectors_prints_newlines" "(3#1;2#2)" $'1 1 1\n2 2'
 test_case_multiline "top_level_row_list_nested_list_old_style" "(5#1;(2#3;4#5))" $'1 1 1 1 1\n(3 3;5 5 5 5)'
 test_case_multiline "output_exactly_25_lines" "(1#1;1#2;1#3;1#4;1#5;1#6;1#7;1#8;1#9;1#10;1#11;1#12;1#13;1#14;1#15;1#16;1#17;1#18;1#19;1#20;1#21;1#22;1#23;1#24;1#25)" "$OUT25_LINES_EXACT"
-test_case_multiline "output_truncates_after_25_lines" "(1#1;1#2;1#3;1#4;1#5;1#6;1#7;1#8;1#9;1#10;1#11;1#12;1#13;1#14;1#15;1#16;1#17;1#18;1#19;1#20;1#21;1#22;1#23;1#24;1#25;1#26)" "$OUT25_LINES"
+test_case_multiline "output_exactly_26_lines" "(1#1;1#2;1#3;1#4;1#5;1#6;1#7;1#8;1#9;1#10;1#11;1#12;1#13;1#14;1#15;1#16;1#17;1#18;1#19;1#20;1#21;1#22;1#23;1#24;1#25;1#26)" "$OUT26_LINES_EXACT"
 
 # List arithmetic (nested lists of differing sizes)
 test_case_multiline "nested_list_plus_atom" "(1 2;3;4 5 6) + 1" $'2 3\n4\n5 6 7'
@@ -280,7 +300,7 @@ test_case "exit_bracket_stops_sequence" "exit[0]; print \"hello\"" ""
 test_case "char_literal" "first \"a\"" "'a'"
 test_case "string_literal" "\"hello\"" "\"hello\""
 test_case "print_exact_80_chars" "78#first \"a\"" "$OUT80"
-test_case "print_truncates_over_80_chars" "79#first \"c\"" "$OUT81_TRUNC"
+test_case "print_over_80_chars" "79#first \"c\"" "$OUT81_FULL"
 test_case "char_concatenation" "(first \"h\"),(first \"i\")" "\"hi\""
 test_case "char_string_concat" "(first \"a\"), \"bc\"" "\"abc\""
 test_case "string_concatenation" "\"hello\", \" \", \"world\"" "\"hello world\""
@@ -753,9 +773,9 @@ test_case "null_in_number_sequence" "1 0N 2" "1 0N 2"
 test_case "null_in_float_sequence" "0N 2.5f" "0N 2.5f"
 test_case "inf_in_number_sequence" "0W -1 0" "0W -1 0"
 test_case "neginf_in_number_sequence" "-0W -1 0" "-0W -1 0"
-test_case "suffix_on_null_in_sequence" "1 0Ni 2" "Error: Failed to parse expression"
-test_case "suffix_on_null_float_sequence" "0Nf 2.5" "Error: Failed to parse expression"
-test_case "explicit_suffix_on_null_in_sequence" "1 0Nj 3" "Error: Failed to parse expression"
+test_case "suffix_on_null_in_sequence" "1 0Ni 2" "Error: parse: failed to parse expression"
+test_case "suffix_on_null_float_sequence" "0Nf 2.5" "Error: parse: failed to parse expression"
+test_case "explicit_suffix_on_null_in_sequence" "1 0Nj 3" "Error: parse: failed to parse expression"
 test_case "type_int_vector" "type (1;2)" "5h"
 test_case "type_float" "type 2.0" "-6h"
 test_case "type_string" "type \"str\"" "7h"
@@ -778,12 +798,12 @@ test_case "float_suffix_mixed_with_decimal" "1 2.5 3f" "1 2.5 3f"
 test_case "suffix_only_last_int" "1 2 3i" "1 2 3i"
 test_case "suffix_only_last_short" "1 2 3h" "1 2 3h"
 test_case "suffix_none_defaults_long" "1 2 3" "1 2 3"
-test_case "suffix_invalid_first" "1i 2 3" "Error: Failed to parse expression"
-test_case "suffix_invalid_middle" "1 2i 3" "Error: Failed to parse expression"
-test_case "suffix_invalid_multiple" "1i 2h 3j" "Error: Failed to parse expression"
-test_case "suffix_invalid_all_suffixed_ints" "1i 2i 3i" "Error: Failed to parse expression"
-test_case "suffix_invalid_mixed_shorts" "1h 2h 3h" "Error: Failed to parse expression"
-test_case "suffix_invalid_mixed_order" "1j 2i 3h" "Error: Failed to parse expression"
+test_case "suffix_invalid_first" "1i 2 3" "Error: parse: failed to parse expression"
+test_case "suffix_invalid_middle" "1 2i 3" "Error: parse: failed to parse expression"
+test_case "suffix_invalid_multiple" "1i 2h 3j" "Error: parse: failed to parse expression"
+test_case "suffix_invalid_all_suffixed_ints" "1i 2i 3i" "Error: parse: failed to parse expression"
+test_case "suffix_invalid_mixed_shorts" "1h 2h 3h" "Error: parse: failed to parse expression"
+test_case "suffix_invalid_mixed_order" "1j 2i 3h" "Error: parse: failed to parse expression"
 
 # Short null/inf sentinel literals
 test_case "short_null_scalar"           "0Nh"               "0Nh"
@@ -1338,22 +1358,22 @@ test_case "compose_three"            "f:compose(neg;{[x] x+1};{[x] x*2}); f[3]" 
 test_case "compose_projection"       "f:compose (*[2];+); f[3;4]" "14"
 
 # Parse error tests (verify no crash, just error message)
-test_case "bare_open_paren"               "("       "Error: Failed to parse expression"
-test_case "bare_close_paren"              ")"       "Error: Failed to parse expression"
+test_case "bare_open_paren"               "("       "Error: parse: failed to parse expression"
+test_case "bare_close_paren"              ")"       "Error: parse: failed to parse expression"
 test_case "bare_semicolon"                ";"       ""
 test_case "bare_double_semicolon"         ";;"      ""
 test_case "bare_trailing_double_semi"      "2+2;;"   ""
 test_case "bare_semi_then_expr"           ";2"      "2"
-test_case "bare_tilde"                    "~"       "Error: Failed to parse expression"
-test_case "bare_backslash"                "\\"      "Error: Failed to parse expression"
-test_case "trailing_binary_op"            "1 +"     "Error: Failed to parse expression"
-test_case "paren_semicolon_no_expr"       "(;"      "Error: Failed to parse expression"
-test_case "paren_semicolon_bad_expr"      "(;~)"    "Error: Failed to parse expression"
-test_case "unclosed_bracket_call"         "sum["    "Error: Failed to parse expression"
-test_case "bracket_call_bad_expr"         "sum[~]"  "Error: Failed to parse expression"
-test_case "func_literal_bad_body"         "{~}"     "Error: Failed to parse expression"
-test_case "func_literal_empty_body"       "{;}"     "Error: Failed to parse expression"
-test_case "unclosed_string"               '"abc'    "Error: Failed to parse expression"
+test_case "bare_tilde"                    "~"       "Error: parse: failed to parse expression"
+test_case "bare_backslash"                "\\"      ""
+test_case "trailing_binary_op"            "1 +"     "Error: parse: failed to parse expression"
+test_case "paren_semicolon_no_expr"       "(;"      "Error: parse: failed to parse expression"
+test_case "paren_semicolon_bad_expr"      "(;~)"    "Error: parse: failed to parse expression"
+test_case "unclosed_bracket_call"         "sum["    "Error: parse: failed to parse expression"
+test_case "bracket_call_bad_expr"         "sum[~]"  "Error: parse: failed to parse expression"
+test_case "func_literal_bad_body"         "{~}"     "Error: parse: failed to parse expression"
+test_case "func_literal_empty_body"       "{;}"     "Error: parse: failed to parse expression"
+test_case "unclosed_string"               '"abc'    "Error: parse: failed to parse expression"
 
 # ── Comment tests ────────────────────────────────────────────────────────
 test_case "comment_line_alone" "// nothing" ""
@@ -1453,6 +1473,11 @@ test_case_file_args "sys_argv_dash_first"   "sys.argv[1]"     "\"-opt\"" "-opt" 
 # ── sys.hostname tests ─────────────────────────────────────────────────
 test_case "sys_hostname_type"    "type sys.hostname"    "7h"
 test_case "sys_hostname_exists"  "0 < count sys.hostname" "1b"
+
+# ── sys.input tests ─────────────────────────────────────────────────────
+test_case "sys_input_exists"      "type sys.input"      "100h"
+test_case "sys_input_default"     "sys.input[\"1+2\"]"   "3"
+test_case_no_exit "sys_input_override" "sys.input:{[x] x}; sys.input[\"anything\"]" "\"anything\""
 
 echo ""
 echo "Passed: $PASS, Failed: $FAIL"

@@ -1081,7 +1081,7 @@ Qo eval_value(Qo tree, Environment *env);
 static Qo null_for_vector_type(uint8_t vec_type);
 
 static Qo eval_builtin_eval(Qo arg, Environment *env) {
-    return eval_value(arg, env);
+    return eval_value(arg, env_root(env));
 }
 
 static Qo eval_builtin_first(Qo arg, Environment *env) {
